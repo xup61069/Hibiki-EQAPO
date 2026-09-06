@@ -14,13 +14,13 @@
 
 此命令會驗證 repository 根目錄、solution 與 `origin`，顯示即時版本、branch、HEAD、相對 `origin/main` 的 ahead/behind、dirty files 及所有 worktree。網路失敗時要揭露 fetch 未完成，不可把本機快取的 `origin/main` 當成最新遠端。
 
-`origin` 必須指向 `xup61069/loudness-correction-apo`。若 `git rev-parse` 回到 `G:\AICODE`、remote 是 `ae-effects-db`，或 repo 根目錄不含本專案的 `EqualizerAPO.sln`，立即停止；那是錯誤的上層 repository。上層針對 After Effects 資料庫的 `AGENTS.md` 不適用於本專案。
+`origin` 必須指向 `xup61069/loudness-correction-apo`。若 `git rev-parse` 回到 `G:\AICODE`、remote 是 `ae-effects-db`，或 repo 根目錄不含本專案的 `HibikiEQAPO.sln`，立即停止；那是錯誤的上層 repository。上層針對 After Effects 資料庫的 `AGENTS.md` 不適用於本專案。
 
 工作樹若已有修改，全部先視為使用者或前一位 AI 的工作。先讀 diff、保留它們，只明確 stage 本次檔案；禁止用 `git add .`、`git add -A`、破壞性 reset 或 checkout 清理工作樹。也禁止 `git clean -fdx`／`git clean -xdf`：ignored 路徑可能含使用者自行提供的 IR、耳機校正資料與外掛，不是可任意刪除的 build cache。
 
 ## 專案定位
 
-這是 Mixomo `EqAPO64_with_VST3_support` 的非官方 Windows x64 fork，產品功能包括系統層 Equalizer APO、x64 VST2/VST3 效果器支援、兩個完全獨立的響度校正元件、Configuration Editor、Device Selector 與更新程式。`LoudnessCorrection:` 是公式版；`LoudnessCorrectionOriginal:` 是原始 Mixomo 雙棚架版，不得實作成同一元件的模式。
+Hibiki EQAPO 是 Mixomo `EqAPO64_with_VST3_support` 的非官方 Windows x64 相容 fork，產品功能包括系統層 Equalizer APO、透明 DAW 監聽用 x64 ASIO proxy、x64 VST2/VST3 效果器支援、兩個完全獨立的響度校正元件、Configuration Editor、Device Selector 與更新程式。`LoudnessCorrection:` 是公式版；`LoudnessCorrectionOriginal:` 是原始 Mixomo 雙棚架版，不得實作成同一元件的模式。
 
 不可把本專案描述成官方 Equalizer APO 發行版，也不可宣稱響度功能符合、通過、獲認證或獲背書於任何標準。對外措辭與資料授權以繁中主文件 `README.md`、英文翻譯 `README.en.md` 及 `NOTICE.md` 為準；`README_zh-TW.md` 只保留舊連結導向，不是另一份內容來源。
 
@@ -47,6 +47,7 @@ README 只描述目前功能、操作與限制，不放 `What's new`／「更新
 | 原版響度校正或舊設定遷移 | `docs/decisions/0003-separate-original-loudness-component.md` |
 | VST MIDI parameter control | `docs/decisions/0004-vst-midi-parameter-control.md` |
 | IR 卷積、動態 callback frame 或 FIR 重建 | `docs/decisions/0005-ir-convolution-runtime.md` |
+| ASIO proxy、driver 登錄、callback bridge 或 DAW 監聽 | `docs/decisions/0007-transparent-asio-proxy.md` |
 | 安全問題或支援政策 | `SECURITY.md` |
 | 第三方相依與建置來源 | `third_party/README.md` |
 | 發布／升版 | `CHANGELOG.md`、`Release checklist.txt`、release workflow；不得略過任何一步 |
@@ -58,6 +59,7 @@ README 只描述目前功能、操作與限制，不放 `What's new`／「更新
 | `filters/loudnessCorrection/` | 響度輪廓、濾波擬合、音量追蹤、係數更新與即時 DSP |
 | `Editor/guis/` | Configuration Editor 的 Qt GUI、設定遷移、校準與工作室面板 |
 | `EqualizerAPO/` | 系統 APO runtime |
+| `HibikiEQAPODriver/` | x64 ASIO proxy runtime、COM server、sample codec 與原生測試 |
 | `EqApoOutProcHost/` | 實驗性行程外 VST host |
 | `Benchmark/` | 原生 parser、DSP、交接與安全契約測試 |
 | `Setup/` | NSIS installer；產生的 `.exe`／`.sha256` 不進 Git |
@@ -72,6 +74,8 @@ README 只描述目前功能、操作與限制，不放 `What's new`／「更新
 ### 即時音訊
 
 - Audio callback 內不得配置或釋放記憶體、等待或取得可能阻塞的鎖、寫 log、呼叫系統 API，或執行不可預測的 I/O。
+- ASIO proxy 必須把 DAW output 指向 proxy 自有雙 buffer，input 才可原樣指向 vendor buffer。每次序列化的 vendor callback 進入時，只把已完成的「上一個 host block」stage 複製到 vendor 目前 half（缺漏時清零）並在 commit 後呼叫 vendor `outputReady()`，再把目前 half 交給 host；host 的 `outputReady()` 只代表該 host block 已填完，絕不可 1:1 轉送給 vendor。`directProcess=true` 可在 host callback 返回後完成 DSP 與 private stage；`directProcess=false` 通常等 host worker 呼叫 `outputReady()` 才做相同工作。若 host 明確忽略建議、在 `ASIOFalse` callback 內同步完成並呼叫 `outputReady()`，可在同一 stack 執行已預備且 callback-safe 的 DSP 以保留相容性，但仍只能讀 host buffer、寫 private stage，絕不碰 vendor buffer。啟動前的 host half-1 pre-roll 也必須先 DSP/stage，vendor 兩個 half 先清零，並向 DAW 回報固定增加一個 buffer block 的 output latency。queue overrun、沒有 pending token 的 completion、host 例外、stage deadline miss 或 DSP claim 競爭等可觀測錯序一律進入 terminal fail-safe；只有仍能證明目前 vendor half 可寫時才清成 silence，ownership 不可證時必須 no-touch，不得猜測或碰錯 buffer。Host 必須對每個非同步 block 恰好一次、依 FIFO 呼叫 completion；因 `outputReady()` 沒有 index/generation，舊 duplicate 若落在下一個有效 token 視窗就無法辨識，明確不受支援。Callback dispatcher 只能有一個 active owner，並只支援 vendor 序列化 callback；登錄、COM 啟用、設定載入、sample-type 檢查、scratch 配置與 teardown 全部留在非即時路徑。DSD 與無明確 speaker mapping 的多聲道不得靜默當作 PCM stereo 處理。
+- 第一版 ASIO proxy 對 host 只宣告 vendor 前一或兩個 output channels，且 `createBuffers` 必須用相同範圍驗證，不能宣告完整埠數後再拒絕。若失敗 start 或成功 stop 後仍有 `directProcess=false` producer，該 prepared allocation 永久不可重用；dispose 必須 pin 完整 host-visible arena、instance 與 module 到 process 結束，要求重開 DAW，不能為了回收而形成 use-after-free。Vendor `outputReady()` 只是一個 optional hint，失敗只能停用提示並正確回報音訊仍繼續。
 - WinMM MIDI callback 也只可寫入預配置的固定容量 queue；同一行程內每個實體裝置只能由固定容量 broker 開啟一次，裝置列舉、開關、重連、字串、設定編解碼與 fan-out 訂閱管理都必須留在非即時執行緒。VST audio callback 每個 block 只可消費有界數量的 parameter change；VST3 `IParameterChanges` 的 queue 與 point storage 必須在開始處理前配置／預熱。
 - IR／GraphicEQ 卷積 callback 遇到實際 frame count 與目前 bank 不符時，只能發布 lock-free 尺寸請求並複製乾聲；不得仿照舊上游修正在 callback 重新讀檔、配置、建 FFTW plan 或初始化 HybridConv。IR cache、固定尺寸 bank、每聲道最多 4,096 個 HybridConv partition、pending／retired 生命週期與 10 ms 乾濕淡入依 ADR-0005；超過 partition 上限只能 fail safe 保持乾聲。
 - 昂貴的輪廓擬合、端點查詢、峰值搜尋與係數準備必須在非即時路徑完成；callback 只消費已發布且生命週期安全的狀態。
@@ -101,6 +105,7 @@ README 只描述目前功能、操作與限制，不放 `What's new`／「更新
 ### Installer、資料與供應鏈
 
 - Installer 會使用既有 Equalizer APO 路徑與登錄位置；升級、rollback、uninstall 只在可拋棄的 Windows 測試環境驗證。
+- ASIO proxy 只能登錄自己的固定 CLSID 與 `Software\ASIO\Hibiki EQAPO`，不得改寫原廠 driver 的 CLSID、`InprocServer32` 或檔案。Enumeration key 要在 target 與 COM server 都已成功後最後發佈；升級、rollback 與 uninstall 都必須驗證 ownership 並用耐中斷 journal。
 - 不得刪除或覆寫使用者的設定、IR、耳機校正資料或其他非本產品擁有的檔案。
 - 不得提交 credentials、installer、dump、proprietary plug-in、未確認可再散布的聲學資料或第三方資料集。
 - `scripts/test-public-history.ps1` 會掃描整段可達 Git 歷史；禁入資料即使後來刪除，仍會污染公開歷史。

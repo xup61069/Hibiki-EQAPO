@@ -10,9 +10,13 @@
         <translation>Info</translation>
     </message>
     <message>
-        <location line="-324"/>
         <source>A registry value that is required for the operation of Equalizer APO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
-        <translation>A registry value that is required for the operation of Equalizer APO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</translation>
+        <translation type="vanished">A registry value that is required for the operation of Equalizer APO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</translation>
+    </message>
+    <message>
+        <location line="-324"/>
+        <source>A registry value that is required for the operation of Hibiki EQAPO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
+        <translation>A registry value that is required for the operation of Hibiki EQAPO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</translation>
     </message>
     <message>
         <location line="+15"/>
@@ -111,8 +115,12 @@
     </message>
     <message>
         <location line="+2"/>
+        <source>Select at least one device to enable Hibiki EQAPO.</source>
+        <translation>Select at least one device to enable Hibiki EQAPO.</translation>
+    </message>
+    <message>
         <source>Select at least one device to enable Equalizer APO.</source>
-        <translation>Select at least one device to enable Equalizer APO.</translation>
+        <translation type="vanished">Select at least one device to enable Equalizer APO.</translation>
     </message>
     <message>
         <location line="+12"/>
@@ -189,9 +197,13 @@
 <context>
     <name>DeviceSelectorClass</name>
     <message>
-        <location filename="../DeviceSelector.ui" line="+46"/>
         <source>Please select the devices for which Equalizer APO is to be installed:</source>
-        <translation>Select the devices on which Equalizer APO should be installed:</translation>
+        <translation type="vanished">Select the devices on which Equalizer APO should be installed:</translation>
+    </message>
+    <message>
+        <location filename="../DeviceSelector.ui" line="+46"/>
+        <source>Please select the devices for which Hibiki EQAPO is to be installed:</source>
+        <translation>Select the devices on which Hibiki EQAPO should be installed:</translation>
     </message>
     <message>
         <location line="+27"/>
@@ -401,13 +413,21 @@ CAUTION: Some sound card drivers may produce unwanted sounds when this option is
     </message>
     <message>
         <location line="-50"/>
-        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
-        <translation>Equalizer APO works, but the original APO could not be initialized. Try clearing &quot;Use original APO&quot; in the troubleshooting options.</translation>
+        <source>Hibiki EQAPO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation>Hibiki EQAPO works, but the original APO could not be initialized. Try clearing &quot;Use original APO&quot; in the troubleshooting options.</translation>
     </message>
     <message>
         <location line="+3"/>
+        <source>Hibiki EQAPO did not respond on this processing stage.</source>
+        <translation>Hibiki EQAPO did not respond at this processing stage.</translation>
+    </message>
+    <message>
+        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation type="vanished">Equalizer APO works, but the original APO could not be initialized. Try clearing &quot;Use original APO&quot; in the troubleshooting options.</translation>
+    </message>
+    <message>
         <source>Equalizer APO did not respond on this processing stage.</source>
-        <translation>Equalizer APO did not respond at this processing stage.</translation>
+        <translation type="vanished">Equalizer APO did not respond at this processing stage.</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -424,6 +444,10 @@ CAUTION: Some sound card drivers may produce unwanted sounds when this option is
     <name>DeviceTestDialogClass</name>
     <message>
         <location filename="../DeviceTestDialog.ui" line="+7"/>
+        <source>Hibiki EQAPO — Testing APO installation on devices...</source>
+        <translation>Hibiki EQAPO — Testing APO installation on devices...</translation>
+    </message>
+    <message>
         <location line="+13"/>
         <source>Testing APO installation on devices...</source>
         <translation>Testing APO installation on devices...</translation>

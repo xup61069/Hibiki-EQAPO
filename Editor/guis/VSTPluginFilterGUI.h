@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <cstdint>
 #include <memory>
 #include <QElapsedTimer>
 #include <QString>
@@ -43,7 +44,10 @@ public:
 	void store(QString& command, QString& parameters) override;
 	void loadPreferences(const QVariantMap& prefs) override;
 	void storePreferences(QVariantMap& prefs) override;
-	void prepareDelete() override;
+	void restoreRuntimeState(const QVariantMap& state) override;
+	void takeRuntimeState(QVariantMap& state) override;
+	bool prepareDelete() override;
+	bool commitDelete() override;
 	void onAutomate();
 	void onSizeWindow(int w, int h);
 
@@ -65,10 +69,16 @@ private:
 		const std::wstring& serializedMidiConfig) const;
 	void initPlugin();
 	void openOutProcPanel();
-	bool signalOutProcPanel(const wchar_t* suffix);
+	bool signalOutProcPanel(const wchar_t* suffix, std::uint32_t* error = nullptr);
 	bool consumeOutProcPanelSignal(const wchar_t* suffix);
 	void closeOutProcPanel();
-	void terminateOutProcPanel();
+	bool terminateOutProcPanel(
+		bool* stateChanged = nullptr,
+		QString* failureMessage = nullptr,
+		bool* failureReported = nullptr);
+	bool ensureOutProcPanelStopped(bool synchronizeRecoveredState);
+	bool markOutProcPanelStoppedPreservingState(
+		QString* failureMessage = nullptr);
 	void releasePluginInstance();
 	void refreshVST3ClassComboBox();
 	void updatePermissionWarning();
@@ -88,9 +98,12 @@ private:
 	QString hostId;
 	bool outProcGuiRunning = false;
 	qint64 outProcGuiPid = 0;
+	std::uint64_t outProcGuiProcessCreationTime = 0;
 	QString outProcGuiConfigPath;
 	bool outProcGuiHidden = false;
+	bool outProcFinalStateCommitted = false;
 	bool autoApplyDialog = false;
+	bool outProcRuntimeStateTransferred = false;
 	QElapsedTimer lastReadTimer;
 	int vst3ClassIndex = 0;
 	bool automationDirty = false;

@@ -8,7 +8,8 @@
 !define LIBPATH "lib64"
 !define VCREDIST_URL "https://aka.ms/vs/17/release/vc_redist.x64.exe"
 !define TARGET_ARCH "x64"
+!define ENABLE_ASIO_PROXY 1
 
 !include "Setup.nsi"
 
-OutFile "EqualizerAPO-x64-${VERSION}.exe"
+OutFile "Hibiki-EQAPO-x64-${VERSION}.exe"

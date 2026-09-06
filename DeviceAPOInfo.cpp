@@ -302,7 +302,7 @@ bool DeviceAPOInfo::load(const wstring& deviceGuid, wstring defaultDeviceGuid)
 				{
 					version = RegistryHelper::readValue(childApoPath L"\\" + deviceGuid, versionValueName);
 					if (version != installVersion)
-						throw RegistryException(L"Unsupported version of APO installation detected! Please uninstall newer Equalizer APO before using this version of Device Selector.");
+						throw RegistryException(L"Unsupported version of APO installation detected! Please uninstall the newer Hibiki EQAPO version before using this version of Device Selector.");
 				}
 				else
 				{
@@ -504,7 +504,7 @@ void DeviceAPOInfo::install()
 			RegistryHelper::createKey(keyPath + L"\\FxProperties");
 		}
 
-		RegistryHelper::writeValue(keyPath + L"\\FxProperties", fxTitleValueName, L"Equalizer APO");
+		RegistryHelper::writeValue(keyPath + L"\\FxProperties", fxTitleValueName, L"Hibiki EQAPO");
 
 		for (int i = 0; i < allGuidValueNameCount; i++)
 		{

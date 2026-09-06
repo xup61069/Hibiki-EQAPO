@@ -1,17 +1,17 @@
-# Loudness Correction for Equalizer APO
+# Hibiki EQAPO
 
 [繁體中文主要說明](README.md)
 
 [![Build](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/xup61069/loudness-correction-apo)](https://github.com/xup61069/loudness-correction-apo/releases/latest)
 
-This repository is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It retains the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
+**Hibiki EQAPO** is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It retains the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
 
 Code lineage: [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) → [TheFireKahuna/equalizerAPO64](https://github.com/TheFireKahuna/equalizerAPO64) → [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) → this repository.
 
 This fork integrates Mixomo's feature-complete `exp` code line as reviewed source changes. The public history deliberately does not import `exp` as a merge parent because that branch also contains third-party datasets whose downstream redistribution terms have not been established here.
 
-The linked source repository name appears here only for attribution; it is not this project's product name. This repository is not the upstream Equalizer APO project or an official upstream build. The feature is presented only as loudness correction; no standards-conformance, certification, endorsement, affiliation, or approval claim is made.
+Hibiki EQAPO is this fork's product name; linked source names appear only for attribution. This repository is not the upstream Equalizer APO project or an official upstream build. The feature is presented only as loudness correction; no standards-conformance, certification, endorsement, affiliation, or approval claim is made.
 
 > This installer replaces an existing Equalizer APO installation in place. It uses the same default installation directory and registry locations and cannot be installed side by side with the upstream release. Back up `config` and any locally installed plug-ins before installing, upgrading, or downgrading.
 
@@ -36,7 +36,7 @@ The pass-through VU Meter reports RMS, sample peak, clipping, and ungated loudne
 
 - Windows 10 version 1809 or later, or Windows 11, on x64 hardware. The release does not include x86 or ARM64 installers. This minimum follows the bundled [Qt 6.10 Windows requirements](https://doc.qt.io/qt-6.10/supported-platforms.html).
 - Administrator rights to install the Audio Processing Object (APO) on a Windows audio device.
-- A playback or capture endpoint on which Equalizer APO can be enabled.
+- A playback or capture endpoint on which Hibiki EQAPO can be enabled.
 - The Microsoft Visual C++ 2015–2022 x64 runtime. Setup offers the Microsoft download if it is missing.
 - Optional: an SPL meter for acoustic calibration and x64 VST plug-ins for audio-effect hosting.
 
@@ -47,8 +47,8 @@ The pass-through VU Meter reports RMS, sample peak, clipping, and ungated loudne
 Download the x64 installer and its matching `.sha256` file from the same release. In PowerShell:
 
 ```powershell
-Get-FileHash .\EqualizerAPO-x64-*.exe -Algorithm SHA256
-Get-Content .\EqualizerAPO-x64-*.exe.sha256
+Get-FileHash .\Hibiki-EQAPO-x64-*.exe -Algorithm SHA256
+Get-Content .\Hibiki-EQAPO-x64-*.exe.sha256
 ```
 
 The two 64-character SHA-256 values must match exactly. The installer, bundled executables and DLLs, release tag, and checksum file are currently unsigned. A matching checksum detects corruption or a mismatch relative to that GitHub Release; it does not independently prove publisher identity.
@@ -57,7 +57,7 @@ The two 64-character SHA-256 values must match exactly. The installer, bundled e
 
 1. Back up `C:\Program Files\EqualizerAPO\config` and `C:\Program Files\EqualizerAPO\VSTPlugins` if they contain files you need.
 2. Close audio tools and run the installer as administrator. Setup may close this project's running utilities and will attempt to create a Windows restore point; installation can continue if Windows declines the restore point.
-3. In the Device Selector, enable Equalizer APO only for the playback or capture endpoints that should be processed.
+3. In the Device Selector, enable Hibiki EQAPO only for the playback or capture endpoints that should be processed.
 4. Allow setup to restart the Windows audio service. Audio may be interrupted briefly; restart Windows if setup or the Device Selector requests it.
 5. Do not force-close setup or power off the computer while files and APO registrations are being updated.
 
@@ -67,9 +67,180 @@ Setup keeps a persistent recovery journal outside the application directory whil
 
 After a successful commit, cleanup can remain deferred while Windows still has an old audio file loaded. A recovery record showing `Pending=1` with `Phase=committed` does not by itself mean installation failed; the same or a newer installer will continue the verified cleanup later. Do not delete that recovery state manually.
 
+## ASIO® monitor correction
+
+Hibiki EQAPO is compatible with ASIO® technology. The x64 installer can
+register **Hibiki EQAPO** as a separate ASIO proxy driver and lets you choose the
+underlying audio-interface vendor driver during setup. It does not replace the
+vendor CLSID or driver files.
+
+> **Experimental:** automated and fake-vendor tests pass, but the real
+> audio-interface ASIO driver and DAW validation required by
+> [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) is not complete.
+> Do not infer compatibility, guaranteed silence on failure, or guaranteed
+> exclusion from export; test only at low volume in a recoverable,
+> non-production project.
+> The proxy is not production-ready until that release gate passes; a formal
+> release must disable or exclude it while the gate remains open.
+
+After installation, select **Hibiki EQAPO** once in each DAW's Audio Device
+settings. Once the DAW saves that global preference, existing and new projects
+share the same corrected monitor path without an insert on a track, master bus,
+or individual project:
+
+```text
+DAW → Hibiki EQAPO → vendor ASIO driver → audio interface
+```
+
+The proxy processes only the output buffers sent by the DAW to the vendor
+driver and uses the existing `config.txt` and `FilterEngine`. Filters that are
+not restricted by `Device:` apply normally. To scope commands to DAW monitoring,
+use the proxy's stable device name:
+
+```text
+Device: Hibiki EQAPO
+# correction commands used only for DAW monitoring
+Device: all
+```
+
+The callback path uses a stricter safe-configuration policy. An active
+`VSTPlugin:`, `OutProcVSTPlugin:`, `OutProcGain:`, `OutProcBiquad:`, `VUMeter:`,
+or original loudness-correction command rejects the complete new configuration.
+Formula loudness correction is active only when it contains an explicit fixed
+`Volume`; it never treats a Windows endpoint level as the interface's hardware
+knob. Commands in an inactive `Device:` or `If:` scope, and commands with
+`State 0`, may remain in the file. An unsafe initial configuration leaves output
+dry. If an unsafe configuration appears during reload, the last published safe
+configuration remains active instead of applying a partial file.
+
+To prevent a `directProcess=false` DAW worker from modifying a buffer while the
+hardware may be using it for DMA, the proxy exposes its own output buffers to the
+DAW and commits each completed, corrected block during the following vendor
+callback. This adds exactly one DAW-selected ASIO buffer block. Startup emits one
+silent block before the completed sequence, and both `getLatencies` and supported
+internal-buffer queries report this staging layer. Filter-added delay and tail
+from commands such as `Delay:` and `Convolution:` are still not added to host
+compensation.
+
+The current implementation explicitly supports x64 DAWs, mono/stereo PCM, serialized,
+non-reentrant vendor callbacks, and exactly one host `outputReady()` completion
+per asynchronous block, issued in FIFO order. Version 1 exposes only the vendor
+driver's first one or two output channels as the main-monitor mono/stereo pair;
+other hardware output pairs cannot yet be selected through the proxy. It rejects
+DSD and outputs with more than two channels. A missed following-block deadline, a completion received with no
+pending token, queue overflow, or callback reentry is observable and makes the
+stream terminally fail-safe. The current vendor half is cleared only when its
+write ownership remains provable; on truly concurrent reentry the proxy does not
+touch the ambiguous buffer, so actual hardware output is vendor-defined. ASIO
+`outputReady()` contains no buffer index or generation; if a broken host delays an old duplicate
+until after the next valid token has been published, the proxy cannot distinguish
+it from that token's real completion. Such host behavior is outside the supported
+contract. Rerun setup to select another underlying driver after changing audio
+interfaces.
+
+Only one Hibiki EQAPO driver instance may have buffers prepared in a single DAW
+process. Separate DAW processes still depend on the vendor driver's multi-client
+support. If the vendor cannot complete `stop`, the proxy stops touching buffers
+whose ownership is uncertain; the vendor driver then determines the actual
+hardware output. A successful stop retry followed by start, or reopening the
+audio device in the DAW, establishes a new safe boundary. If a
+`directProcess=false` producer outlives a failed start or a successful stop, that
+prepared allocation is never reused. Disposal pins the complete arena and module
+until process exit so the old producer cannot write freed memory; the DAW must be
+fully restarted. Vendor `outputReady()` is only an optional hint: if the hardware
+driver rejects it or throws, the proxy disables the hint and audio continues.
+Hardware direct
+monitoring, onboard mixer/DSP paths, and
+the analog output do not pass through the proxy. ASIO also has no universal
+hardware volume API, so loudness correction should use a manual level that
+matches the real monitoring SPL.
+
+If a DAW's offline bounce does not send audio to ASIO hardware, it bypasses the
+proxy; the actual route still requires validation in each DAW. A real-time
+export that reaches ASIO hardware has no universal ASIO export flag, so the
+proxy cannot identify it reliably.
+
+### Advanced VST3 fallback
+
+`HibikiEQAPOMonitor.vst3` is retained only for a DAW with a documented Monitor
+FX, Control Room, or Listen Bus, or for an unusual workflow that cannot use the
+proxy. It is not the default path and must not be placed on a renderable master
+bus.
+
+After building from source, close every DAW and explicitly install this fallback
+from an elevated PowerShell:
+
+```powershell
+.\scripts\bootstrap-third-party.ps1
+.\build-local-x64.ps1 -Configuration Release
+.\scripts\manage-monitor-vst3.ps1 -Action Install -Configuration Release
+```
+
+The fallback's default location is
+`%CommonProgramFiles%\VST3\HibikiEQAPO\HibikiEQAPOMonitor.vst3`. The main
+NSIS installer does not automatically deploy or remove this external bundle.
+When it is no longer needed, close every DAW and run
+`manage-monitor-vst3.ps1 -Action Uninstall`. Before copying, the manager uses a
+read-only built-in parser to verify the fixed directory shape, every payload's
+AMD64 PE32+ format, and the module's normal and delay import tables; Visual
+Studio is not required at install time. It then records every owned file's
+SHA-256 and refuses to silently replace or delete a modified bundle or one
+containing extra files.
+
+In the DAW, place it only as the last correction plug-in in a **Monitor FX**,
+**Control Room**, or **Listen Bus** that the DAW documentation explicitly says
+is excluded from export, bounce, and freeze. Never use an ordinary track, bus,
+or renderable master insert. When `setupProcessing()` explicitly reports
+offline mode, the plug-in releases its engine and outputs dry audio. If only an
+individual block is marked offline, it copies that block dry without destroying
+the existing engine on the audio callback. A real-time export may still report
+real time, so this defensive path is not a guarantee that correction cannot be
+printed.
+
+> Export safety limit: the plug-in cannot identify every real-time export and cannot prevent a user from placing it on a renderable master bus.
+
+The wrapper presents the stable device string
+`DAW Monitor Insert Hibiki EQAPO Monitor VST3` to the configuration engine. A
+shared `config.txt` can scope manual-volume correction to this wrapper:
+
+```text
+Device: DAW Monitor Insert Hibiki EQAPO Monitor VST3
+LoudnessCorrection: Schema 1 Model FormulaLoudnessV1 Binding Single State 1 ReferenceLevel 80 ReferenceOffset 0 Attenuation 1.0 Volume -38.0
+Device: all
+```
+
+`Volume -38.0` is only an example. Set the real monitoring level and update it
+whenever the interface's hardware knob, onboard mixer/DSP, or analog gain
+changes; ASIO hardware volume cannot be inferred from a Windows endpoint.
+Commands before the first `Device:` that are not otherwise excluded also run
+inside the wrapper, while the final `Device: all` prevents later commands from
+remaining in the monitor-only scope. Never let a shared `VSTPlugin:` or
+`OutProcVSTPlugin:` command load `HibikiEQAPOMonitor.vst3` itself. The wrapper
+uses physical file identity to reject both direct paths and aliases that point
+back to itself, but the configuration should still exclude it explicitly.
+
+The wrapper runs in the DAW process. FFTW, libsndfile, and its codec graph are
+statically linked from a dedicated `x64-windows-static-md` dependency tree so
+generic codec DLL basenames cannot collide with another plug-in in the same
+host. The Release build payload contains only the module and four app-local VC
+runtime files; the manager adds its ownership manifest to the installed bundle.
+An unreadable registered `ConfigPath` or `config.txt` leaves the wrapper dry
+instead of treating buffer allocation as a ready engine. Bypass automation
+takes effect at process-block boundaries and is not sample-accurate. Dynamic
+latency and tail metadata for arbitrary `Delay:`, `Convolution:`, VST, or
+out-of-process commands is not reported to the host. Configurations containing
+`OutProcVSTPlugin:`, third-party VST effects, or large IRs still add
+callback-deadline, latency, and stability risk and need stress testing at the
+real buffer size.
+See the [Monitor VST3 guide](MonitorVST3/README.md) and
+[ADR-0006](docs/decisions/0006-monitor-vst3.md) for the architecture, limits,
+and validation gates.
+
+ASIO is a registered trademark of Steinberg Media Technologies GmbH.
+
 ## Quick start
 
-1. Open **Equalizer APO Configuration Editor** and select the playback endpoint you intend to use.
+1. Open **Hibiki EQAPO Configuration Editor** and select the playback endpoint you intend to use.
 2. Add **Advanced filters → Loudness correction**. To deliberately use Mixomo's original shelf algorithm instead, add the completely separate **Loudness correction (original)** component.
 3. Choose **Single endpoint** to follow the playback endpoint on which this APO instance is running. Choose **Global (Windows default)** only when every loudness-correction instance should deliberately share that default endpoint's master volume.
 4. Leave **Manual volume** off for automatic tracking, or enable it when Windows cannot represent the actual listening volume.
@@ -91,7 +262,7 @@ For **VB-Audio Matrix**, use `Binding All` only when the Windows default Multime
 
 ### Choose APO volume follow
 
-The loudness profile normally uses the tracked volume only to calculate tonal compensation; it does not replace Windows or hardware volume control. If a Matrix-style route reports endpoint volume without making the audio quieter, Equalizer APO can apply that same value to the complete post-correction output:
+The loudness profile normally uses the tracked volume only to calculate tonal compensation; it does not replace Windows or hardware volume control. If a Matrix-style route reports endpoint volume without making the audio quieter, Hibiki EQAPO can apply that same value to the complete post-correction output:
 
 | Mode | Final output gain | When to use it |
 |---|---|---|
@@ -110,7 +281,7 @@ The Configuration Editor, Device Selector, device-test dialog, and Update Checke
 
 ### Configuration profiles and search
 
-- The **Profile** list shows readable top-level `.txt` files in the Equalizer APO `config` directory and refreshes when that directory changes. Opening an item only opens it for editing. The audio engine still starts at `config.txt`; another profile affects audio only when `config.txt` or its `Include` chain references that file.
+- The **Profile** list shows readable top-level `.txt` files in the Hibiki EQAPO `config` directory and refreshes when that directory changes. Opening an item only opens it for editing. The audio engine still starts at `config.txt`; another profile affects audio only when `config.txt` or its `Include` chain references that file.
 - The **Profiles** menu can duplicate, rename, import, or export one `.txt` file. Import/export does not bundle files referenced through `Include`, VST plug-ins, or convolution impulses. `config.txt` cannot be renamed, and renaming another profile does not update `Include` statements in other files.
 - Search the current filter list with `Ctrl+F`; use `F3` and `Shift+F3` for the next and previous match, and `Esc` to clear the search.
 - **Link current profile to selected device** stores an editor convenience for the current Windows user. Selecting that device later opens the linked file in Configuration Editor. It does not install the APO, change routing or `Device:` commands, alter `config.txt`, or change loudness `Binding Single`/`Binding All`.
@@ -356,8 +527,8 @@ Configuration files and registry backups are preserved unless **Remove configura
 Prerequisites:
 
 - Windows x64 with PowerShell;
-- Visual Studio 2022 with **Desktop development with C++** and a Windows SDK;
-- Git, Python 3, CMake, and internet access for generated dependencies.
+- Visual Studio or Build Tools with the **MSVC v145 toolset**, **Desktop development with C++** workload, and a Windows SDK;
+- Git, **CPython 3.13.2 x64**, CMake, and internet access for generated dependencies; the hash-locked Qt extractor wheels target this exact Python ABI.
 
 The build scripts bootstrap the pinned vcpkg baseline, Qt 6.10.1, and NSIS 3.11 into ignored directories under `third_party`.
 
@@ -372,11 +543,13 @@ python -m unittest discover -s .\tests -p "test_outproc_vst_lifecycle.py" -v
 git diff --check
 ```
 
-The installer and checksum are written to `Setup\EqualizerAPO-x64-<version>.exe` and `Setup\EqualizerAPO-x64-<version>.exe.sha256`.
+The installer and checksum are written to `Setup\Hibiki-EQAPO-x64-<version>.exe` and `Setup\Hibiki-EQAPO-x64-<version>.exe.sha256`.
 
 Important source areas:
 
 - `filters/loudnessCorrection/` — formula table, response fitting, endpoint tracking, and runtime DSP;
+- `HibikiEQAPODriver/` — x64 ASIO proxy, PCM conversion, callback bridge, vendor-driver selection, and fake-vendor tests;
+- `MonitorVST3/` — advanced monitor-only VST3 fallback included in the local x64 build and installed explicitly by its ownership-aware manager, not by the main NSIS installer;
 - `filters/`, `Editor/guis/`, and `EqApoOutProcHost/` — native audio tools, filter controls, VST hosts, conversion, and calibration UI;
 - `IRs/` and `resources/HeadphoneCalibrations/` — usage notes and ignored locations for user-supplied impulse responses and compatible headphone-correction catalogs;
 - `Setup/` and `scripts/` — installer, dependency bootstrap, staging, and runtime checks;

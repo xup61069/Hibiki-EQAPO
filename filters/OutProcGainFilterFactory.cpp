@@ -9,6 +9,7 @@
 */
 
 #include "stdafx.h"
+#include <cmath>
 
 #include "helpers/LogHelper.h"
 #include "helpers/MemoryHelper.h"
@@ -28,16 +29,14 @@ vector<IFilter*> OutProcGainFilterFactory::createFilter(const wstring& configPat
 
 		double gainDb;
 		int matched = swscanf_s(value.c_str(), L" %lf dB", &gainDb);
-		if (matched == 1)
+		if (matched == 1 && std::isfinite(gainDb) &&
+			std::isfinite(std::pow(10.0, gainDb / 20.0)))
 		{
 			TraceF(L"OutProcGain: adjusting gain out-of-process by %g dB", gainDb);
 
-			void* mem = MemoryHelper::alloc(sizeof(OutProcGainFilter));
-			filter = new(mem) OutProcGainFilter(gainDb);
+			filter = constructFilter<OutProcGainFilter>(gainDb);
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

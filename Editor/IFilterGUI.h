@@ -38,7 +38,17 @@ public:
 
 	virtual void loadPreferences(const QVariantMap& prefs) {}
 	virtual void storePreferences(QVariantMap& prefs) {}
-	virtual void prepareDelete() {}
+	// Runtime state is transferred only while FilterTable rebuilds row widgets.
+	// It is intentionally separate from persisted/copied user preferences so
+	// process handles and temporary paths cannot leak into another row/session.
+	virtual void restoreRuntimeState(const QVariantMap& state) {}
+	virtual void takeRuntimeState(QVariantMap& state) {}
+	// Deletion is a two-phase operation. prepareDelete() must be side-effect
+	// free so callers can still cancel after preflight. commitDelete() runs only
+	// once the caller is committed to mutating the table; returning false from
+	// either phase vetoes that mutation.
+	virtual bool prepareDelete() { return true; }
+	virtual bool commitDelete() { return true; }
 
 signals:
 	void updateModel();

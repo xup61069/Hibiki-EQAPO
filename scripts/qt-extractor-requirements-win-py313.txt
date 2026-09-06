@@ -1,0 +1,23 @@
+# Runtime used only to extract the repository-locked Qt 7z archives.
+# The release workflow pins CPython 3.13.2 x64, so native wheel hashes are
+# intentionally platform-specific. Update this file and the workflow together.
+backports.zstd==1.7.0 \
+    --hash=sha256:8086b4a7443bb2863f7ef8edb317b715d5f3ccec6c5512619bd23d57661ba1b7
+brotli==1.2.0 \
+    --hash=sha256:b63daa43d82f0cdabf98dee215b375b4058cce72871fd07934f179885aad16e8
+inflate64==1.0.4 \
+    --hash=sha256:3983f53b590ff7d0ba243f664ce852aca882482f30f7a8eab33e10d769336d0c
+multivolumefile==0.2.3 \
+    --hash=sha256:237f4353b60af1703087cf7725755a1f6fcaeeea48421e1896940cd1c920d678
+psutil==7.2.2 \
+    --hash=sha256:eb7e81434c8d223ec4a219b5fc1c47d0417b12be7ea866e24fb5ad6e84b3d988
+py7zr==1.1.3 \
+    --hash=sha256:17934a35089e026dec6c72ee275d9b841e646881ef822d618e805c3006661d9a
+pybcj==1.0.8 \
+    --hash=sha256:e47d9c655d276200e5d08f7b550097dacc826364b44931f0fbdc0da2e4bdf448
+pycryptodomex==3.23.0 \
+    --hash=sha256:52e5ca58c3a0b0bd5e100a9fbc8015059b05cffc6c66ce9d98b4b45e023443b9
+pyppmd==1.3.1 \
+    --hash=sha256:df8d84ab72381058a964ba66e5e81ed52dbd0b5ad734a5ef8353452983506098
+texttable==1.7.0 \
+    --hash=sha256:72227d592c82b3d7f672731ae73e4d1f88cd8e2ef5b075a7a7f01a23a3743917

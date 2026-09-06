@@ -26,8 +26,8 @@
     </message>
     <message>
         <location filename="../main.cpp" line="332"/>
-        <source>The installed Loudness Correction for Equalizer APO version %1 is up to date.</source>
-        <translation>已安装的 Equalizer APO 响度校正 %1 是最新版本。</translation>
+        <source>The installed Hibiki EQAPO version %1 is up to date.</source>
+        <translation>已安装的 Hibiki EQAPO %1 是最新版本。</translation>
     </message>
     <message>
         <source>Software update</source>

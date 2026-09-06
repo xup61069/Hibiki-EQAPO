@@ -36,44 +36,63 @@ bool LogHelper::useConsoleColors = false;
 
 void LogHelper::log(const char* file, int line, const void* caller, bool trace, const wchar_t* format, ...)
 {
-	if (!initialized)
+	wstring initializationError;
+	wstring activeLogPath;
+	bool activeEnableTrace = false;
+	FILE* activePresetFP = NULL;
+	bool activeCompact = false;
+	bool activeUseConsoleColors = false;
 	{
-		// Do not try to initialize again, even in case of error
-		initialized = true;
-
-		wchar_t temp[255];
-		GetTempPathW(sizeof(temp) / sizeof(wchar_t), temp);
-
-		logPath = temp;
-		logPath += L"EqualizerAPO.log";
-
-		try
+		std::lock_guard<std::mutex> stateLock(stateMutex());
+		if (!initialized)
 		{
-			if (RegistryHelper::readValue(APP_REGPATH, L"EnableTrace") != L"false")
-				enableTrace = true;
+			// Do not try to initialize again, even in case of error.
+			initialized = true;
+
+			wchar_t temp[255] = {};
+			GetTempPathW(sizeof(temp) / sizeof(wchar_t), temp);
+
+			logPath = temp;
+			logPath += L"EqualizerAPO.log";
+
+			try
+			{
+				if (RegistryHelper::readValue(APP_REGPATH, L"EnableTrace") != L"false")
+					enableTrace = true;
+			}
+			catch (const RegistryException& e)
+			{
+				initializationError = e.getMessage();
+			}
 		}
-		catch (RegistryException e)
-		{
-			LogFStatic(L"%s", e.getMessage());
-		}
+
+		activeLogPath = logPath;
+		activeEnableTrace = enableTrace;
+		activePresetFP = presetFP;
+		activeCompact = compact;
+		activeUseConsoleColors = useConsoleColors;
 	}
 
-	if (trace && !enableTrace)
+	if (!initializationError.empty())
+		LogHelper::log(__FILE__, __LINE__, NULL, false, L"%s", initializationError.c_str());
+
+	if (trace && !activeEnableTrace)
 		return;
 
+	std::lock_guard<std::mutex> outputLock(outputMutex());
 	FILE* fp = NULL;
-	if (presetFP == NULL)
+	if (activePresetFP == NULL)
 	{
-		errno_t err = _wfopen_s(&fp, logPath.c_str(), L"at");
+		errno_t err = _wfopen_s(&fp, activeLogPath.c_str(), L"at");
 		if (err != 0 || fp == NULL)
 			return;
 	}
 	else
 	{
-		fp = presetFP;
+		fp = activePresetFP;
 	}
 
-	if (useConsoleColors)
+	if (activeUseConsoleColors)
 	{
 		HANDLE con = GetStdHandle(STD_OUTPUT_HANDLE);
 		if (trace)
@@ -82,7 +101,7 @@ void LogHelper::log(const char* file, int line, const void* caller, bool trace, 
 			SetConsoleTextAttribute(con, 12);// Set console color to red
 	}
 
-	if (!compact)
+	if (!activeCompact)
 	{
 		SYSTEMTIME ___st;
 		GetLocalTime(&___st);
@@ -101,13 +120,13 @@ void LogHelper::log(const char* file, int line, const void* caller, bool trace, 
 
 	fwprintf(fp, L"\n");
 
-	if (useConsoleColors)
+	if (activeUseConsoleColors)
 	{
 		HANDLE con = GetStdHandle(STD_OUTPUT_HANDLE);
 		SetConsoleTextAttribute(con, 7); // Set console color to light grey (default)
 	}
 
-	if (presetFP == NULL)
+	if (activePresetFP == NULL)
 		fclose(fp);
 	else
 		fflush(fp);
@@ -115,17 +134,34 @@ void LogHelper::log(const char* file, int line, const void* caller, bool trace, 
 
 void LogHelper::reset()
 {
+	std::lock_guard<std::mutex> stateLock(stateMutex());
 	initialized = false;
 	logPath = L"";
 	enableTrace = false;
+	presetFP = NULL;
+	compact = false;
+	useConsoleColors = false;
 }
 
 void LogHelper::set(FILE* fp, bool enableTrace, bool compact, bool useConsoleColors)
 {
+	std::lock_guard<std::mutex> stateLock(stateMutex());
 	LogHelper::initialized = true;
 
 	LogHelper::presetFP = fp;
 	LogHelper::enableTrace = enableTrace;
 	LogHelper::compact = compact;
 	LogHelper::useConsoleColors = useConsoleColors;
+}
+
+std::mutex& LogHelper::stateMutex()
+{
+	static std::mutex mutex;
+	return mutex;
+}
+
+std::mutex& LogHelper::outputMutex()
+{
+	static std::mutex mutex;
+	return mutex;
 }

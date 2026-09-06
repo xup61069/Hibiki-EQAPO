@@ -40,6 +40,13 @@ REMOVED_LOUDNESS_SOURCES = {
     "The selected playback device is not the Windows default playback device. Test-noise playback is blocked to prevent calibration on the wrong speaker.",
     "Make this device the Windows default to play the signal",
 }
+VST_STOP_FAILURE_SOURCE = (
+    "The out-of-process VST host could not be stopped. This row was left "
+    "unchanged. Close the host and try again."
+)
+VST_STOP_FAILURE_TRANSLATION = (
+    "無法停止程序外 VST 主控程式。此列未變更。請關閉主控程式後再試一次。"
+)
 PLACEHOLDER_PATTERN = re.compile(r"%(?:\d+|n)")
 NON_TAIWAN_UI_TERMS = (
     "配置",
@@ -140,6 +147,27 @@ class TraditionalChineseTranslationTests(unittest.TestCase):
             "Convert original shelf profile",
         }
         self.assertTrue(expected.issubset(translated_sources))
+
+    def test_outproc_vst_stop_failure_is_shipped_in_traditional_chinese(self) -> None:
+        vst_gui = (
+            ROOT / "Editor" / "guis" / "VSTPluginFilterGUI.cpp"
+        ).read_text(encoding="utf-8")
+        self.assertIn(f'tr("{VST_STOP_FAILURE_SOURCE}")', vst_gui)
+
+        editor_root = ET.parse(TRANSLATION_FILES[0]).getroot()
+        messages = {
+            message.findtext("source", default=""): message.find("translation")
+            for message in editor_root.findall(
+                "./context[name='VSTPluginFilterGUI']/message"
+            )
+        }
+        self.assertIn(VST_STOP_FAILURE_SOURCE, messages)
+        translation = messages[VST_STOP_FAILURE_SOURCE]
+        self.assertIsNotNone(translation)
+        self.assertNotEqual(translation.get("type"), "unfinished")
+        self.assertEqual(
+            "".join(translation.itertext()), VST_STOP_FAILURE_TRANSLATION
+        )
 
     def test_qt_base_traditional_chinese_is_not_simplified_alias(self) -> None:
         for app in ("Editor", "DeviceSelector", "UpdateChecker"):

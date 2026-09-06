@@ -57,7 +57,7 @@ DeviceSelector::DeviceSelector(QWidget* parent)
 	QString version = QString("%1.%2").arg(MAJOR).arg(MINOR);
 	if (REVISION != 0)
 		version += QString(".%1").arg(REVISION);
-	setWindowTitle(QString("Equalizer APO %1 Device Selector").arg(version));
+	setWindowTitle(QString("Hibiki EQAPO %1 Device Selector").arg(version));
 	setAccessibleName(windowTitle());
 	setAccessibleDescription(ui.requestLabel->text());
 
@@ -107,7 +107,7 @@ DeviceSelector::DeviceSelector(QWidget* parent)
 		bool fixedRegistration = !DeviceAPOInfo::checkAPORegistration(true);
 		if (fixedAudioDG || fixedRegistration)
 		{
-			QMessageBox::information(this, tr("Info"), tr("A registry value that is required for the operation of Equalizer APO was not set correctly. "
+			QMessageBox::information(this, tr("Info"), tr("A registry value that is required for the operation of Hibiki EQAPO was not set correctly. "
 				"This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect."));
 			askForReboot = true;
 		}
@@ -581,7 +581,7 @@ void DeviceSelector::updateButtons()
 	else if (enabledCount > 0)
 		ui.changeStatusLabel->setText(tr("No pending changes."));
 	else
-		ui.changeStatusLabel->setText(tr("Select at least one device to enable Equalizer APO."));
+		ui.changeStatusLabel->setText(tr("Select at least one device to enable Hibiki EQAPO."));
 	if (ui.changeStatusLabel->property("statusLevel").toByteArray() != statusLevel)
 	{
 		ui.changeStatusLabel->setProperty("statusLevel", statusLevel);

@@ -19,6 +19,7 @@
 
 #include "helpers/VSTPluginLibrary.h"
 #include "helpers/StringHelper.h"
+#include "helpers/VSTParameterParser.h"
 #include "filters/VSTPluginFilterFactory.h"
 #include "filters/OutProcVSTPluginFilterFactory.h"
 #include "filters/VSTPluginFilter.h"
@@ -69,28 +70,48 @@ IFilterGUI* VSTPluginFilterGUIFactory::createFilterGUI(QString& command, QString
 			int vst3ClassIndex = 0;
 			std::unordered_map<std::wstring, float> paramMap;
 			std::vector<std::wstring> parts = StringHelper::splitQuoted(parameters.toStdWString(), ' ');
-			for (unsigned i = 0; i + 1 < parts.size(); i += 2)
+			for (size_t i = 0; i < parts.size();)
 			{
+				if (i + 1 >= parts.size())
+					break;
+
 				std::wstring key = parts[i];
 				std::wstring value = parts[i + 1];
 				if (key == L"Library")
+				{
 					libPath = resolveVSTLibraryPath(value);
+					i += 2;
+				}
 				else if (key == L"ChunkData")
+				{
 					chunkData = value;
+					i += 2;
+				}
 				else if (key == L"HostId")
+				{
 					hostId = QString::fromStdWString(value);
+					i += 2;
+				}
 				else if (key == L"ClassIndex")
+				{
 					vst3ClassIndex = _wtoi(value.c_str());
+					i += 2;
+				}
 				else if (key == L"MidiConfig")
+				{
 					midiConfig = value;
+					i += 2;
+				}
 				else if (key == L"Engine")
 				{
 					// Compatibility token for experimental lines.
+					i += 2;
 				}
-				else
+				else if (!VSTConsumeParameter(parts, i, paramMap))
 				{
-					float f = wcstof(value.c_str(), NULL);
-					paramMap[key] = f;
+					// Advance one token so a valid field after malformed input can
+					// still become the next key, matching both runtime factories.
+					++i;
 				}
 			}
 			result = new VSTPluginFilterGUI(VSTPluginLibrary::getInstance(libPath), chunkData, paramMap, true, hostId, vst3ClassIndex, midiConfig);

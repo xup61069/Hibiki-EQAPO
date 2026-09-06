@@ -29,6 +29,6 @@ vector<IFilter*> VUMeterFilterFactory::createFilter(const wstring& configPath, w
 			lufsStandard = parts[i + 1];
 	}
 
-	void* mem = MemoryHelper::alloc(sizeof(VUMeterFilter));
-	return vector<IFilter*>(1, new(mem) VUMeterFilter(meterId, channels, rmsStandard, lufsStandard));
+	return adoptFilter(constructFilter<VUMeterFilter>(
+		meterId, channels, rmsStandard, lufsStandard));
 }

@@ -4,7 +4,11 @@
 !include "FileFunc.nsh"
 !include "WinVer.nsh"
 !include "x64.nsh"
+!include "nsDialogs.nsh"
+!include "WinMessages.nsh"
 !include "InstallerRecoveryManifest.nsh"
+!include "InstallRootAclCheck.nsh"
+!include "EmbeddedPowerShellHelpers.nsh"
 
 ${StrTrimNewLines}
 ${StrTok}
@@ -19,19 +23,33 @@ SetCompressor /SOLID lzma
 !searchparse /file ..\version.h `#define MINOR ` MINOR
 !searchparse /file ..\version.h `#define REVISION ` REVISION
 !define VERSION ${MAJOR}.${MINOR}.${REVISION}
-!define PRODUCT_LABEL "Loudness Correction for Equalizer APO"
-!define PRODUCT_FULL_LABEL "${PRODUCT_LABEL} (unofficial fork)"
+!define PRODUCT_LABEL "Hibiki EQAPO"
+!define PRODUCT_FULL_LABEL "${PRODUCT_LABEL} (unofficial Equalizer APO fork)"
+
+!ifndef ENABLE_ASIO_PROXY
+!define ENABLE_ASIO_PROXY 0
+!endif
+!define ASIO_PROXY_LABEL "Hibiki EQAPO"
+!define ASIO_PROXY_CLSID "{D47C55C9-3F7D-422F-86E9-32E170815D53}"
+!define ASIO_PROXY_DLL "HibikiEQAPODriver.dll"
+!define ASIO_ENUM_ROOT "Software\ASIO"
+!define ASIO_PROXY_ENUM_REGPATH "${ASIO_ENUM_ROOT}\${ASIO_PROXY_LABEL}"
+!define ASIO_PROXY_COM_REGPATH "Software\Classes\CLSID\${ASIO_PROXY_CLSID}"
+!define ASIO_PROXY_TARGET_REGPATH "Software\EqualizerAPO\ASIOProxy"
+!define BRAND_MIGRATION_VERSION 1
 
 !define REGPATH "Software\EqualizerAPO"
 !define UNINST_REGPATH "Software\Microsoft\Windows\CurrentVersion\Uninstall\EqualizerAPO"
 !define INSTALLER_RECOVERY_REGPATH "${REGPATH}\InstallerRecovery"
 !define INSTALLER_APP_RECOVERY_REGPATH "${REGPATH}\InstallerAppRecovery"
+!define UNINSTALLER_RECOVERY_REGPATH "Software\EqualizerAPOUninstallRecovery"
 !define CSIDL_COMMON_APPDATA 0x23
 !define FILE_ATTRIBUTE_DIRECTORY 0x10
 !define FILE_ATTRIBUTE_REPARSE_POINT 0x400
 !define INVALID_FILE_ATTRIBUTES -1
 !define ERROR_FILE_NOT_FOUND 2
 !define ERROR_PATH_NOT_FOUND 3
+!define REG_SZ 1
 !define INVALID_HANDLE_VALUE -1
 !define FILE_READ_ATTRIBUTES 0x00000080
 !define FILE_TYPE_DISK 1
@@ -46,7 +64,10 @@ SetCompressor /SOLID lzma
 !define KEY_QUERY_VALUE 0x0001
 !define KEY_WOW64_64KEY 0x0100
 !define KEY_QUERY_VALUE_64 0x0101
+!define IMAGE_FILE_MACHINE_AMD64 34404 ; 0x8664
+!define IMAGE_FILE_DLL 8192 ; 0x2000
 !define INSTALL_RECOVERY_JOURNAL_VERSION 2
+!define UNINSTALLER_RECOVERY_JOURNAL_VERSION 2
 
 VIProductVersion "${MAJOR}.${MINOR}.${REVISION}.0"
 VIAddVersionKey /LANG=1033 "ProductName" "${PRODUCT_FULL_LABEL}"
@@ -93,7 +114,10 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
   Var InstallRecoveryPhysicalInstallPath
   Var InstallFailureReason
   Var InstallOperationCode
+  Var InstallRootAllowMissing
+  Var RemoveUserConfigurationRequested
   Var PreviousApoPresent
+  Var VerifiedPreviousInstall
   Var NewApoRegistrationAttempted
   Var RenameManifestPath
   Var RenameManifestHandle
@@ -109,6 +133,8 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
   Var RenameExpectedVolumeSerial
   Var RenameExpectedFileIndexHigh
   Var RenameExpectedFileIndexLow
+  Var ConfigRootIdentityHandle
+  Var ConfigRootCreated
   Var ApoRollbackRegistrationCode
   Var ApoRollbackUnregistrationCode
   Var ApoRollbackStatus
@@ -116,6 +142,32 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
   Var DeviceSelectorResult
   Var InstallLogPath
   Var DiagnosticIssues
+  Var UninstallRecoveryPhase
+  Var UninstallRecoveryInstallPath
+  Var UninstallUpdateCheckerDone
+  Var UninstallDeviceSelectorDone
+  Var UninstallApoUnregistered
+  Var UninstallAsioProxyUnregistered
+  Var UninstallRecoveryStepName
+  Var NewAsioRegAttempted
+  Var AsioProxyRequested
+  Var AsioSelectedTargetClsid
+  Var AsioSelectedTargetName
+  Var AsioCandidateCount
+  Var AsioSingleCandidateClsid
+  Var AsioCommandLineTargetClsid
+  Var AsioNoProxyOption
+  Var AsioTargetValid
+  Var AsioEntryKey
+  Var AsioEntryClsid
+  Var AsioEntryName
+  Var AsioEntryValid
+  Var AsioBinaryPath
+  Var AsioBinaryValid
+  Var AsioBinaryFailure
+  Var AsioProxyEnableCheckbox
+  Var AsioTargetCombo
+  Var AsioTargetStatusLabel
 
 ;--------------------------------
 ;Interface Settings
@@ -141,6 +193,9 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
 
   !insertmacro MUI_PAGE_STARTMENU Application $StartMenuFolder
   !insertmacro MUI_PAGE_COMPONENTS
+  !if ${ENABLE_ASIO_PROXY} == 1
+    Page Custom AsioProxyPageCreate AsioProxyPageLeave
+  !endif
   !insertmacro MUI_PAGE_INSTFILES
   !insertmacro MUI_PAGE_FINISH
 
@@ -233,6 +288,14 @@ Var renameIndex
 !macro DeleteProductShortcuts folder
   StrCpy $InstallOperationCode "0"
   ${If} "${folder}" != ""
+    Delete "$SMPROGRAMS\${folder}\Hibiki EQAPO Configuration Editor.lnk"
+    ${If} ${FileExists} "$SMPROGRAMS\${folder}\Hibiki EQAPO Configuration Editor.lnk"
+      StrCpy $InstallOperationCode "1"
+    ${EndIf}
+    Delete "$SMPROGRAMS\${folder}\Hibiki EQAPO Device Selector.lnk"
+    ${If} ${FileExists} "$SMPROGRAMS\${folder}\Hibiki EQAPO Device Selector.lnk"
+      StrCpy $InstallOperationCode "1"
+    ${EndIf}
     Delete "$SMPROGRAMS\${folder}\Equalizer APO Configuration Editor.lnk"
     ${If} ${FileExists} "$SMPROGRAMS\${folder}\Equalizer APO Configuration Editor.lnk"
       StrCpy $InstallOperationCode "1"
@@ -266,6 +329,117 @@ Var renameIndex
     ; A non-empty folder is expected when it contains unrelated shortcuts.
     ClearErrors
   ${EndIf}
+!macroend
+
+; Delete or schedule deletion of a known installer-owned payload. Callers check
+; InstallRecoveryFailed before removing user data, Uninstall.exe or ARP metadata.
+!macro RemoveUninstallPayloadFile path description
+  ClearErrors
+  Delete /REBOOTOK "${path}"
+  ${If} ${Errors}
+    StrCpy $InstallRecoveryFailed "1"
+    StrCpy $InstallFailureReason "removing ${description}"
+  ${EndIf}
+!macroend
+
+!macro RemoveUninstallPayloadDirectory path description
+  ClearErrors
+  RMDir /REBOOTOK "${path}"
+  ${If} ${Errors}
+    StrCpy $InstallRecoveryFailed "1"
+    StrCpy $InstallFailureReason "removing ${description}"
+  ${EndIf}
+!macroend
+
+; Execute security-sensitive PowerShell helpers directly from bytes embedded in
+; the signed installer. Never extract executable script text to $PLUGINSDIR: a
+; medium-integrity process with the same user SID could replace or redirect that
+; path between extraction and the elevated PowerShell open.
+!macro RunEmbeddedProcessStopper protectInteractive
+  StrCpy $InstallOperationCode "process-stop environment setup failed"
+  StrCpy $2 1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_PROCESS_INSTALL_ROOT", w "$INSTDIR") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_PROCESS_PROTECT_INTERACTIVE", w "${protectInteractive}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_0", w "${STOP_PRODUCT_PROCESSES_CHUNK_0}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_1", w "${STOP_PRODUCT_PROCESSES_CHUNK_1}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_2", w "${STOP_PRODUCT_PROCESSES_CHUNK_2}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_3", w "${STOP_PRODUCT_PROCESSES_CHUNK_3}") i .r1'
+  IntOp $2 $2 & $1
+
+  ${If} $2 != 0
+    StrCpy $0 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $0 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
+    ${EndIf}
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $InstallOperationCode "powershell not found"
+    ${Else}
+      ; The nsExec argument is single-quoted at the NSIS layer. Keep the
+      ; PowerShell predicate quote-free so its comparison operand survives.
+      nsExec::ExecToLog '"$0" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$z=$$env:EQAPO_STOP_CODE_0+$$env:EQAPO_STOP_CODE_1+$$env:EQAPO_STOP_CODE_2+$$env:EQAPO_STOP_CODE_3;$$b=[Convert]::FromBase64String($$z);$$m=[IO.MemoryStream]::new($$b);$$g=[IO.Compression.GzipStream]::new($$m,[IO.Compression.CompressionMode]::Decompress);$$r=[IO.StreamReader]::new($$g,[Text.Encoding]::UTF8);$$p=@{InstallRoot=$$env:EQAPO_PROCESS_INSTALL_ROOT};if([int]$$env:EQAPO_PROCESS_PROTECT_INTERACTIVE -eq 1){$$p.ProtectInteractiveApplications=$$true};&([ScriptBlock]::Create($$r.ReadToEnd())) @p"'
+      Pop $InstallOperationCode
+    ${EndIf}
+  ${EndIf}
+
+  StrCpy $2 1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_PROCESS_INSTALL_ROOT", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_PROCESS_PROTECT_INTERACTIVE", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_0", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_1", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_2", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_STOP_CODE_3", p 0) i .r1'
+  IntOp $2 $2 & $1
+  ${If} $2 == 0
+  ${AndIf} $InstallOperationCode == 0
+    StrCpy $InstallOperationCode "process-stop environment cleanup failed"
+  ${EndIf}
+!macroend
+
+!macro RunEmbeddedX64LoadCheck
+  StrCpy $InstallOperationCode "x64-load-check environment setup failed"
+  StrCpy $3 1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_DLL_PATH", w "$INSTDIR\EqualizerAPO.dll") i .r1'
+  IntOp $3 $3 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_LOG_PATH", w "$InstallLogPath") i .r1'
+  IntOp $3 $3 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_CODE_0", w "${X64_LOAD_CHECK_CHUNK_0}") i .r1'
+  IntOp $3 $3 & $1
+
+  ${If} $3 != 0
+    StrCpy $0 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $0 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
+    ${EndIf}
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $InstallOperationCode "powershell not found"
+    ${Else}
+      nsExec::ExecToLog '"$0" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$z=$$env:EQAPO_X64_CODE_0;$$b=[Convert]::FromBase64String($$z);$$m=[IO.MemoryStream]::new($$b);$$g=[IO.Compression.GzipStream]::new($$m,[IO.Compression.CompressionMode]::Decompress);$$r=[IO.StreamReader]::new($$g,[Text.Encoding]::UTF8);&([ScriptBlock]::Create($$r.ReadToEnd())) $$env:EQAPO_X64_DLL_PATH $$env:EQAPO_X64_LOG_PATH"'
+      Pop $InstallOperationCode
+    ${EndIf}
+  ${EndIf}
+
+  StrCpy $3 1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_DLL_PATH", p 0) i .r1'
+  IntOp $3 $3 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_LOG_PATH", p 0) i .r1'
+  IntOp $3 $3 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_X64_CODE_0", p 0) i .r1'
+  IntOp $3 $3 & $1
+  ${If} $3 == 0
+  ${AndIf} $InstallOperationCode == 0
+    StrCpy $InstallOperationCode "x64-load-check environment cleanup failed"
+  ${EndIf}
+  StrCpy $2 "$InstallOperationCode"
 !macroend
 
 !macro RequireInstalledAsset path
@@ -467,29 +641,159 @@ LangString UCRTError ${LANG_SPANISH} "A su instalacion de Windows le faltan actu
 LangString UCRTError ${LANG_TRADCHINESE} "您的 Windows 系統缺少必要的更新以執行此程式。請安裝最新 Windows 更新或 Visual C++ 可轉散發套件。$\r$\n$\r$\n您要現在下載 Visual C++ 可轉散發套件嗎？"
 LangString UCRTError ${LANG_SIMPCHINESE} "您的 Windows 系统缺少运行此程序所需的更新。请安装最新 Windows 更新或 Visual C++ 可再发行组件。$\r$\n$\r$\n您要现在下载 Visual C++ 可再发行组件吗？"
 LangString UCRTError ${LANG_GERMAN} "Ihrer Windows-Installation fehlen benötigte Updates, um dieses Programm zu verwenden. Bitte installieren Sie ausstehende Windows-Updates oder das Visual C++ Redistributable für Visual Studio 2015 - 2022.$\n$\nMöchten Sie jetzt das Visual C++ Redistributable herunterladen?"
-LangString CloseAppsPrompt ${LANG_ENGLISH} "Setup can close running Equalizer APO applications before installing. Unsaved configuration editor changes may be lost.$\n$\nDo you want setup to close them now?"
-LangString CloseAppsPrompt ${LANG_SPANISH} "El instalador puede cerrar aplicaciones de Equalizer APO antes de instalar. Los cambios no guardados del editor de configuracion pueden perderse.$\n$\nDesea que el instalador las cierre ahora?"
-LangString CloseAppsPrompt ${LANG_TRADCHINESE} "安裝程式可以在安裝前關閉正在執行的 Equalizer APO 應用程式。未儲存的設定檔編輯器變更可能會遺失。$\r$\n$\r$\n您要現在關閉它們嗎？"
-LangString CloseAppsPrompt ${LANG_SIMPCHINESE} "安装程序可以在安装前关闭正在运行的 Equalizer APO 应用程序。未保存的配置编辑器更改可能会丢失。$\r$\n$\r$\n您要现在关闭它们吗？"
-LangString CloseAppsPrompt ${LANG_GERMAN} "Das Setup kann laufende Equalizer APO-Anwendungen vor der Installation schließen. Nicht gespeicherte Änderungen im Konfigurationseditor können verloren gehen.$\n$\nSollen sie jetzt geschlossen werden?"
+LangString CloseAppsPrompt ${LANG_ENGLISH} "Setup can close running Hibiki EQAPO applications before installing. Unsaved configuration editor changes may be lost.$\n$\nDo you want setup to close them now?"
+LangString CloseAppsPrompt ${LANG_SPANISH} "El instalador puede cerrar aplicaciones de Hibiki EQAPO antes de instalar. Los cambios no guardados del editor de configuracion pueden perderse.$\n$\nDesea que el instalador las cierre ahora?"
+LangString CloseAppsPrompt ${LANG_TRADCHINESE} "安裝程式可以在安裝前關閉正在執行的 Hibiki EQAPO 應用程式。未儲存的設定檔編輯器變更可能會遺失。$\r$\n$\r$\n您要現在關閉它們嗎？"
+LangString CloseAppsPrompt ${LANG_SIMPCHINESE} "安装程序可以在安装前关闭正在运行的 Hibiki EQAPO 应用程序。未保存的配置编辑器更改可能会丢失。$\r$\n$\r$\n您要现在关闭它们吗？"
+LangString CloseAppsPrompt ${LANG_GERMAN} "Das Setup kann laufende Hibiki-EQAPO-Anwendungen vor der Installation schließen. Nicht gespeicherte Änderungen im Konfigurationseditor können verloren gehen.$\n$\nSollen sie jetzt geschlossen werden?"
+LangString UninstallCloseAppsPrompt ${LANG_ENGLISH} "Uninstall found running Hibiki EQAPO applications. Unsaved configuration editor changes may be lost.$\r$\n$\r$\nClose them and continue uninstalling?"
+LangString UninstallCloseAppsPrompt ${LANG_SPANISH} "La desinstalacion encontro aplicaciones de Hibiki EQAPO en ejecucion. Los cambios no guardados del editor de configuracion pueden perderse.$\r$\n$\r$\nDesea cerrarlas y continuar?"
+LangString UninstallCloseAppsPrompt ${LANG_GERMAN} "Das Deinstallationsprogramm hat laufende Hibiki-EQAPO-Anwendungen gefunden. Nicht gespeicherte Änderungen im Konfigurationseditor können verloren gehen.$\r$\n$\r$\nAnwendungen schließen und Deinstallation fortsetzen?"
+LangString UninstallCloseAppsPrompt ${LANG_TRADCHINESE} "解除安裝程式發現仍在執行的 Hibiki EQAPO 應用程式；未儲存的設定檔編輯器變更可能會遺失。$\r$\n$\r$\n要關閉它們並繼續解除安裝嗎？"
+LangString UninstallCloseAppsPrompt ${LANG_SIMPCHINESE} "卸载程序发现仍在运行的 Hibiki EQAPO 应用程序；未保存的配置编辑器更改可能会丢失。$\r$\n$\r$\n要关闭它们并继续卸载吗？"
 LangString RestorePointWarning ${LANG_ENGLISH} "Setup could not create a Windows restore point.$\n$\nThis can happen when System Protection is disabled, or when a restore point already exists from the last 24 hours. By default, Windows policy may block creating more than one restore point within the same 24-hour period.$\n$\nInstallation will continue."
 LangString RestorePointWarning ${LANG_SPANISH} "El instalador no pudo crear un punto de restauracion de Windows.$\n$\nEsto puede ocurrir si Proteccion del sistema esta desactivada, o si ya existe un punto de restauracion creado en las ultimas 24 horas. De forma predeterminada, las politicas de Windows pueden bloquear la creacion de mas de un punto de restauracion dentro del mismo periodo de 24 horas.$\n$\nLa instalacion continuara."
 LangString RestorePointWarning ${LANG_TRADCHINESE} "安裝程式無法建立 Windows 系統還原點。$\r$\n$\r$\n系統保護停用或過去 24 小時內已有還原點時，可能發生此情況。Windows 預設可能限制 24 小時內只能建立一個還原點。$\r$\n$\r$\n安裝將繼續。"
 LangString RestorePointWarning ${LANG_SIMPCHINESE} "安装程序无法创建 Windows 系统还原点。$\r$\n$\r$\n系统保护被禁用或过去 24 小时内已有还原点时，可能发生此情况。Windows 默认可能限制 24 小时内只能创建一个还原点。$\r$\n$\r$\n安装将继续。"
 LangString RestorePointWarning ${LANG_GERMAN} "Das Setup konnte keinen Windows-Wiederherstellungspunkt erstellen.$\n$\nDies kann passieren, wenn der Computerschutz deaktiviert ist oder wenn bereits ein Wiederherstellungspunkt aus den letzten 24 Stunden existiert. Standardmäßig kann Windows verhindern, dass innerhalb desselben 24-Stunden-Zeitraums mehr als ein Wiederherstellungspunkt erstellt wird.$\n$\nDie Installation wird fortgesetzt."
 
-LangString AssetValidationError ${LANG_ENGLISH} "A required installation file is missing or could not be extracted. Setup will stop before registering Equalizer APO or modifying audio devices.$\r$\n$\r$\nMissing file: $MissingAsset"
-LangString AssetValidationError ${LANG_SPANISH} "Falta un archivo de instalación necesario o no se pudo extraer. El instalador se detendrá antes de registrar Equalizer APO o modificar dispositivos de audio.$\r$\n$\r$\nArchivo faltante: $MissingAsset"
-LangString AssetValidationError ${LANG_GERMAN} "Eine erforderliche Installationsdatei fehlt oder konnte nicht extrahiert werden. Das Setup wird beendet, bevor Equalizer APO registriert oder Audiogeräte geändert werden.$\r$\n$\r$\nFehlende Datei: $MissingAsset"
-LangString AssetValidationError ${LANG_TRADCHINESE} "必要的安裝檔案遺失或無法解壓縮。安裝程式將在註冊 Equalizer APO 或修改音訊裝置前停止。$\r$\n$\r$\n遺失檔案：$MissingAsset"
-LangString AssetValidationError ${LANG_SIMPCHINESE} "必要的安装文件缺失或无法解压缩。安装程序将在注册 Equalizer APO 或修改音频设备前停止。$\r$\n$\r$\n缺失文件：$MissingAsset"
+LangString AssetValidationError ${LANG_ENGLISH} "A required installation file is missing or could not be extracted. Setup will stop before registering Hibiki EQAPO or modifying audio devices.$\r$\n$\r$\nMissing file: $MissingAsset"
+LangString AssetValidationError ${LANG_SPANISH} "Falta un archivo de instalación necesario o no se pudo extraer. El instalador se detendrá antes de registrar Hibiki EQAPO o modificar dispositivos de audio.$\r$\n$\r$\nArchivo faltante: $MissingAsset"
+LangString AssetValidationError ${LANG_GERMAN} "Eine erforderliche Installationsdatei fehlt oder konnte nicht extrahiert werden. Das Setup wird beendet, bevor Hibiki EQAPO registriert oder Audiogeräte geändert werden.$\r$\n$\r$\nFehlende Datei: $MissingAsset"
+LangString AssetValidationError ${LANG_TRADCHINESE} "必要的安裝檔案遺失或無法解壓縮。安裝程式將在註冊 Hibiki EQAPO 或修改音訊裝置前停止。$\r$\n$\r$\n遺失檔案：$MissingAsset"
+LangString AssetValidationError ${LANG_SIMPCHINESE} "必要的安装文件缺失或无法解压缩。安装程序将在注册 Hibiki EQAPO 或修改音频设备前停止。$\r$\n$\r$\n缺失文件：$MissingAsset"
+
+!if ${ENABLE_ASIO_PROXY} == 1
+!include "AsioProxy.nsh"
+!endif
 
 ;--------------------------------
 ;Functions
+Function BlockIfUninstallRecoveryJournalExists
+  ; A partial uninstall may have removed the helpers whose completion flags are
+  ; recorded here. Setup must not repair/re-register the product while those
+  ; flags remain replayable, or a retry could skip cleanup of the repaired state.
+  ; Any existing key, including a malformed/partial one, is fail-closed and is
+  ; retained for the original uninstaller or explicit administrator inspection.
+  StrCpy $InstallRecoveryFailed "0"
+  StrCpy $InstallFailureReason ""
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 == ${ERROR_FILE_NOT_FOUND}
+    Return
+  ${ElseIf} $1 != 0
+    StrCpy $InstallFailureReason "the uninstall recovery journal could not be inspected (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  System::Call 'advapi32::RegCloseKey(p r0) i .r1'
+  ${If} $1 != 0
+    StrCpy $InstallFailureReason "the uninstall recovery journal could not be closed safely (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "JournalVersion"
+  ${If} ${Errors}
+  ${OrIf} $0 != ${UNINSTALLER_RECOVERY_JOURNAL_VERSION}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryInstallPath HKLM ${UNINSTALLER_RECOVERY_REGPATH} "InstallPath"
+  ${If} ${Errors}
+  ${OrIf} $UninstallRecoveryInstallPath == ""
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Pending"
+  ${If} ${Errors}
+  ${OrIf} $0 != 1
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryPhase HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase"
+  ${If} ${Errors}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallUpdateCheckerDone HKLM ${UNINSTALLER_RECOVERY_REGPATH} "UpdateCheckerDone"
+  ${If} ${Errors}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallDeviceSelectorDone HKLM ${UNINSTALLER_RECOVERY_REGPATH} "DeviceSelectorDone"
+  ${If} ${Errors}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallApoUnregistered HKLM ${UNINSTALLER_RECOVERY_REGPATH} "ApoUnregistered"
+  ${If} ${Errors}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallAsioProxyUnregistered HKLM ${UNINSTALLER_RECOVERY_REGPATH} "AsioProxyUnregistered"
+  ${If} ${Errors}
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ${If} $UninstallUpdateCheckerDone != 0
+  ${AndIf} $UninstallUpdateCheckerDone != 1
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ${If} $UninstallDeviceSelectorDone != 0
+  ${AndIf} $UninstallDeviceSelectorDone != 1
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ${If} $UninstallApoUnregistered != 0
+  ${AndIf} $UninstallApoUnregistered != 1
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+  ${If} $UninstallAsioProxyUnregistered != 0
+  ${AndIf} $UninstallAsioProxyUnregistered != 1
+    Goto malformedUninstallRecoveryBeforeSetup
+  ${EndIf}
+
+  ${If} $UninstallRecoveryPhase == "critical"
+    Goto validUninstallRecoveryBeforeSetup
+  ${ElseIf} $UninstallRecoveryPhase == "payload"
+    ${If} $UninstallUpdateCheckerDone != 1
+    ${OrIf} $UninstallDeviceSelectorDone != 1
+    ${OrIf} $UninstallApoUnregistered != 1
+    ${OrIf} $UninstallAsioProxyUnregistered != 1
+      Goto malformedUninstallRecoveryBeforeSetup
+    ${EndIf}
+    Goto validUninstallRecoveryBeforeSetup
+  ${EndIf}
+  Goto malformedUninstallRecoveryBeforeSetup
+
+  validUninstallRecoveryBeforeSetup:
+  StrCpy $InstallFailureReason "a pending uninstall transaction (phase: $UninstallRecoveryPhase)"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+
+  malformedUninstallRecoveryBeforeSetup:
+  StrCpy $InstallFailureReason "an unknown, malformed or partial uninstall recovery journal"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
 Function .onInit
   !if ${LIBPATH} != "lib32"
     SetRegView 64
   !endif
+  ; This registry-only gate must precede every installer recovery mutation.
+  StrCpy $InstallRecoveryFailed "0"
+  Call BlockIfUninstallRecoveryJournalExists
+  ${If} $InstallRecoveryFailed == "1"
+    DetailPrint "Setup refused $InstallFailureReason. The uninstall recovery journal was retained."
+    ${IfNot} ${Silent}
+      MessageBox MB_ICONSTOP|MB_OK "Setup cannot safely repair or install the product while an earlier uninstall is incomplete. Run the installed Uninstall.exe to complete the existing uninstall, then start Setup again.$\r$\n$\r$\nThe uninstall recovery journal was retained."
+    ${EndIf}
+    SetErrorLevel 1
+    Abort
+  ${EndIf}
   ; Repair an interrupted prior registration attempt before reading any other
   ; installer state. The journal is written before the temporary audio override.
   Call RecoverProtectedAudioSetting
@@ -544,6 +848,18 @@ Function .onInit
       Abort
     ${EndIf}
   ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    StrCpy $InstallRecoveryFailed "0"
+    Call ResolveInitialAsioSelection
+    ${If} $InstallRecoveryFailed == "1"
+      DetailPrint "Setup stopped while $InstallFailureReason."
+      ${IfNot} ${Silent}
+        MessageBox MB_ICONSTOP|MB_OK "Setup could not configure Hibiki EQAPO DAW monitoring while $InstallFailureReason. No installation files were changed."
+      ${EndIf}
+      SetErrorLevel 1
+      Abort
+    ${EndIf}
+  !endif
 FunctionEnd
 
 Function CloseRunningApplications
@@ -551,14 +867,95 @@ Function CloseRunningApplications
     ${IfNot} ${Silent}
       MessageBox MB_YESNO|MB_ICONQUESTION $(CloseAppsPrompt) IDNO done
     ${EndIf}
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM Editor.exe /T /F'
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM DeviceSelector.exe /T /F'
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM UpdateChecker.exe /T /F'
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM Benchmark.exe /T /F'
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM VoicemeeterClient.exe /T /F'
-    nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM EqApoOutProcHost.exe /T /F'
+    Call StopInstalledProductProcesses
+    ${If} $InstallOperationCode != 0
+      ${IfNot} ${Silent}
+        MessageBox MB_ICONSTOP|MB_OK "Setup could not safely stop an installed Hibiki EQAPO process. No installation files were changed. Close the application and try again."
+      ${EndIf}
+      Abort
+    ${EndIf}
   ${EndIf}
   done:
+FunctionEnd
+
+Function StopInstalledProductProcesses
+  Push $OUTDIR
+  SetOutPath "$SYSDIR"
+  !insertmacro RunEmbeddedProcessStopper "0"
+  Pop $OUTDIR
+  SetOutPath $OUTDIR
+FunctionEnd
+
+!macro ValidateInstallRootAclBody
+  ; Pass the path through the child process environment so quotes or metacharacters
+  ; in a custom path can never change the PowerShell command line. The embedded
+  ; validator uses .NET directly and does not auto-load modules from PSModulePath.
+  StrCpy $InstallOperationCode "install-root ACL validator could not start"
+  StrCpy $2 1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_INSTALL_ROOT", w "$INSTDIR") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ALLOW_MISSING_INSTALL_ROOT", w "$InstallRootAllowMissing") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_0", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_0}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_1", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_1}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_2", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_2}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_3", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_3}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_4", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_4}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_5", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_5}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_6", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_6}") i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_7", w "${INSTALL_ROOT_ACL_CHECK_CHUNK_7}") i .r1'
+  IntOp $2 $2 & $1
+
+  ${If} $2 == 0
+    StrCpy $InstallOperationCode "install-root environment setup failed"
+  ${Else}
+    StrCpy $0 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $0 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
+    ${EndIf}
+    ${IfNot} ${FileExists} "$0"
+      StrCpy $InstallOperationCode "powershell not found"
+    ${Else}
+      nsExec::ExecToLog '"$0" -NoProfile -NonInteractive -ExecutionPolicy Bypass -Command "$$z=$$env:EQAPO_ACL_CODE_0+$$env:EQAPO_ACL_CODE_1+$$env:EQAPO_ACL_CODE_2+$$env:EQAPO_ACL_CODE_3+$$env:EQAPO_ACL_CODE_4+$$env:EQAPO_ACL_CODE_5+$$env:EQAPO_ACL_CODE_6+$$env:EQAPO_ACL_CODE_7;$$b=[Convert]::FromBase64String($$z);$$m=[IO.MemoryStream]::new($$b);$$g=[IO.Compression.GzipStream]::new($$m,[IO.Compression.CompressionMode]::Decompress);$$r=[IO.StreamReader]::new($$g,[Text.Encoding]::UTF8);&([ScriptBlock]::Create($$r.ReadToEnd()))"'
+      Pop $InstallOperationCode
+    ${EndIf}
+  ${EndIf}
+
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_INSTALL_ROOT", p 0) i .r1'
+  StrCpy $2 $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ALLOW_MISSING_INSTALL_ROOT", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_0", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_1", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_2", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_3", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_4", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_5", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_6", p 0) i .r1'
+  IntOp $2 $2 & $1
+  System::Call 'kernel32::SetEnvironmentVariableW(w "EQAPO_ACL_CODE_7", p 0) i .r1'
+  IntOp $2 $2 & $1
+  ${If} $2 == 0
+  ${AndIf} $InstallOperationCode == 0
+    StrCpy $InstallOperationCode "install-root environment cleanup failed"
+  ${EndIf}
+!macroend
+
+Function ValidateInstallRootAcl
+  !insertmacro ValidateInstallRootAclBody
 FunctionEnd
 
 Function CreateRestorePoint
@@ -569,7 +966,7 @@ Function CreateRestorePoint
   ${EndIf}
 
   ${If} ${FileExists} "$0"
-    nsExec::ExecToLog '"$0" -NoProfile -ExecutionPolicy Bypass -Command "try { Checkpoint-Computer -Description EqualizerAPO_${VERSION}_PreInstall -RestorePointType APPLICATION_INSTALL -ErrorAction Stop; exit 0 } catch { exit 1 }"'
+    nsExec::ExecToLog '"$0" -NoProfile -ExecutionPolicy Bypass -Command "try { Checkpoint-Computer -Description Hibiki_EQAPO_${VERSION}_PreInstall -RestorePointType APPLICATION_INSTALL -ErrorAction Stop; exit 0 } catch { exit 1 }"'
     Pop $1
     ${If} $1 == 0
       DetailPrint "Windows restore point created."
@@ -1299,6 +1696,15 @@ Function SaveInstallMetadataJournal
   !insertmacro JournalPreviousString HKLM "${UNINST_REGPATH}" "UninstallString" "PreviousUninstallString"
   !insertmacro JournalPreviousDWORD HKLM "${UNINST_REGPATH}" "NoModify" "PreviousNoModify"
   !insertmacro JournalPreviousDWORD HKLM "${UNINST_REGPATH}" "NoRepair" "PreviousNoRepair"
+  !insertmacro JournalPreviousDWORD HKLM "${REGPATH}" "BrandMigrationVersion" "PreviousBrandMigrationVersion"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_ENUM_REGPATH}" "CLSID" "PreviousAsioEnumClsid"
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_ENUM_REGPATH}" "Description" "PreviousAsioEnumDescription"
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_COM_REGPATH}" "" "PreviousAsioComDescription"
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_COM_REGPATH}\InprocServer32" "" "PreviousAsioInprocServer"
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_COM_REGPATH}\InprocServer32" "ThreadingModel" "PreviousAsioThreadingModel"
+    !insertmacro JournalPreviousString HKLM "${ASIO_PROXY_TARGET_REGPATH}" "TargetCLSID" "PreviousAsioTargetClsid"
+  !endif
   ${If} $InstallRecoveryFailed == "1"
     Return
   ${EndIf}
@@ -1348,6 +1754,13 @@ Function SaveInstallMetadataJournal
     StrCpy $InstallRecoveryFailed "1"
     Return
   ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    WriteRegDWORD HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "NewAsioRegistrationAttempted" 0
+    ${If} ${Errors}
+      StrCpy $InstallRecoveryFailed "1"
+      Return
+    ${EndIf}
+  !endif
   WriteRegDWORD HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "UpdaterOperationStarted" 0
   ${If} ${Errors}
     StrCpy $InstallRecoveryFailed "1"
@@ -1385,6 +1798,7 @@ Function RestoreInstallMetadata
   !insertmacro RestorePreviousString HKLM "${UNINST_REGPATH}" "UninstallString" "PreviousUninstallString"
   !insertmacro RestorePreviousDWORD HKLM "${UNINST_REGPATH}" "NoModify" "PreviousNoModify"
   !insertmacro RestorePreviousDWORD HKLM "${UNINST_REGPATH}" "NoRepair" "PreviousNoRepair"
+  !insertmacro RestorePreviousDWORD HKLM "${REGPATH}" "BrandMigrationVersion" "PreviousBrandMigrationVersion"
   DeleteRegKey /ifempty HKLM ${UNINST_REGPATH}
 FunctionEnd
 
@@ -1423,10 +1837,37 @@ Function RestoreInstallShortcuts
     ${EndIf}
     ClearErrors
     CreateDirectory "$SMPROGRAMS\$OldStartMenuFolder"
-    CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Equalizer APO Configuration Editor.lnk" "$OLDINSTDIR\Editor.exe"
+    StrCpy $2 "0"
+    ClearErrors
+    ReadRegDWORD $3 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "PreviousBrandMigrationVersionExisted"
+    ${If} ${Errors}
+      StrCpy $InstallRecoveryFailed "1"
+      Return
+    ${ElseIf} $3 == 1
+      ClearErrors
+      ReadRegDWORD $3 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "PreviousBrandMigrationVersionValue"
+      ${If} ${Errors}
+        StrCpy $InstallRecoveryFailed "1"
+        Return
+      ${ElseIf} $3 >= ${BRAND_MIGRATION_VERSION}
+        StrCpy $2 "1"
+      ${EndIf}
+    ${ElseIf} $3 != 0
+      StrCpy $InstallRecoveryFailed "1"
+      Return
+    ${EndIf}
+    ${If} $2 == "1"
+      CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Hibiki EQAPO Configuration Editor.lnk" "$OLDINSTDIR\Editor.exe"
+    ${Else}
+      CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Equalizer APO Configuration Editor.lnk" "$OLDINSTDIR\Editor.exe"
+    ${EndIf}
     CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Configuration tutorial (online).lnk" "$OLDINSTDIR\Configuration tutorial (online).url"
     CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Configuration reference (online).lnk" "$OLDINSTDIR\Configuration reference (online).url"
-    CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Equalizer APO Device Selector.lnk" "$OLDINSTDIR\DeviceSelector.exe"
+    ${If} $2 == "1"
+      CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Hibiki EQAPO Device Selector.lnk" "$OLDINSTDIR\DeviceSelector.exe"
+    ${Else}
+      CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Equalizer APO Device Selector.lnk" "$OLDINSTDIR\DeviceSelector.exe"
+    ${EndIf}
     CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Benchmark.lnk" "$OLDINSTDIR\Benchmark.exe"
     CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Check for updates.lnk" "$OLDINSTDIR\UpdateChecker.exe"
     CreateShortCut "$SMPROGRAMS\$OldStartMenuFolder\Uninstall.lnk" "$OLDINSTDIR\Uninstall.exe"
@@ -1791,6 +2232,78 @@ Function LoadInstallRecoveryTargetFromJournal
     StrCpy $InstallRecoveryFailed "1"
     Return
   ${EndIf}
+  ; Recovery may execute or load the journaled installed payload. Apply the same
+  ; fail-closed local-volume/ancestor/ACL gate before any rollback action.
+  StrCpy $InstallRootAllowMissing "0"
+  Call ValidateInstallRootAcl
+  ${If} $InstallOperationCode == "error"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+FunctionEnd
+
+Function CloseConfigRootIdentityHandle
+  ${If} $ConfigRootIdentityHandle != ""
+  ${AndIf} $ConfigRootIdentityHandle != ${INVALID_HANDLE_VALUE}
+    System::Call 'kernel32::CloseHandle(p $ConfigRootIdentityHandle) i .r0'
+  ${EndIf}
+  StrCpy $ConfigRootIdentityHandle ""
+FunctionEnd
+
+Function ValidateAndHoldConfigRoot
+  ; Hold a no-delete-share handle from validation through every direct config
+  ; write. FILE_FLAG_OPEN_REPARSE_POINT makes a root junction/symlink visible to
+  ; this check instead of silently opening its target. Descendants are never
+  ; enumerated: they are user data and may legitimately contain reparse points.
+  Call CloseConfigRootIdentityHandle
+  StrCpy $InstallRecoveryFailed "1"
+  StrCpy $1 0
+  System::Call 'kernel32::CreateFileW(w "$INSTDIR\config", i ${FILE_READ_ATTRIBUTES}, i ${FILE_SHARE_READ_WRITE}, p 0, i ${OPEN_EXISTING}, i ${FILE_FLAG_OPEN_REPARSE_POINT}|${FILE_FLAG_BACKUP_SEMANTICS}, p 0) p .r0 ?e'
+  Pop $2
+  ${If} $0 == ${INVALID_HANDLE_VALUE}
+    DetailPrint "Could not securely open the config root (Win32 error $2)."
+    Return
+  ${EndIf}
+  StrCpy $ConfigRootIdentityHandle "$0"
+
+  System::Call 'kernel32::GetFileType(p r0) i .r3'
+  ${If} $3 != ${FILE_TYPE_DISK}
+    DetailPrint "The config root is not on a disk filesystem."
+    Goto invalidConfigRoot
+  ${EndIf}
+  System::Call '*(i,&v24,i,&v12,i,i) p .r1'
+  ${If} $1 == 0
+    DetailPrint "Could not allocate config-root validation state."
+    Goto invalidConfigRoot
+  ${EndIf}
+  System::Call 'kernel32::GetFileInformationByHandle(p r0, p r1) i .r3 ?e'
+  Pop $2
+  ${If} $3 == 0
+    DetailPrint "Could not inspect the opened config root (Win32 error $2)."
+    System::Free $1
+    Goto invalidConfigRoot
+  ${EndIf}
+  System::Call '*$1(i .r2)'
+  System::Free $1
+  IntOp $3 $2 & ${FILE_ATTRIBUTE_DIRECTORY}
+  ${If} $3 == 0
+    DetailPrint "The config root is not a directory."
+    Goto invalidConfigRoot
+  ${EndIf}
+  IntOp $3 $2 & ${FILE_ATTRIBUTE_REPARSE_POINT}
+  ${If} $3 != 0
+    DetailPrint "Refusing a config root which is a reparse point."
+    Goto invalidConfigRoot
+  ${EndIf}
+
+  StrCpy $InstallRecoveryFailed "0"
+  Return
+
+  invalidConfigRoot:
+  Call CloseConfigRootIdentityHandle
 FunctionEnd
 
 Function CleanupCompletedInstallTransaction
@@ -1901,6 +2414,23 @@ Function RecoverInstallTransaction
     StrCpy $InstallRecoveryFailed "1"
     Return
   ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    ClearErrors
+    ReadRegDWORD $NewAsioRegAttempted HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "NewAsioRegistrationAttempted"
+    ${If} ${Errors}
+      ; Journal v2 predates the optional ASIO extension. Absence is legacy only
+      ; when none of the ASIO snapshot fields exists; a partial new journal is
+      ; malformed and must be retained.
+      ClearErrors
+      ReadRegDWORD $0 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "PreviousAsioEnumClsidExisted"
+      ${If} ${Errors}
+        StrCpy $NewAsioRegAttempted "0"
+      ${Else}
+        StrCpy $InstallRecoveryFailed "1"
+        Return
+      ${EndIf}
+    ${EndIf}
+  !endif
   ${If} $PreviousApoPresent != 0
   ${AndIf} $PreviousApoPresent != 1
     StrCpy $InstallRecoveryFailed "1"
@@ -1925,6 +2455,9 @@ Function RemoveInstalledProductFiles
   ; Current payload. Keep config and VSTPlugins intact even on a fresh-install
   ; failure: an existing folder may already contain user-created data.
   !insertmacro DeleteTransactionFile "$INSTDIR\EqualizerAPO.dll"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    !insertmacro DeleteTransactionFile "$INSTDIR\${ASIO_PROXY_DLL}"
+  !endif
   !insertmacro DeleteTransactionFile "$INSTDIR\EqApoOutProcHost.exe"
   !insertmacro DeleteTransactionFile "$INSTDIR\DeviceSelector.exe"
   !insertmacro DeleteTransactionFile "$INSTDIR\Benchmark.exe"
@@ -1951,6 +2484,8 @@ Function RemoveInstalledProductFiles
   !insertmacro DeleteTransactionFile "$INSTDIR\vcruntime140.dll"
   !insertmacro DeleteTransactionFile "$INSTDIR\vcruntime140_1.dll"
   !insertmacro DeleteTransactionFile "$INSTDIR\d3dcompiler_47.dll"
+  !insertmacro DeleteTransactionFile "$INSTDIR\dxcompiler.dll"
+  !insertmacro DeleteTransactionFile "$INSTDIR\dxil.dll"
   !insertmacro DeleteTransactionFile "$INSTDIR\icuuc.dll"
   !insertmacro DeleteTransactionFile "$INSTDIR\Qt6Core.dll"
   !insertmacro DeleteTransactionFile "$INSTDIR\Qt6Gui.dll"
@@ -2162,7 +2697,11 @@ FunctionEnd
 Function PrepareInstallTransaction
   StrCpy $InstallRollbackState "0"
   StrCpy $PreviousApoPresent "0"
+  StrCpy $VerifiedPreviousInstall "0"
   StrCpy $NewApoRegistrationAttempted "0"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    StrCpy $NewAsioRegAttempted "0"
+  !endif
   StrCpy $RenameManifestHandle ""
   StrCpy $InstallRecoveryFailed "0"
   Call InitializeInstallRecoveryPaths
@@ -2175,9 +2714,74 @@ Function PrepareInstallTransaction
     StrCpy $InstallRollbackCopyCode "unsafe installation path"
     Goto installBackupFailed
   ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    ${If} $NewAsioRegAttempted != 0
+    ${AndIf} $NewAsioRegAttempted != 1
+      StrCpy $InstallRecoveryFailed "1"
+      Return
+    ${EndIf}
+  !endif
+  ; The elevated installer will later execute and load files from this directory.
+  ; Refuse a root or ancestor which a lower-privilege principal can replace.
+  StrCpy $InstallRootAllowMissing "0"
+  Call ValidateInstallRootAcl
+  ${If} $InstallOperationCode == "error"
+    StrCpy $InstallRollbackCopyCode "install-root ACL validation could not start"
+    Goto installBackupFailed
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallRollbackCopyCode "unsafe install-root ACL or ancestor (exit code: $InstallOperationCode)"
+    Goto installBackupFailed
+  ${EndIf}
   ${If} ${FileExists} "$INSTDIR\EqualizerAPO.dll"
     StrCpy $PreviousApoPresent "1"
   ${EndIf}
+
+  ; A directory containing a coincidentally named DLL is not enough authority to
+  ; terminate applications. Bind process shutdown to the product-specific HKLM
+  ; installation record and the canonical destination before journaling or
+  ; changing any persistent state. A manually copied/stale tree is handled by
+  ; the later transactional file checks without killing same-name applications.
+  ${If} $PreviousApoPresent == "1"
+    ClearErrors
+    ReadRegStr $0 HKLM ${REGPATH} "InstallPath"
+    ${IfNot} ${Errors}
+    ${AndIf} $0 != ""
+      ClearErrors
+      GetFullPathName $0 "$0"
+      ${IfNot} ${Errors}
+        normalizeRegisteredInstallPathTail:
+        StrCpy $6 "$0" 1 -1
+        ${If} $6 == "\"
+          ${GetRoot} "$0" $7
+          ${If} $0 != $7
+          ${AndIf} $0 != "$7\"
+            StrCpy $0 "$0" -1
+            Goto normalizeRegisteredInstallPathTail
+          ${EndIf}
+        ${EndIf}
+        ${If} $0 == $INSTDIR
+          StrCpy $VerifiedPreviousInstall "1"
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  ${If} $VerifiedPreviousInstall == "1"
+    Call CloseRunningApplications
+  ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    ; Never overwrite a foreign registration at the fixed product identity, and
+    ; never kill a DAW which may have unsaved work merely to unlock the DLL.
+    Call ValidateExistingAsioProxyRegistration
+    ${If} $InstallRecoveryFailed == "1"
+      StrCpy $InstallRollbackCopyCode "$InstallFailureReason"
+      Goto installBackupFailed
+    ${EndIf}
+    Call CheckAsioProxyDllUnlocked
+    ${If} $InstallOperationCode != 0
+      StrCpy $InstallRollbackCopyCode "Hibiki EQAPO driver is in use; close every DAW and retry (Win32 error: $InstallOperationCode)"
+      Goto installBackupFailed
+    ${EndIf}
+  !endif
 
   ; Never adopt or delete an unjournaled directory at the fixed recovery name.
   Call ValidateInstallRecoveryComponents
@@ -2312,10 +2916,11 @@ Function PrepareInstallTransaction
     Goto installBackupFailed
   ${EndIf}
 
-  ; Preserve config ACLs because config is intentionally excluded from the file
-  ; snapshot but the installer grants access recursively later.
+  ; Preserve only the config root ACL. /L prevents a root reparse point from
+  ; redirecting the read, and omitting /T keeps descendant junctions completely
+  ; outside this elevated transaction.
   ${If} ${FileExists} "$INSTDIR\config"
-    nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /save "$InstallRecoveryAclPath" /T /C /Q'
+    nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /save "$InstallRecoveryAclPath" /L /Q'
     Pop $InstallOperationCode
     ${If} $InstallOperationCode == "error"
       StrCpy $InstallRollbackCopyCode "config ACL snapshot could not start"
@@ -2657,6 +3262,20 @@ Function RollbackInstallTransaction
     Return
   ${EndIf}
 
+  !if ${ENABLE_ASIO_PROXY} == 1
+    ${If} $NewAsioRegAttempted == "1"
+      ; Make the half-installed class undiscoverable before replacing its DLL.
+      ; The exact previous registration is restored only after the previous file
+      ; has been copied back below.
+      Call HideAsioProxyRegistrationForRollback
+      ${If} $InstallRecoveryFailed == "1"
+        StrCpy $ApoRollbackStatus "Automatic rollback could not hide the partial Hibiki EQAPO driver registration. Recovery files remain at $InstallRollbackDirectory."
+        DetailPrint "$ApoRollbackStatus"
+        Return
+      ${EndIf}
+    ${EndIf}
+  !endif
+
   ; Only a regsvr32 process which actually started can have left partial COM
   ; entries. Pre-registration extraction/verification failures must never
   ; unregister the previously installed APO.
@@ -2766,8 +3385,20 @@ Function RollbackInstallTransaction
     ; the next run must still be able to resolve and verify its physical target.
   ${EndIf}
 
-  ; Restore the ACL for the user-data directory which was deliberately excluded
-  ; from the app-tree copy.
+  !if ${ENABLE_ASIO_PROXY} == 1
+    ${If} $NewAsioRegAttempted == "1"
+      Call RestoreAsioProxyRegistration
+      ${If} $InstallRecoveryFailed == "1"
+        StrCpy $ApoRollbackStatus "Application files were restored, but the previous Hibiki EQAPO driver registration could not be restored. Recovery files remain at $InstallRollbackDirectory."
+        DetailPrint "$ApoRollbackStatus"
+        Return
+      ${EndIf}
+    ${EndIf}
+  !endif
+
+  ; Restore only the ACL of the user-data root which was excluded from the app
+  ; snapshot. /L never follows a replacement reparse point and no descendant is
+  ; enumerated or modified.
   ClearErrors
   ReadRegDWORD $0 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "ConfigAclSaved"
   ${If} ${Errors}
@@ -2775,7 +3406,7 @@ Function RollbackInstallTransaction
     DetailPrint "$ApoRollbackStatus"
     Return
   ${ElseIf} $0 == 1
-    nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR" /restore "$InstallRecoveryAclPath" /C /Q'
+    nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR" /restore "$InstallRecoveryAclPath" /L /Q'
     Pop $InstallOperationCode
     ${If} $InstallOperationCode == "error"
       StrCpy $ApoRollbackStatus "Application files were restored, but config ACL restoration could not start. Recovery files remain at $InstallRollbackDirectory."
@@ -2788,7 +3419,7 @@ Function RollbackInstallTransaction
     ${EndIf}
   ${ElseIf} $0 == 0
     ${If} ${FileExists} "$INSTDIR\config"
-      nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /reset /T /C /Q'
+      nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /reset /L /Q'
       Pop $InstallOperationCode
       ${If} $InstallOperationCode == "error"
         StrCpy $ApoRollbackStatus "Application files were restored, but the new config ACL could not be reset. Recovery files remain at $InstallRollbackDirectory."
@@ -2886,6 +3517,9 @@ Function CommitInstallTransaction
 
   Call CloseRenameManifest
   StrCpy $NewApoRegistrationAttempted "0"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    StrCpy $NewAsioRegAttempted "0"
+  !endif
   StrCpy $InstallRollbackState "0"
   ; Cleanup is restartable and journal-last. A cleanup failure after committed
   ; cannot turn a successful install into rollback; the next run resumes it.
@@ -2899,11 +3533,15 @@ FunctionEnd
 
 Function .onInstFailed
   ; Also covers extraction/verification failures before the registration check.
+  Call CloseConfigRootIdentityHandle
   Call RollbackInstallTransaction
 FunctionEnd
 
 Function VerifyRequiredAssets
   !insertmacro RequireInstalledAsset "$INSTDIR\EqualizerAPO.dll"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    !insertmacro RequireInstalledAsset "$INSTDIR\${ASIO_PROXY_DLL}"
+  !endif
   !insertmacro RequireInstalledAsset "$INSTDIR\EqApoOutProcHost.exe"
   !insertmacro RequireInstalledAsset "$INSTDIR\DeviceSelector.exe"
   !insertmacro RequireInstalledAsset "$INSTDIR\Benchmark.exe"
@@ -2920,7 +3558,9 @@ Function VerifyRequiredAssets
   !insertmacro RequireInstalledAsset "$INSTDIR\Qt6Widgets.dll"
   !insertmacro RequireInstalledAsset "$INSTDIR\qt\platforms\qwindows.dll"
   !insertmacro RequireInstalledAsset "$INSTDIR\qt.conf"
-  !insertmacro RequireInstalledAsset "$INSTDIR\config\config.txt"
+  ${If} $ConfigRootCreated == "1"
+    !insertmacro RequireInstalledAsset "$INSTDIR\config\config.txt"
+  ${EndIf}
   Return
 
   missingRequiredAsset:
@@ -2940,7 +3580,7 @@ Function WriteInstallDiagnostics
     Return
   ${EndIf}
 
-  FileWrite $9 "Equalizer APO installer diagnostics$\r$\n"
+  FileWrite $9 "Hibiki EQAPO installer diagnostics$\r$\n"
   FileWrite $9 "Version: ${VERSION}$\r$\n"
   FileWrite $9 "Target architecture: ${TARGET_ARCH}$\r$\n"
   FileWrite $9 "Install path: $INSTDIR$\r$\n"
@@ -3011,18 +3651,13 @@ Function InstallBundledRuntimeDlls
 FunctionEnd
 
 Function WriteX64LoadDiagnostics
-  InitPluginsDir
-  SetOutPath "$PLUGINSDIR"
-  File "x64-load-check.ps1"
+  Push $OUTDIR
+  SetOutPath "$SYSDIR"
+  !insertmacro RunEmbeddedX64LoadCheck
+  Pop $OUTDIR
+  SetOutPath $OUTDIR
 
-  StrCpy $0 "$WINDIR\Sysnative\WindowsPowerShell\v1.0\powershell.exe"
-  ${IfNot} ${FileExists} "$0"
-    StrCpy $0 "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe"
-  ${EndIf}
-
-  ${If} ${FileExists} "$0"
-    nsExec::ExecToLog '"$0" -NoProfile -ExecutionPolicy Bypass -File "$PLUGINSDIR\x64-load-check.ps1" "$INSTDIR\EqualizerAPO.dll" "$InstallLogPath"'
-    Pop $2
+  ${If} $2 != "powershell not found"
     FileOpen $9 "$InstallLogPath" a
     ${If} $9 != ""
       FileWrite $9 "64-bit LoadLibrary diagnostic exit code: $2$\r$\n"
@@ -3049,19 +3684,75 @@ Section /o $(SecCheckForUpdates) SecCheckForUpdates
 SectionEnd
 
 Section "-Install"
+  ; Keep every elevated child process on a trusted CWD. Validate the nearest
+  ; existing ancestor before creating a new leaf, then validate the complete
+  ; path before SetOutPath, restore-point creation, extraction or execution.
+  SetOutPath "$SYSDIR"
+  StrCpy $InstallRootAllowMissing "1"
+  Call ValidateInstallRootAcl
+  ${If} $InstallOperationCode == "error"
+    StrCpy $InstallFailureReason "starting install-root trust validation"
+    Goto installRootTrustFailed
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallFailureReason "validating the install-root ancestor (exit code: $InstallOperationCode)"
+    Goto installRootTrustFailed
+  ${EndIf}
+  ClearErrors
+  CreateDirectory "$INSTDIR"
+  ${If} ${Errors}
+    StrCpy $InstallFailureReason "creating the installation directory"
+    Goto installRootTrustFailed
+  ${EndIf}
+  StrCpy $InstallRootAllowMissing "0"
+  Call ValidateInstallRootAcl
+  ${If} $InstallOperationCode == "error"
+    StrCpy $InstallFailureReason "starting final install-root trust validation"
+    Goto installRootTrustFailed
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallFailureReason "validating the complete installation path (exit code: $InstallOperationCode)"
+    Goto installRootTrustFailed
+  ${EndIf}
+
   SetOutPath "$INSTDIR"
   Call CreateRestorePoint
-  Call CloseRunningApplications
+  Goto installRootTrusted
+
+  installRootTrustFailed:
+  DetailPrint "Setup stopped before extraction while $InstallFailureReason."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Setup cannot safely use this installation directory while $InstallFailureReason. Choose a local, system-protected NTFS/ReFS folder. No product files were extracted or executed."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+
+  installRootTrusted:
   ; Read both shortcut locations before the durable journal is created so they
   ; can be restored after an interrupted or failed upgrade.
   !insertmacro MUI_STARTMENU_GETFOLDER Application $OldStartMenuFolder
 
-  ;Migrate the versioned default folder while preserving custom folder names.
-  StrCpy $0 "$OldStartMenuFolder" 14
-  ${If} $0 == "Equalizer APO "
+  ; Migrate only known historical default prefixes while preserving custom
+  ; folder names and every unrelated shortcut inside an old folder.
+  StrCpy $0 "$OldStartMenuFolder" 13
+  ${If} $0 == "Hibiki EQAPO "
     StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
-  ${ElseIf} $StartMenuFolder == ""
-    StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+  ${Else}
+    StrCpy $0 "$OldStartMenuFolder" 14
+    ${If} $0 == "Equalizer APO "
+      StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+    ${Else}
+      StrCpy $0 "$OldStartMenuFolder" 38
+      ${If} $0 == "Loudness Correction for Equalizer APO "
+        StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+      ${ElseIf} $OldStartMenuFolder == "Hibiki EQAPO"
+        StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+      ${ElseIf} $OldStartMenuFolder == "Equalizer APO"
+        StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+      ${ElseIf} $OldStartMenuFolder == "Loudness Correction for Equalizer APO"
+        StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+      ${ElseIf} $StartMenuFolder == ""
+        StrCpy $StartMenuFolder "${PRODUCT_LABEL} ${VERSION}"
+      ${EndIf}
+    ${EndIf}
   ${EndIf}
 
   ; Snapshot every installed application file and relevant metadata before
@@ -3089,6 +3780,9 @@ Section "-Install"
       Abort
     ${EndIf}
   ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    !insertmacro RenameAndDelete "$INSTDIR\${ASIO_PROXY_DLL}"
+  !endif
   !insertmacro RenameAndDelete "$INSTDIR\EqApoOutProcHost.exe"
   !insertmacro RenameAndDelete "$INSTDIR\EqApoJuceVST3Host.dll"
   !insertmacro RenameAndDelete "$INSTDIR\EqApoOutProcJuceHost.exe"
@@ -3132,6 +3826,9 @@ Section "-Install"
   !insertmacro RenameAndDelete "$INSTDIR\Qt6Widgets.dll"
 
   File "${BINPATH}\EqualizerAPO.dll"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    File "${LIBPATH}\${ASIO_PROXY_DLL}"
+  !endif
   File "${BINPATH}\EqApoOutProcHost.exe"
   File "${BINPATH}\DeviceSelector.exe"
   File "${BINPATH}\Benchmark.exe"
@@ -3195,19 +3892,57 @@ Section "-Install"
   File "Configuration reference (online).url"
   File "qt.conf"
 
-  CreateDirectory "$INSTDIR\config"
-  CreateDirectory "$INSTDIR\config\HeadphoneCalibrations"
-  CreateDirectory "$INSTDIR\config\IRs"
+  ; Never write through an existing user-writable config tree. A fresh root
+  ; inherits the protected install-root ACL, so defaults can be created before
+  ; Users receive access. Existing roots are only validated and receive the
+  ; root-only ACL update below; applications create any missing user data later.
+  StrCpy $ConfigRootCreated "0"
+  System::Call 'kernel32::GetFileAttributesW(w "$INSTDIR\config") i .r0 ?e'
+  Pop $1
+  ${If} $0 == ${INVALID_FILE_ATTRIBUTES}
+    ${If} $1 != ${ERROR_FILE_NOT_FOUND}
+    ${AndIf} $1 != ${ERROR_PATH_NOT_FOUND}
+      StrCpy $InstallFailureReason "inspecting the config directory (Win32 error: $1)"
+      Goto installTransactionFailed
+    ${EndIf}
+    ClearErrors
+    CreateDirectory "$INSTDIR\config"
+    ${If} ${Errors}
+      StrCpy $InstallFailureReason "creating the config directory"
+      Goto installTransactionFailed
+    ${EndIf}
+    StrCpy $ConfigRootCreated "1"
+  ${EndIf}
+  Call ValidateAndHoldConfigRoot
+  ${If} $InstallRecoveryFailed == "1"
+    StrCpy $InstallFailureReason "validating the config directory"
+    Goto installTransactionFailed
+  ${EndIf}
+  ${If} $ConfigRootCreated == "1"
+    CreateDirectory "$INSTDIR\config\HeadphoneCalibrations"
+    CreateDirectory "$INSTDIR\config\IRs"
+    SetOverwrite off
+    File /oname=config\config.txt "config\config.txt"
+    File /oname=config\example.txt "config\example.txt"
+    File /oname=config\demo.txt "config\demo.txt"
+    File /oname=config\multichannel.txt "config\multichannel.txt"
+    File /oname=config\iir_lowpass.txt "config\iir_lowpass.txt"
+    File /oname=config\selective_delay.txt "config\selective_delay.txt"
+    SetOverwrite on
+  ${EndIf}
+  ; /L binds the operation to the root entry and omitting /T and /C prevents
+  ; explicit traversal of existing user descendants, including junctions.
+  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /grant *S-1-5-32-545:(OI)(CI)F /L /Q'
+  Pop $InstallOperationCode
+  ${If} $InstallOperationCode == "error"
+    StrCpy $InstallFailureReason "starting the config ACL update"
+    Goto installTransactionFailed
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallFailureReason "updating the config ACL (exit code: $InstallOperationCode)"
+    Goto installTransactionFailed
+  ${EndIf}
+  Call CloseConfigRootIdentityHandle
   CreateDirectory "$INSTDIR\VSTPlugins"
-
-  SetOverwrite off
-  File /oname=config\config.txt "config\config.txt"
-  File /oname=config\example.txt "config\example.txt"
-  File /oname=config\demo.txt "config\demo.txt"
-  File /oname=config\multichannel.txt "config\multichannel.txt"
-  File /oname=config\iir_lowpass.txt "config\iir_lowpass.txt"
-  File /oname=config\selective_delay.txt "config\selective_delay.txt"
-  SetOverwrite on
 
   ; Do not make persistent system changes when the installer payload is incomplete.
   Call VerifyRequiredAssets
@@ -3248,7 +3983,7 @@ Section "-Install"
     StrCpy $FailedRegistrationCode "$1"
     ${If} $DiagnosticIssues != ""
       ${IfNot} ${Silent}
-        MessageBox MB_ICONQUESTION|MB_YESNO "Equalizer APO could not be registered.$\r$\n$\r$\nThe installer found these missing or incompatible bundled files:$\r$\n$\r$\n$DiagnosticIssues$\r$\nSetup can reinstall the bundled DLLs into the Equalizer APO folder and retry registration.$\r$\n$\r$\nThis will not replace Windows system DLLs.$\r$\n$\r$\nDo you want to reinstall the bundled DLLs and retry?" IDNO apoRegistrationFailed
+        MessageBox MB_ICONQUESTION|MB_YESNO "Hibiki EQAPO could not be registered.$\r$\n$\r$\nThe installer found these missing or incompatible bundled files:$\r$\n$\r$\n$DiagnosticIssues$\r$\nSetup can reinstall the bundled DLLs into the compatibility installation folder and retry registration.$\r$\n$\r$\nThis will not replace Windows system DLLs.$\r$\n$\r$\nDo you want to reinstall the bundled DLLs and retry?" IDNO apoRegistrationFailed
         Call InstallBundledRuntimeDlls
         Call WriteInstallDiagnostics
         Call BeginProtectedAudioOverride
@@ -3288,22 +4023,11 @@ Section "-Install"
   Call WriteX64LoadDiagnostics
   Call RollbackInstallTransaction
   ${IfNot} ${Silent}
-    MessageBox MB_ICONSTOP|MB_OK "Equalizer APO could not be registered. Installation will stop before modifying audio devices.$\r$\n$\r$\nThis usually means a required runtime DLL is missing or incompatible.$\r$\n$\r$\nregsvr32 result: $FailedRegistrationCode$\r$\nDiagnostics log: $InstallLogPath$\r$\n$\r$\n$ApoRollbackStatus"
+    MessageBox MB_ICONSTOP|MB_OK "Hibiki EQAPO could not be registered. Installation will stop before modifying audio devices.$\r$\n$\r$\nThis usually means a required runtime DLL is missing or incompatible.$\r$\n$\r$\nregsvr32 result: $FailedRegistrationCode$\r$\nDiagnostics log: $InstallLogPath$\r$\n$\r$\n$ApoRollbackStatus"
   ${EndIf}
   Abort
 
   apoRegistrationSucceeded:
-  ; Grant write access to the config directory for all users.
-  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$INSTDIR\config" /grant *S-1-5-32-545:(OI)(CI)F /T /C'
-  Pop $InstallOperationCode
-  ${If} $InstallOperationCode == "error"
-    StrCpy $InstallFailureReason "starting the config ACL update"
-    Goto installTransactionFailed
-  ${ElseIf} $InstallOperationCode != 0
-    StrCpy $InstallFailureReason "updating the config ACL (exit code: $InstallOperationCode)"
-    Goto installTransactionFailed
-  ${EndIf}
-
   StrCpy $OLDINSTDIR ""
   ClearErrors
   ReadRegStr $OLDINSTDIR HKLM ${REGPATH} "InstallPath"
@@ -3324,6 +4048,14 @@ Section "-Install"
   ${If} $0 == ""
     !insertmacro WriteRequiredRegStr HKLM "${REGPATH}" "EnableTrace" "false" "writing the trace setting"
   ${EndIf}
+
+  !insertmacro WriteRequiredRegDWORD HKLM "${REGPATH}" "BrandMigrationVersion" ${BRAND_MIGRATION_VERSION} "writing the Hibiki EQAPO brand migration marker"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    Call ApplyAsioProxyRegistration
+    ${If} $InstallRecoveryFailed == "1"
+      Goto installTransactionFailed
+    ${EndIf}
+  !endif
 
   ClearErrors
   WriteUninstaller "$INSTDIR\Uninstall.exe"
@@ -3346,10 +4078,10 @@ Section "-Install"
     StrCpy $InstallFailureReason "creating the Start Menu folder"
     Goto installTransactionFailed
   ${EndIf}
-  !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Equalizer APO Configuration Editor.lnk" "$INSTDIR\Editor.exe"
+  !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Hibiki EQAPO Configuration Editor.lnk" "$INSTDIR\Editor.exe"
   !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Configuration tutorial (online).lnk" "$INSTDIR\Configuration tutorial (online).url"
   !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Configuration reference (online).lnk" "$INSTDIR\Configuration reference (online).url"
-  !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Equalizer APO Device Selector.lnk" "$INSTDIR\DeviceSelector.exe"
+  !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Hibiki EQAPO Device Selector.lnk" "$INSTDIR\DeviceSelector.exe"
   !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Benchmark.lnk" "$INSTDIR\Benchmark.exe"
   !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Check for updates.lnk" "$INSTDIR\UpdateChecker.exe"
   !insertmacro CreateRequiredShortcut "$SMPROGRAMS\$StartMenuFolder\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
@@ -3433,7 +4165,7 @@ Section "-Install"
     ExecWait '"$INSTDIR\DeviceSelector.exe" /i' $DeviceSelectorResult
     ${If} ${Errors}
       SetRebootFlag true
-      MessageBox MB_ICONEXCLAMATION|MB_OK "Installation completed, but Device Selector could not be started. Run Equalizer APO Device Selector from the Start Menu to choose audio endpoints. No committed files were rolled back."
+      MessageBox MB_ICONEXCLAMATION|MB_OK "Installation completed, but Device Selector could not be started. Run Hibiki EQAPO Device Selector from the Start Menu to choose audio endpoints. No committed files were rolled back."
     ${ElseIf} $DeviceSelectorResult != 0
       SetRebootFlag true
       MessageBox MB_ICONEXCLAMATION|MB_OK "Installation completed, but Device Selector exited with code $DeviceSelectorResult. Run it again from the Start Menu if endpoint changes were not applied. No committed files were rolled back."
@@ -3442,6 +4174,7 @@ Section "-Install"
   Goto installTransactionComplete
 
   installTransactionFailed:
+  Call CloseConfigRootIdentityHandle
   Call RollbackInstallTransaction
   ${IfNot} ${Silent}
     MessageBox MB_ICONSTOP|MB_OK "Installation could not complete while $InstallFailureReason.$\r$\n$\r$\nThe installer attempted to restore the previous application files, registry metadata, shortcuts, update task, audio registration and protected-audio setting.$\r$\n$\r$\n$ApoRollbackStatus"
@@ -3453,6 +4186,582 @@ SectionEnd
 
 ;--------------------------------
 ;Uninstaller Sections
+
+Function un.BlockIfInstallRecoveryJournalExists
+  ; An application-tree transaction is owned by Setup.exe. The uninstaller must
+  ; never guess whether a partial snapshot, registration change or rename
+  ; manifest can be discarded. Even a structurally valid pending journal is a
+  ; hard stop until Setup.exe has replayed recovery and removed the key.
+  StrCpy $InstallRecoveryFailed "0"
+  StrCpy $InstallFailureReason ""
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${INSTALLER_APP_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${INSTALLER_APP_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 == ${ERROR_FILE_NOT_FOUND}
+    Return
+  ${ElseIf} $1 != 0
+    StrCpy $InstallFailureReason "the installer recovery journal could not be inspected (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  System::Call 'advapi32::RegCloseKey(p r0) i .r1'
+  ${If} $1 != 0
+    StrCpy $InstallFailureReason "the installer recovery journal could not be closed safely (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "Pending"
+  ${If} ${Errors}
+    Goto malformedInstallRecoveryJournal
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $InstallRecoveryPhase HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "Phase"
+  ${If} ${Errors}
+  ${OrIf} $InstallRecoveryPhase == ""
+    Goto malformedInstallRecoveryJournal
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $1 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "JournalVersion"
+  ${If} ${Errors}
+  ${OrIf} $1 != ${INSTALL_RECOVERY_JOURNAL_VERSION}
+  ${OrIf} $0 != 1
+    Goto malformedInstallRecoveryJournal
+  ${EndIf}
+
+  ${If} $InstallRecoveryPhase == "initializing"
+  ${OrIf} $InstallRecoveryPhase == "preparing"
+  ${OrIf} $InstallRecoveryPhase == "prepared"
+  ${OrIf} $InstallRecoveryPhase == "active"
+  ${OrIf} $InstallRecoveryPhase == "committed"
+  ${OrIf} $InstallRecoveryPhase == "rollback-cleanup"
+    StrCpy $InstallFailureReason "a pending Setup recovery transaction (phase: $InstallRecoveryPhase)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+
+  malformedInstallRecoveryJournal:
+  StrCpy $InstallFailureReason "an unknown, malformed or partial Setup recovery journal"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
+Function un.LoadUninstallRecoveryTargetForInit
+  ; If product metadata was already removed before an interruption, only a
+  ; complete, versioned uninstall journal may supply the path used to bind this
+  ; exact Uninstall.exe. Full step/phase validation is repeated before actions.
+  StrCpy $InstallRecoveryFailed "0"
+  StrCpy $UninstallRecoveryInstallPath ""
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 != 0
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  System::Call 'advapi32::RegCloseKey(p r0) i .r1'
+  ${If} $1 != 0
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "JournalVersion"
+  ${If} ${Errors}
+  ${OrIf} $0 != ${UNINSTALLER_RECOVERY_JOURNAL_VERSION}
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Pending"
+  ${If} ${Errors}
+  ${OrIf} $0 != 1
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryPhase HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase"
+  ${If} ${Errors}
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  ${If} $UninstallRecoveryPhase != "critical"
+  ${AndIf} $UninstallRecoveryPhase != "payload"
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryInstallPath HKLM ${UNINSTALLER_RECOVERY_REGPATH} "InstallPath"
+  ${If} ${Errors}
+  ${OrIf} $UninstallRecoveryInstallPath == ""
+    Goto invalidUninstallRecoveryTarget
+  ${EndIf}
+  Return
+
+  invalidUninstallRecoveryTarget:
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
+Function un.onInit
+  !if ${LIBPATH} != "lib32"
+    SetRegView 64
+  !endif
+  StrCpy $RemoveUserConfigurationRequested "0"
+
+  ; This must be the first state gate. Do not read or execute any installed
+  ; payload while Setup owns a pending or unverifiable recovery transaction.
+  StrCpy $InstallRecoveryFailed "0"
+  Call un.BlockIfInstallRecoveryJournalExists
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallInstallRecoveryBlocked
+  ${EndIf}
+
+  ; $INSTDIR in an uninstaller initially comes from the executable's directory.
+  ; Bind it to the protected machine-wide registration before executing or
+  ; loading any installed sidecar; a copied Uninstall.exe must be inert.
+  ClearErrors
+  ReadRegStr $0 HKLM ${REGPATH} "InstallPath"
+  ${If} ${Errors}
+    Goto loadUninstallRecoveryTarget
+  ${ElseIf} $0 == ""
+    Goto loadUninstallRecoveryTarget
+  ${EndIf}
+  Goto normalizeUninstallRegisteredTarget
+
+  loadUninstallRecoveryTarget:
+  Call un.LoadUninstallRecoveryTargetForInit
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallTrustValidationFailed
+  ${EndIf}
+  StrCpy $0 "$UninstallRecoveryInstallPath"
+
+  normalizeUninstallRegisteredTarget:
+  ClearErrors
+  GetFullPathName $1 "$0"
+  ${If} ${Errors}
+  ${OrIf} $1 == ""
+    Goto uninstallTrustValidationFailed
+  ${EndIf}
+  normalizeRegisteredUninstallRootTail:
+  StrCpy $3 "$1" 1 -1
+  ${If} $3 == "\"
+    ${GetRoot} "$1" $4
+    ${If} $1 != $4
+    ${AndIf} $1 != "$4\"
+      StrCpy $1 "$1" -1
+      Goto normalizeRegisteredUninstallRootTail
+    ${EndIf}
+  ${EndIf}
+
+  ClearErrors
+  GetFullPathName $2 "$EXEDIR"
+  ${If} ${Errors}
+  ${OrIf} $2 == ""
+    Goto uninstallTrustValidationFailed
+  ${EndIf}
+  normalizeExecutableUninstallRootTail:
+  StrCpy $3 "$2" 1 -1
+  ${If} $3 == "\"
+    ${GetRoot} "$2" $4
+    ${If} $2 != $4
+    ${AndIf} $2 != "$4\"
+      StrCpy $2 "$2" -1
+      Goto normalizeExecutableUninstallRootTail
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $1 != $2
+    Goto uninstallTrustValidationFailed
+  ${EndIf}
+  StrCpy $INSTDIR "$1"
+  StrCpy $InstallRootAllowMissing "0"
+  Call un.ValidateInstallRootAcl
+  ${If} $InstallOperationCode == "error"
+    Goto uninstallTrustValidationFailed
+  ${ElseIf} $InstallOperationCode != 0
+    Goto uninstallTrustValidationFailed
+  ${EndIf}
+  Return
+
+  uninstallInstallRecoveryBlocked:
+  DetailPrint "Uninstall refused $InstallFailureReason. The Setup recovery journal was retained."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Uninstall cannot safely continue because Setup recovery is pending or cannot be verified. Run the same Setup.exe again first so it can finish recovery, then retry uninstall.$\r$\n$\r$\nThe recovery journal was retained."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+
+  uninstallTrustValidationFailed:
+  DetailPrint "Uninstall refused an unregistered, missing, reparse-point, or weak-ACL installation directory."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Uninstall cannot safely trust this installation directory. Run the registered Uninstall.exe from a system-protected installation folder, or repair the installation first. No installed application was started and no product state was changed."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+FunctionEnd
+
+Function un.ValidateInstallRootAcl
+  !insertmacro ValidateInstallRootAclBody
+FunctionEnd
+
+Function un.FlushUninstallTransaction
+  StrCpy $InstallRecoveryFailed "0"
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 != 0
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  System::Call 'advapi32::RegFlushKey(p r0) i .r1'
+  System::Call 'advapi32::RegCloseKey(p r0) i .r2'
+  ${If} $1 != 0
+  ${OrIf} $2 != 0
+    StrCpy $InstallRecoveryFailed "1"
+  ${EndIf}
+FunctionEnd
+
+Function un.PrepareUninstallTransaction
+  ; This peer key survives DeleteRegKey ${REGPATH}. It records completed
+  ; non-file side effects before payload deletion can remove the helpers needed
+  ; to repeat them. A missing helper is accepted only when this protected,
+  ; versioned journal proves that exact operation already completed.
+  StrCpy $InstallRecoveryFailed "0"
+  StrCpy $UninstallRecoveryPhase ""
+  StrCpy $UninstallRecoveryInstallPath ""
+  StrCpy $UninstallUpdateCheckerDone "0"
+  StrCpy $UninstallDeviceSelectorDone "0"
+  StrCpy $UninstallApoUnregistered "0"
+  StrCpy $UninstallAsioProxyUnregistered "0"
+
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 == ${ERROR_FILE_NOT_FOUND}
+    Goto createUninstallTransaction
+  ${ElseIf} $1 != 0
+    StrCpy $InstallFailureReason "opening the uninstall recovery journal (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  System::Call 'advapi32::RegCloseKey(p r0) i .r1'
+  ${If} $1 != 0
+    StrCpy $InstallFailureReason "closing the uninstall recovery journal (registry error: $1)"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "JournalVersion"
+  ${If} ${Errors}
+  ${OrIf} $0 != ${UNINSTALLER_RECOVERY_JOURNAL_VERSION}
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryInstallPath HKLM ${UNINSTALLER_RECOVERY_REGPATH} "InstallPath"
+  ${If} ${Errors}
+  ${OrIf} $UninstallRecoveryInstallPath == ""
+  ${OrIf} $UninstallRecoveryInstallPath != "$INSTDIR"
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Pending"
+  ${If} ${Errors}
+  ${OrIf} $0 != 1
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryPhase HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase"
+  ${If} ${Errors}
+  ${OrIf} $UninstallRecoveryPhase == ""
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallUpdateCheckerDone HKLM ${UNINSTALLER_RECOVERY_REGPATH} "UpdateCheckerDone"
+  ${If} ${Errors}
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallDeviceSelectorDone HKLM ${UNINSTALLER_RECOVERY_REGPATH} "DeviceSelectorDone"
+  ${If} ${Errors}
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallApoUnregistered HKLM ${UNINSTALLER_RECOVERY_REGPATH} "ApoUnregistered"
+  ${If} ${Errors}
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $UninstallAsioProxyUnregistered HKLM ${UNINSTALLER_RECOVERY_REGPATH} "AsioProxyUnregistered"
+  ${If} ${Errors}
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ${If} $UninstallUpdateCheckerDone != 0
+  ${AndIf} $UninstallUpdateCheckerDone != 1
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ${If} $UninstallDeviceSelectorDone != 0
+  ${AndIf} $UninstallDeviceSelectorDone != 1
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ${If} $UninstallApoUnregistered != 0
+  ${AndIf} $UninstallApoUnregistered != 1
+    Goto malformedUninstallTransaction
+  ${EndIf}
+  ${If} $UninstallAsioProxyUnregistered != 0
+  ${AndIf} $UninstallAsioProxyUnregistered != 1
+    Goto malformedUninstallTransaction
+  ${EndIf}
+
+  ${If} $UninstallRecoveryPhase == "critical"
+    ${If} $UninstallUpdateCheckerDone == 0
+    ${AndIfNot} ${FileExists} "$INSTDIR\UpdateChecker.exe"
+      Goto missingUninstallUpdateChecker
+    ${EndIf}
+    ${If} $UninstallDeviceSelectorDone == 0
+    ${AndIfNot} ${FileExists} "$INSTDIR\DeviceSelector.exe"
+      Goto missingUninstallDeviceSelector
+    ${EndIf}
+    ${If} $UninstallApoUnregistered == 0
+    ${AndIfNot} ${FileExists} "$INSTDIR\EqualizerAPO.dll"
+      Goto missingUninstallApo
+    ${EndIf}
+    !if ${ENABLE_ASIO_PROXY} == 1
+      ${If} $UninstallAsioProxyUnregistered == 0
+        Call un.CheckAsioProxyDllUnlocked
+        ${If} $InstallOperationCode != 0
+          Goto lockedUninstallAsioProxy
+        ${EndIf}
+      ${EndIf}
+    !endif
+    Return
+  ${ElseIf} $UninstallRecoveryPhase == "payload"
+    ${If} $UninstallUpdateCheckerDone != 1
+    ${OrIf} $UninstallDeviceSelectorDone != 1
+    ${OrIf} $UninstallApoUnregistered != 1
+    ${OrIf} $UninstallAsioProxyUnregistered != 1
+      Goto malformedUninstallTransaction
+    ${EndIf}
+    Return
+  ${EndIf}
+  Goto malformedUninstallTransaction
+
+  createUninstallTransaction:
+  ; Validate all critical helpers before the first journal write. Therefore an
+  ; initially damaged installation can never manufacture "done" state merely
+  ; because a helper was already absent.
+  ${IfNot} ${FileExists} "$INSTDIR\UpdateChecker.exe"
+    Goto missingUninstallUpdateChecker
+  ${EndIf}
+  ${IfNot} ${FileExists} "$INSTDIR\DeviceSelector.exe"
+    Goto missingUninstallDeviceSelector
+  ${EndIf}
+  ${IfNot} ${FileExists} "$INSTDIR\EqualizerAPO.dll"
+    Goto missingUninstallApo
+  ${EndIf}
+  !if ${ENABLE_ASIO_PROXY} == 1
+    Call un.CheckAsioProxyDllUnlocked
+    ${If} $InstallOperationCode != 0
+      Goto lockedUninstallAsioProxy
+    ${EndIf}
+  !endif
+
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "JournalVersion" ${UNINSTALLER_RECOVERY_JOURNAL_VERSION}
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegStr HKLM ${UNINSTALLER_RECOVERY_REGPATH} "InstallPath" "$INSTDIR"
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegStr HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase" "critical"
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "UpdateCheckerDone" 0
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "DeviceSelectorDone" 0
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "ApoUnregistered" 0
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "AsioProxyUnregistered" 0
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  ; Pending is last: a crash before it is an explicitly malformed partial
+  ; journal, never evidence that a critical operation completed.
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Pending" 1
+  ${If} ${Errors}
+    Goto writeUninstallTransactionFailed
+  ${EndIf}
+  Call un.FlushUninstallTransaction
+  ${If} $InstallRecoveryFailed == "1"
+    StrCpy $InstallFailureReason "durably creating the uninstall recovery journal"
+    Return
+  ${EndIf}
+  StrCpy $UninstallRecoveryInstallPath "$INSTDIR"
+  StrCpy $UninstallRecoveryPhase "critical"
+  Return
+
+  missingUninstallUpdateChecker:
+  StrCpy $InstallFailureReason "validating the required UpdateChecker.exe before uninstall"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+  missingUninstallDeviceSelector:
+  StrCpy $InstallFailureReason "validating the required DeviceSelector.exe before uninstall"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+  missingUninstallApo:
+  StrCpy $InstallFailureReason "validating the required EqualizerAPO.dll before uninstall"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+  lockedUninstallAsioProxy:
+  StrCpy $InstallFailureReason "checking the Hibiki EQAPO driver file; close every DAW and retry (Win32 error: $InstallOperationCode)"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+  writeUninstallTransactionFailed:
+  StrCpy $InstallFailureReason "creating the uninstall recovery journal"
+  StrCpy $InstallRecoveryFailed "1"
+  Return
+  malformedUninstallTransaction:
+  StrCpy $InstallFailureReason "validating an unknown, malformed or partial uninstall recovery journal"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
+Function un.PersistUninstallStep
+  StrCpy $InstallRecoveryFailed "0"
+  ${If} $UninstallRecoveryPhase != "critical"
+    Goto persistUninstallStepFailed
+  ${EndIf}
+  ${If} $UninstallRecoveryStepName != "UpdateCheckerDone"
+  ${AndIf} $UninstallRecoveryStepName != "DeviceSelectorDone"
+  ${AndIf} $UninstallRecoveryStepName != "ApoUnregistered"
+  ${AndIf} $UninstallRecoveryStepName != "AsioProxyUnregistered"
+    Goto persistUninstallStepFailed
+  ${EndIf}
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "$UninstallRecoveryStepName" 1
+  ${If} ${Errors}
+    Goto persistUninstallStepFailed
+  ${EndIf}
+  ClearErrors
+  ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH} "$UninstallRecoveryStepName"
+  ${If} ${Errors}
+  ${OrIf} $0 != 1
+    Goto persistUninstallStepFailed
+  ${EndIf}
+  Call un.FlushUninstallTransaction
+  ${If} $InstallRecoveryFailed == "1"
+    Goto persistUninstallStepFailed
+  ${EndIf}
+  ${If} $UninstallRecoveryStepName == "UpdateCheckerDone"
+    StrCpy $UninstallUpdateCheckerDone "1"
+  ${ElseIf} $UninstallRecoveryStepName == "DeviceSelectorDone"
+    StrCpy $UninstallDeviceSelectorDone "1"
+  ${ElseIf} $UninstallRecoveryStepName == "ApoUnregistered"
+    StrCpy $UninstallApoUnregistered "1"
+  ${ElseIf} $UninstallRecoveryStepName == "AsioProxyUnregistered"
+    StrCpy $UninstallAsioProxyUnregistered "1"
+  ${EndIf}
+  Return
+
+  persistUninstallStepFailed:
+  StrCpy $InstallFailureReason "persisting uninstall step $UninstallRecoveryStepName"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
+Function un.MarkUninstallPayloadPhase
+  StrCpy $InstallRecoveryFailed "0"
+  ${If} $UninstallUpdateCheckerDone != 1
+  ${OrIf} $UninstallDeviceSelectorDone != 1
+  ${OrIf} $UninstallApoUnregistered != 1
+  ${OrIf} $UninstallAsioProxyUnregistered != 1
+    StrCpy $InstallFailureReason "validating completed critical uninstall steps"
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  ClearErrors
+  WriteRegStr HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase" "payload"
+  ${If} ${Errors}
+    Goto persistUninstallPayloadPhaseFailed
+  ${EndIf}
+  ClearErrors
+  ReadRegStr $UninstallRecoveryPhase HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase"
+  ${If} ${Errors}
+  ${OrIf} $UninstallRecoveryPhase != "payload"
+    Goto persistUninstallPayloadPhaseFailed
+  ${EndIf}
+  Call un.FlushUninstallTransaction
+  ${If} $InstallRecoveryFailed == "1"
+    Goto persistUninstallPayloadPhaseFailed
+  ${EndIf}
+  Return
+
+  persistUninstallPayloadPhaseFailed:
+  StrCpy $InstallFailureReason "persisting the payload-cleanup uninstall phase"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
+
+Function un.RestoreCompletedUninstallTransaction
+  ; Used only if a final self-removal step fails after journal cleanup. Recreate
+  ; the already-completed critical-step proof before exposing a retry entry.
+  StrCpy $InstallRecoveryFailed "0"
+  ClearErrors
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "JournalVersion" ${UNINSTALLER_RECOVERY_JOURNAL_VERSION}
+  WriteRegStr HKLM ${UNINSTALLER_RECOVERY_REGPATH} "InstallPath" "$INSTDIR"
+  WriteRegStr HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Phase" "payload"
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "UpdateCheckerDone" 1
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "DeviceSelectorDone" 1
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "ApoUnregistered" 1
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "AsioProxyUnregistered" 1
+  WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH} "Pending" 1
+  ${If} ${Errors}
+    StrCpy $InstallRecoveryFailed "1"
+    Return
+  ${EndIf}
+  StrCpy $UninstallRecoveryPhase "payload"
+  Call un.FlushUninstallTransaction
+FunctionEnd
+
+Function un.ClearUninstallTransaction
+  ; Journal-last cleanup. This key is a sibling of ${REGPATH}, so deleting
+  ; product metadata cannot erase retry proof before payload cleanup succeeds.
+  StrCpy $InstallRecoveryFailed "0"
+  ${If} $UninstallRecoveryPhase != "payload"
+    Goto clearUninstallTransactionFailed
+  ${EndIf}
+  ClearErrors
+  DeleteRegKey HKLM ${UNINSTALLER_RECOVERY_REGPATH}
+  !if ${LIBPATH} != "lib32"
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE_64}, *p .r0) i .r1'
+  !else
+    System::Call 'advapi32::RegOpenKeyExW(p ${WIN32_HKEY_LOCAL_MACHINE}, w "${UNINSTALLER_RECOVERY_REGPATH}", i 0, i ${KEY_QUERY_VALUE}, *p .r0) i .r1'
+  !endif
+  ${If} $1 == ${ERROR_FILE_NOT_FOUND}
+    Return
+  ${ElseIf} $1 == 0
+    System::Call 'advapi32::RegCloseKey(p r0) i .r1'
+  ${EndIf}
+
+  clearUninstallTransactionFailed:
+  StrCpy $InstallFailureReason "clearing the completed uninstall recovery journal"
+  StrCpy $InstallRecoveryFailed "1"
+FunctionEnd
 
 Function un.ValidateProductChildDirectory
   ; Validate a caller-supplied product child without following a directory
@@ -3582,40 +4891,35 @@ Function un.RemoveQtPluginTreeSafely
     Goto unsafeQtTree
   ${EndIf}
 
-  Delete "$INSTDIR\qt\generic\qtuiotouchplugin.dll"
-  Delete "$INSTDIR\qt\iconengines\qsvgicon.dll"
-  Delete "$INSTDIR\qt\imageformats\qico.dll"
-  Delete "$INSTDIR\qt\imageformats\qsvg.dll"
-  Delete "$INSTDIR\qt\imageformats\qgif.dll"
-  Delete "$INSTDIR\qt\imageformats\qjpeg.dll"
-  Delete "$INSTDIR\qt\networkinformation\qnetworklistmanager.dll"
-  Delete "$INSTDIR\qt\platforms\qwindows.dll"
-  Delete "$INSTDIR\qt\styles\qmodernwindowsstyle.dll"
-  Delete "$INSTDIR\qt\styles\qwindowsvistastyle.dll"
-  Delete "$INSTDIR\qt\tls\qcertonlybackend.dll"
-  Delete "$INSTDIR\qt\tls\qschannelbackend.dll"
-  RMDir "$INSTDIR\qt\generic"
-  RMDir "$INSTDIR\qt\iconengines"
-  RMDir "$INSTDIR\qt\imageformats"
-  RMDir "$INSTDIR\qt\networkinformation"
-  RMDir "$INSTDIR\qt\platforms"
-  RMDir "$INSTDIR\qt\styles"
-  RMDir "$INSTDIR\qt\tls"
-  RMDir "$INSTDIR\qt"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\generic\qtuiotouchplugin.dll" "the Qt touch plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\iconengines\qsvgicon.dll" "the Qt SVG icon plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\imageformats\qico.dll" "the Qt ICO plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\imageformats\qsvg.dll" "the Qt SVG image plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\imageformats\qgif.dll" "the legacy Qt GIF plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\imageformats\qjpeg.dll" "the legacy Qt JPEG plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\networkinformation\qnetworklistmanager.dll" "the Qt network plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\platforms\qwindows.dll" "the Qt platform plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\styles\qmodernwindowsstyle.dll" "the Qt modern style plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\styles\qwindowsvistastyle.dll" "the legacy Qt style plug-in"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\tls\qcertonlybackend.dll" "the Qt certificate backend"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt\tls\qschannelbackend.dll" "the Qt TLS backend"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\generic" "the Qt generic plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\iconengines" "the Qt icon plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\imageformats" "the Qt image plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\networkinformation" "the Qt network plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\platforms" "the Qt platform plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\styles" "the Qt style plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt\tls" "the Qt TLS plug-in directory"
+  !insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\qt" "the Qt plug-in tree"
   Return
 
   unsafeQtTree:
   DetailPrint "The Qt plug-in tree contains an unsafe or inaccessible path and was retained: $INSTDIR\qt"
+  StrCpy $InstallRecoveryFailed "1"
+  StrCpy $InstallFailureReason "validating the Qt plug-in tree"
 FunctionEnd
 
-LangString SecRemoveName ${LANG_ENGLISH} "Remove configurations and registry backups"
-LangString SecRemoveName ${LANG_SPANISH} "Eliminar configuraciones y copias de seguridad del registro"
-LangString SecRemoveName ${LANG_GERMAN} "Konfigurationen und Registrierungsbackups entfernen"
-LangString SecRemoveName ${LANG_TRADCHINESE} "移除設定檔與登錄檔備份"
-LangString SecRemoveName ${LANG_SIMPCHINESE} "移除配置文件与注册表备份"
-
-Section /o un.$(SecRemoveName)
-
+Function un.RemoveRequestedUserConfiguration
   Delete "$INSTDIR\*.reg"
   StrCpy $InstallRecoveryPathToCheck "$INSTDIR\config"
   Call un.ValidateProductChildDirectory
@@ -3631,7 +4935,37 @@ Section /o un.$(SecRemoveName)
     ${EndIf}
   ${EndIf}
   DeleteRegKey HKCU ${REGPATH}
+FunctionEnd
 
+Function un.StopInstalledProductProcesses
+  Push $OUTDIR
+  SetOutPath "$SYSDIR"
+  !insertmacro RunEmbeddedProcessStopper "0"
+  Pop $OUTDIR
+  SetOutPath $OUTDIR
+FunctionEnd
+
+Function un.CheckInstalledProductProcesses
+  Push $OUTDIR
+  SetOutPath "$SYSDIR"
+  ; The out-of-process host has no document UI and may be stopped immediately.
+  ; Interactive product applications are only identified in this pass; exit 2
+  ; means explicit consent is required before force termination.
+  !insertmacro RunEmbeddedProcessStopper "1"
+  Pop $OUTDIR
+  SetOutPath $OUTDIR
+FunctionEnd
+
+LangString SecRemoveName ${LANG_ENGLISH} "Remove configurations and registry backups"
+LangString SecRemoveName ${LANG_SPANISH} "Eliminar configuraciones y copias de seguridad del registro"
+LangString SecRemoveName ${LANG_GERMAN} "Konfigurationen und Registrierungsbackups entfernen"
+LangString SecRemoveName ${LANG_TRADCHINESE} "移除設定檔與登錄檔備份"
+LangString SecRemoveName ${LANG_SIMPCHINESE} "移除配置文件与注册表备份"
+
+Section /o un.$(SecRemoveName)
+  ; Section selection is recorded now, but destructive user-data removal is
+  ; deferred until every critical unregistration step below has succeeded.
+  StrCpy $RemoveUserConfigurationRequested "1"
 SectionEnd
 
 Section "-un.Uninstall"
@@ -3639,77 +4973,257 @@ Section "-un.Uninstall"
 	SetRegView 64
   !endif
 
+  Call un.PrepareUninstallTransaction
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallCriticalCleanupFailed
+  ${EndIf}
+
   ;Qt applications only work if working directory is set to application directory
   Push $OUTDIR
   SetOutPath $INSTDIR
-  ${If} ${Silent}
-    ExecWait '"$INSTDIR\UpdateChecker.exe" -u -s'
-    ExecWait '"$INSTDIR\DeviceSelector.exe" /u /s'
-  ${Else}
-    ExecWait '"$INSTDIR\UpdateChecker.exe" -u'
-    ExecWait '"$INSTDIR\DeviceSelector.exe" /u'
+  Call un.CheckInstalledProductProcesses
+  ${If} $InstallOperationCode == 2
+    ${If} ${Silent}
+      StrCpy $InstallFailureReason "running interactive Hibiki EQAPO applications; close them before silent uninstall"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+    MessageBox MB_YESNO|MB_ICONEXCLAMATION $(UninstallCloseAppsPrompt) IDYES uninstallStopConfirmed
+    StrCpy $InstallFailureReason "the user declined to close running Hibiki EQAPO applications"
+    Goto uninstallRestoreOutDirAndFail
+    uninstallStopConfirmed:
+    Call un.StopInstalledProductProcesses
+    ${If} $InstallOperationCode != 0
+      StrCpy $InstallFailureReason "stopping installed Hibiki EQAPO processes (exit code: $InstallOperationCode)"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+  ${ElseIf} $InstallOperationCode != 0
+    StrCpy $InstallFailureReason "stopping installed Hibiki EQAPO processes (exit code: $InstallOperationCode)"
+    Goto uninstallRestoreOutDirAndFail
   ${EndIf}
-  nsExec::ExecToLog '"$SYSDIR\taskkill.exe" /IM EqApoOutProcHost.exe /T /F'
+  ${If} $UninstallUpdateCheckerDone == "0"
+    ClearErrors
+    StrCpy $InstallOperationCode "process did not start"
+    ${If} ${Silent}
+      ExecWait '"$INSTDIR\UpdateChecker.exe" -u -s' $InstallOperationCode
+    ${Else}
+      ExecWait '"$INSTDIR\UpdateChecker.exe" -u' $InstallOperationCode
+    ${EndIf}
+    ${If} ${Errors}
+      StrCpy $InstallFailureReason "starting Update Checker task removal"
+      Goto uninstallRestoreOutDirAndFail
+    ${ElseIf} $InstallOperationCode != 0
+      StrCpy $InstallFailureReason "removing the Update Checker task (exit code: $InstallOperationCode)"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+    StrCpy $UninstallRecoveryStepName "UpdateCheckerDone"
+    Call un.PersistUninstallStep
+    ${If} $InstallRecoveryFailed == "1"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+  ${EndIf}
+
+  ${If} $UninstallDeviceSelectorDone == "0"
+    ClearErrors
+    StrCpy $InstallOperationCode "process did not start"
+    ${If} ${Silent}
+      ExecWait '"$INSTDIR\DeviceSelector.exe" /u /s' $InstallOperationCode
+    ${Else}
+      ExecWait '"$INSTDIR\DeviceSelector.exe" /u' $InstallOperationCode
+    ${EndIf}
+    ${If} ${Errors}
+      StrCpy $InstallFailureReason "starting audio-device cleanup"
+      Goto uninstallRestoreOutDirAndFail
+    ${ElseIf} $InstallOperationCode != 0
+      StrCpy $InstallFailureReason "removing audio-device registration (exit code: $InstallOperationCode)"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+    StrCpy $UninstallRecoveryStepName "DeviceSelectorDone"
+    Call un.PersistUninstallStep
+    ${If} $InstallRecoveryFailed == "1"
+      Goto uninstallRestoreOutDirAndFail
+    ${EndIf}
+  ${EndIf}
   Pop $OUTDIR
   SetOutPath $OUTDIR
 
-  ExecWait '"$SYSDIR\regsvr32.exe" /u /s "$INSTDIR\EqualizerAPO.dll"'
+  ${If} $UninstallAsioProxyUnregistered == "0"
+    !if ${ENABLE_ASIO_PROXY} == 1
+      Call un.UnregisterAsioProxy
+      ${If} $InstallRecoveryFailed == "1"
+        Goto uninstallCriticalCleanupFailed
+      ${EndIf}
+    !endif
+    StrCpy $UninstallRecoveryStepName "AsioProxyUnregistered"
+    Call un.PersistUninstallStep
+    ${If} $InstallRecoveryFailed == "1"
+      Goto uninstallCriticalCleanupFailed
+    ${EndIf}
+  ${EndIf}
 
+  ${If} $UninstallApoUnregistered == "0"
+    ClearErrors
+    StrCpy $InstallOperationCode "process did not start"
+    ExecWait '"$SYSDIR\regsvr32.exe" /u /s "$INSTDIR\EqualizerAPO.dll"' $InstallOperationCode
+    ${If} ${Errors}
+      StrCpy $InstallFailureReason "starting APO unregistration"
+      Goto uninstallCriticalCleanupFailed
+    ${ElseIf} $InstallOperationCode != 0
+      StrCpy $InstallFailureReason "unregistering the APO (exit code: $InstallOperationCode)"
+      Goto uninstallCriticalCleanupFailed
+    ${EndIf}
+    StrCpy $UninstallRecoveryStepName "ApoUnregistered"
+    Call un.PersistUninstallStep
+    ${If} $InstallRecoveryFailed == "1"
+      Goto uninstallCriticalCleanupFailed
+    ${EndIf}
+  ${EndIf}
+  Call un.MarkUninstallPayloadPhase
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallCriticalCleanupFailed
+  ${EndIf}
+  Goto uninstallCriticalCleanupSucceeded
+
+  uninstallRestoreOutDirAndFail:
+  Pop $OUTDIR
+  SetOutPath $OUTDIR
+  uninstallCriticalCleanupFailed:
+  DetailPrint "Uninstall stopped while $InstallFailureReason. Product files and uninstall metadata were retained."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Uninstall could not safely complete while $InstallFailureReason.$\r$\n$\r$\nProduct files and uninstall information were retained. Close running Hibiki EQAPO applications and try again."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+
+  uninstallCriticalCleanupSucceeded:
+  StrCpy $InstallRecoveryFailed "0"
   !insertmacro MUI_STARTMENU_GETFOLDER Application $StartMenuFolder
   !insertmacro DeleteProductShortcuts $StartMenuFolder
+  ${If} $InstallOperationCode != 0
+    StrCpy $InstallRecoveryFailed "1"
+    StrCpy $InstallFailureReason "removing product shortcuts"
+  ${EndIf}
 
+  ; VSTPlugins and config can contain user files. Remove the directory only when
+  ; already empty and do not treat unrelated content as product cleanup failure.
   RMDir "$INSTDIR\VSTPlugins"
 
-  Delete "$INSTDIR\Configuration reference (online).url"
-  Delete "$INSTDIR\Configuration tutorial (online).url"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Configuration reference (online).url" "the configuration reference shortcut"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Configuration tutorial (online).url" "the configuration tutorial shortcut"
   Call un.RemoveQtPluginTreeSafely
-  Delete "$INSTDIR\Qt6Widgets.dll"
-  Delete "$INSTDIR\Qt6Svg.dll"
-  Delete "$INSTDIR\Qt6Network.dll"
-  Delete "$INSTDIR\Qt6Gui.dll"
-  Delete "$INSTDIR\Qt6Core.dll"
-  Delete "$INSTDIR\icuuc.dll"
-  Delete "$INSTDIR\dxil.dll"
-  Delete "$INSTDIR\dxcompiler.dll"
-  Delete "$INSTDIR\d3dcompiler_47.dll"
-  Delete "$INSTDIR\vcruntime140_1.dll"
-  Delete "$INSTDIR\vcruntime140.dll"
-  Delete "$INSTDIR\msvcp140_1.dll"
-  Delete "$INSTDIR\msvcp140.dll"
-  Delete /REBOOTOK "$INSTDIR\sndfile.dll"
-  Delete /REBOOTOK "$INSTDIR\samplerate.dll"
-  Delete /REBOOTOK "$INSTDIR\libfftw3.dll"
-  Delete /REBOOTOK "$INSTDIR\fftw3.dll"
-  Delete "$INSTDIR\Editor.exe"
-  Delete "$INSTDIR\qt.conf"
-  Delete "$INSTDIR\NOTICE.md"
-  Delete "$INSTDIR\LICENSE.txt"
-  Delete "$INSTDIR\install-diagnostics.log"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Qt6Widgets.dll" "Qt6Widgets.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Qt6Svg.dll" "Qt6Svg.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Qt6Network.dll" "Qt6Network.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Qt6Gui.dll" "Qt6Gui.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Qt6Core.dll" "Qt6Core.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\icuuc.dll" "icuuc.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\dxil.dll" "dxil.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\dxcompiler.dll" "dxcompiler.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\d3dcompiler_47.dll" "d3dcompiler_47.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\vcruntime140_1.dll" "vcruntime140_1.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\vcruntime140.dll" "vcruntime140.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\msvcp140_1.dll" "msvcp140_1.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\msvcp140.dll" "msvcp140.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\sndfile.dll" "sndfile.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\samplerate.dll" "the legacy samplerate.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\libfftw3.dll" "libfftw3.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\fftw3.dll" "fftw3.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Editor.exe" "Editor.exe"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\qt.conf" "qt.conf"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\NOTICE.md" "NOTICE.md"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\LICENSE.txt" "LICENSE.txt"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\install-diagnostics.log" "the installation diagnostics"
 
-  Delete /REBOOTOK "$INSTDIR\FLAC.dll"
-  Delete /REBOOTOK "$INSTDIR\libmp3lame.dll"
-  Delete /REBOOTOK "$INSTDIR\mpg123.dll"
-  Delete /REBOOTOK "$INSTDIR\ogg.dll"
-  Delete /REBOOTOK "$INSTDIR\opus.dll"
-  Delete /REBOOTOK "$INSTDIR\vorbis.dll"
-  Delete /REBOOTOK "$INSTDIR\vorbisenc.dll"
-  Delete /REBOOTOK "$INSTDIR\vorbisfile.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\FLAC.dll" "FLAC.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\libmp3lame.dll" "libmp3lame.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\mpg123.dll" "mpg123.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\ogg.dll" "ogg.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\opus.dll" "opus.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\vorbis.dll" "vorbis.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\vorbisenc.dll" "vorbisenc.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\vorbisfile.dll" "vorbisfile.dll"
 
-  Delete "$INSTDIR\UpdateChecker.exe"
-  Delete "$INSTDIR\VoicemeeterClient.exe"
-  Delete "$INSTDIR\Benchmark.exe"
-  Delete /REBOOTOK "$INSTDIR\EqApoOutProcHost.exe"
-  Delete /REBOOTOK "$INSTDIR\EqApoJuceVST3Host.dll"
-  Delete /REBOOTOK "$INSTDIR\EqApoOutProcJuceHost.exe"
-  Delete "$INSTDIR\DeviceSelector.exe"
-  Delete /REBOOTOK "$INSTDIR\EqualizerAPO.dll"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\UpdateChecker.exe" "UpdateChecker.exe"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\VoicemeeterClient.exe" "VoicemeeterClient.exe"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\Benchmark.exe" "Benchmark.exe"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\EqApoOutProcHost.exe" "EqApoOutProcHost.exe"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\EqApoJuceVST3Host.dll" "the legacy JUCE VST3 host"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\EqApoOutProcJuceHost.exe" "the legacy JUCE out-of-process host"
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\DeviceSelector.exe" "DeviceSelector.exe"
+  !if ${ENABLE_ASIO_PROXY} == 1
+    !insertmacro RemoveUninstallPayloadFile "$INSTDIR\${ASIO_PROXY_DLL}" "${ASIO_PROXY_DLL}"
+  !endif
+  !insertmacro RemoveUninstallPayloadFile "$INSTDIR\EqualizerAPO.dll" "EqualizerAPO.dll"
 
-  Delete "$INSTDIR\Uninstall.exe"
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallPayloadCleanupFailed
+  ${EndIf}
 
-  ;Only remove if empty
-  RMDir /REBOOTOK "$INSTDIR"
+  ; User configuration is deliberately last: a failed product-file cleanup must
+  ; never consume optional user data or the only remaining retry metadata.
+  ${If} $RemoveUserConfigurationRequested == "1"
+    Call un.RemoveRequestedUserConfiguration
+  ${EndIf}
 
+  ClearErrors
   DeleteRegKey HKLM ${UNINST_REGPATH}
-  DeleteRegKey /ifempty HKLM ${REGPATH}
+  ${If} ${Errors}
+    StrCpy $InstallFailureReason "removing Add/Remove Programs metadata"
+    Goto uninstallMetadataCleanupFailed
+  ${EndIf}
+  ClearErrors
+  DeleteRegKey HKLM ${REGPATH}
+  ${If} ${Errors}
+    StrCpy $InstallFailureReason "removing machine-wide product metadata"
+    Goto uninstallRestoreRegistrationAndFail
+  ${EndIf}
+  Goto uninstallFinalize
+
+  uninstallPayloadCleanupFailed:
+  DetailPrint "Uninstall retained user data, Uninstall.exe and registry metadata because $InstallFailureReason failed."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Uninstall could not finish while $InstallFailureReason.$\r$\n$\r$\nUser configuration, Uninstall.exe and uninstall information were retained so the operation can be retried."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+
+  uninstallRestoreRegistrationAndFail:
+  ; Product payload is already gone or scheduled. Restore enough registration to
+  ; keep this trusted uninstaller discoverable and retryable.
+  WriteRegStr HKLM ${REGPATH} "InstallPath" "$INSTDIR"
+  WriteRegStr HKLM ${UNINST_REGPATH} "DisplayName" "${PRODUCT_FULL_LABEL}"
+  WriteRegStr HKLM ${UNINST_REGPATH} "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM ${UNINST_REGPATH} "UninstallString" "$\"$INSTDIR\Uninstall.exe$\""
+  WriteRegDWORD HKLM ${UNINST_REGPATH} "NoModify" 1
+  WriteRegDWORD HKLM ${UNINST_REGPATH} "NoRepair" 1
+  uninstallMetadataCleanupFailed:
+  DetailPrint "Uninstall removed product payload but could not finish while $InstallFailureReason."
+  ${IfNot} ${Silent}
+    MessageBox MB_ICONSTOP|MB_OK "Product payload cleanup completed, but uninstall registration could not finish while $InstallFailureReason. Retry the registered uninstaller after resolving the system error."
+  ${EndIf}
+  SetErrorLevel 1
+  Abort
+
+  uninstallFinalize:
+  ; The sibling journal is cleared only after every payload, optional-user-data
+  ; and metadata operation succeeded. Keep the trusted uninstaller itself until
+  ; that deletion is verified so a journal-cleanup failure remains retryable.
+  Call un.ClearUninstallTransaction
+  ${If} $InstallRecoveryFailed == "1"
+    Goto uninstallRestoreRegistrationAndFail
+  ${EndIf}
+
+  ClearErrors
+  Delete /REBOOTOK "$INSTDIR\Uninstall.exe"
+  ${If} ${Errors}
+    ; Journal cleanup happened first, so recreate payload-phase proof before
+    ; restoring the registered retry entry. Missing critical helpers remain
+    ; legitimate only because all four completion flags are durable again.
+    Call un.RestoreCompletedUninstallTransaction
+    StrCpy $InstallFailureReason "scheduling Uninstall.exe removal"
+    Goto uninstallRestoreRegistrationAndFail
+  ${EndIf}
+
+  ; Only remove the root if user configuration and plug-ins did not keep it.
+  RMDir /REBOOTOK "$INSTDIR"
 
 SectionEnd

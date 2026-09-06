@@ -45,8 +45,8 @@ vector<IFilter*> LoudnessCorrectionFilterFactory::createFilter(const wstring& co
 		if (filterParameters.isInitialized())
 		{
 			TraceF(L"Adding loudness correction filter");
-			void* mem = MemoryHelper::alloc(sizeof(LoudnessCorrectionFilter));
-			allFilter.push_back(new(mem) LoudnessCorrectionFilter(filterParameters));
+			return adoptFilter(constructFilter<LoudnessCorrectionFilter>(
+				filterParameters));
 		}
 	}
 

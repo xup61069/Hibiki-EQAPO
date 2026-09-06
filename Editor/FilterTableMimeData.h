@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <functional>
 #include <QMimeData>
 
 class FilterTableMimeData : public QMimeData
@@ -30,7 +31,12 @@ public:
 
 	QList<QVariantMap> getPrefsList() const;
 	void setPrefsList(const QList<QVariantMap>& value);
+	void setMoveCommitHandler(const std::function<bool()>& handler);
+	bool commitMove() const;
+	bool isMoveCommitted() const;
 
 private:
 	QList<QVariantMap> prefsList;
+	std::function<bool()> moveCommitHandler;
+	mutable bool moveCommitted = false;
 };

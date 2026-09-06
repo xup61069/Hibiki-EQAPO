@@ -4,7 +4,8 @@
 4. Run: python -m unittest discover -s tests -p "test_*.py" -v
 5. Run: .\scripts\build-installer-x64.ps1 -Configuration Release
 6. Run: .\scripts\test-runtime-loudness.ps1 -Configuration Release
-7. Confirm interrupted-upgrade recovery, rollback, uninstall, and a normal in-place upgrade on a disposable Windows test system.
-8. Confirm the installer contains NOTICE.md and verify its .sha256 file.
-9. Confirm README.md, README.en.md, the release title, installer/updater identity, and source files call the feature "Loudness Correction" and make no standards-conformance claim.
-10. Commit the verified source, push main, create the matching annotated vX.Y.Z tag, and let the release workflow publish the installer, checksum, and NOTICE.md.
+7. Before releasing an installer with the ASIO proxy enabled, change ADR-0007 to Accepted only after testing and recording at least one real x64 vendor ASIO driver with one real DAW: playback, start/stop and failure behavior, sample-rate/reset, supported buffer sizes, offline bounce, real-time export, record/overdub alignment, device unplug/restart, and clean reopen must pass. Fake-vendor and automated tests do not satisfy this gate; if the matrix is incomplete, disable or exclude the proxy from the release installer.
+8. Confirm interrupted-upgrade recovery, rollback, uninstall, and a normal in-place upgrade on a disposable Windows test system.
+9. Confirm the installer contains NOTICE.md and verify its .sha256 file.
+10. Confirm README.md, README.en.md, the release title, installer/updater identity, and source files call the feature "Loudness Correction" and make no standards-conformance claim.
+11. Commit the verified source, push main, create the matching annotated vX.Y.Z tag, and let the release workflow publish the installer, checksum, and NOTICE.md.

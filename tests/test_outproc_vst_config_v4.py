@@ -81,13 +81,11 @@ class OutProcVSTConfigV4Tests(unittest.TestCase):
 
         self.assertIn("outProcParameterDescriptors", header)
         self.assertIn("config.parameterDescriptors", source)
-        self.assertRegex(
-            source,
-            re.compile(
-                r"terminateOutProcPanel\(\).*?outProcParameterDescriptors\s*=",
-                re.S,
-            ),
-        )
+        terminate = source[
+            source.index("bool VSTPluginFilterGUI::terminateOutProcPanel") :
+            source.index("bool VSTPluginFilterGUI::ensureOutProcPanelStopped")
+        ]
+        self.assertIn("outProcParameterDescriptors =", terminate)
         self.assertRegex(
             source,
             re.compile(
@@ -109,7 +107,7 @@ class OutProcVSTConfigV4Tests(unittest.TestCase):
             source.index("bool VSTPluginFilterGUI::signalOutProcPanel")
         ]
         terminate = source[
-            source.index("void VSTPluginFilterGUI::terminateOutProcPanel") :
+            source.index("bool VSTPluginFilterGUI::terminateOutProcPanel") :
             source.index("void VSTPluginFilterGUI::applyDialog")
         ]
         idle = source[
@@ -121,13 +119,15 @@ class OutProcVSTConfigV4Tests(unittest.TestCase):
         self.assertNotIn("midiConfig = updatedConfig.midiConfig", terminate)
         self.assertNotIn("midiConfig = updatedConfig.midiConfig", idle)
         self.assertIn("idleTimer.stop()", terminate)
+        self.assertIn("recoveredStateChanged = chunkData != updatedConfig.chunkData", terminate)
+        self.assertIn("*stateChanged = recoveredStateChanged", terminate)
 
         class_switch = source[
             source.index("void VSTPluginFilterGUI::on_vst3ClassComboBox_currentIndexChanged") :
             source.index("void VSTPluginFilterGUI::openOutProcPanel")
         ]
         self.assertLess(
-            class_switch.index("terminateOutProcPanel()"),
+            class_switch.index("ensureOutProcPanelStopped(false)"),
             class_switch.index("outProcParameterDescriptors.clear()"),
         )
 

@@ -53,6 +53,8 @@ private:
 	std::wstring midiConfig;
 	VSTMidiRuntime midiRuntime;
 	size_t channelCount = 0;
+	int pluginInputCount = 0;
+	int pluginOutputCount = 0;
 	unsigned effectChannelCount = 0;
 	size_t effectCount = 0;
 	VSTPluginInstance** effects = NULL;

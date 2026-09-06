@@ -1,6 +1,6 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
+name: Hibiki EQAPO feature request
+about: Suggest an idea for Hibiki EQAPO
 title: ''
 labels: ''
 assignees: ''

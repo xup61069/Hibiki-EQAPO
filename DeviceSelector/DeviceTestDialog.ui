@@ -4,7 +4,7 @@
  <widget class="QDialog" name="DeviceTestDialogClass">
   <property name="geometry"><rect><x>0</x><y>0</y><width>760</width><height>540</height></rect></property>
   <property name="minimumSize"><size><width>640</width><height>420</height></size></property>
-  <property name="windowTitle"><string>Testing APO installation on devices...</string></property>
+  <property name="windowTitle"><string>Hibiki EQAPO — Testing APO installation on devices...</string></property>
   <property name="sizeGripEnabled"><bool>true</bool></property>
   <layout class="QVBoxLayout" name="mainLayout">
    <property name="spacing"><number>12</number></property>
@@ -16,7 +16,7 @@
      <item>
       <layout class="QVBoxLayout" name="headingLayout">
        <property name="spacing"><number>2</number></property>
-       <item><widget class="QLabel" name="productLabel"><property name="font"><font><pointsize>8</pointsize><weight>600</weight><bold>true</bold></font></property><property name="text"><string notr="true">EQUALIZER APO · DEVICE CHECK</string></property></widget></item>
+        <item><widget class="QLabel" name="productLabel"><property name="font"><font><pointsize>8</pointsize><weight>600</weight><bold>true</bold></font></property><property name="text"><string notr="true">HIBIKI EQAPO · DEVICE CHECK</string></property></widget></item>
        <item><widget class="QLabel" name="phaseStatusLabel"><property name="font"><font><pointsize>12</pointsize><weight>600</weight><bold>true</bold></font></property><property name="text"><string>Testing APO installation on devices...</string></property><property name="wordWrap"><bool>true</bool></property></widget></item>
       </layout>
      </item>

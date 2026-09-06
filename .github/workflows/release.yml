@@ -1,4 +1,4 @@
-name: Equalizer APO 響度校正更新
+name: Release Hibiki EQAPO
 
 on:
   push:
@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: "Release Tag (e.g. v3.0.7)"
+        description: "Release Tag (e.g. v3.1.0)"
         required: true
-        default: "v3.0.7"
+        default: "v3.1.0"
 
 # Building third-party code must never run with a repository write token.
 permissions:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   build:
-    name: Build x64 release artifact
+    name: Build Hibiki EQAPO x64 release artifact
     runs-on: windows-2025
     permissions:
       contents: read
@@ -39,6 +39,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Set up pinned Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13.2"
+          architecture: "x64"
+          check-latest: false
 
       - name: Verify public source history
         shell: pwsh
@@ -58,6 +65,14 @@ jobs:
         run: |
           .\scripts\build-installer-x64.ps1 `
             -Configuration "Release"
+
+      - name: Audit Monitor VST3 PE imports
+        shell: pwsh
+        run: .\scripts\test-monitor-vst3-binary.ps1 -Configuration "Release"
+
+      - name: Test VST direct-path and hardlink self-load guard
+        shell: pwsh
+        run: .\scripts\test-vst-self-load-guard.ps1 -Configuration "Release"
 
       - name: Test runtime loudness processing
         shell: pwsh
@@ -114,7 +129,7 @@ jobs:
             throw "Release tag $env:RELEASE_TAG points to $existingTagCommit, not checked-out commit $sourceCommit."
           }
 
-          $installer = "Setup/EqualizerAPO-x64-$version.exe"
+          $installer = "Setup/Hibiki-EQAPO-x64-$version.exe"
           $checksum = "$installer.sha256"
           if (!(Test-Path -LiteralPath $installer)) { throw "Installer not found: $installer" }
           if (!(Test-Path -LiteralPath $checksum)) { throw "Checksum not found: $checksum" }
@@ -126,7 +141,7 @@ jobs:
 
           $installerName = Split-Path -Leaf $installer
           $checksumName = Split-Path -Leaf $checksum
-          "artifact_name=release-$version" >> $env:GITHUB_OUTPUT
+          "artifact_name=Hibiki-EQAPO-release-$version" >> $env:GITHUB_OUTPUT
           "commit_sha=$sourceCommit" >> $env:GITHUB_OUTPUT
           "installer_name=$installerName" >> $env:GITHUB_OUTPUT
           "checksum_name=$checksumName" >> $env:GITHUB_OUTPUT
@@ -141,7 +156,7 @@ jobs:
           retention-days: 7
 
   publish:
-    name: Publish GitHub release
+    name: Publish Hibiki EQAPO GitHub release
     needs: build
     runs-on: windows-2025
     permissions:
@@ -184,7 +199,7 @@ jobs:
         with:
           tag_name: ${{ needs.build.outputs.tag }}
           target_commitish: ${{ needs.build.outputs.commit_sha }}
-          name: Equalizer APO 響度校正更新 ${{ needs.build.outputs.tag }}
+          name: Hibiki EQAPO ${{ needs.build.outputs.tag }}
           files: release-artifact/*
           fail_on_unmatched_files: true
           generate_release_notes: true

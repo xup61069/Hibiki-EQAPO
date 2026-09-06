@@ -87,7 +87,7 @@ STDAPI DllRegisterServer()
 		wstring apoClsidString = RegistryHelper::getGuidString(EQUALIZERAPO_POST_MIX_GUID);
 
 		RegistryHelper::createKey(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString);
-		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString, L"", L"EqualizerAPO Post-Mix Class");
+		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString, L"", L"Hibiki EQAPO Post-Mix Class");
 		RegistryHelper::createKey(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32");
 		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32", L"", filename);
 		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32", L"ThreadingModel", L"Both");
@@ -95,7 +95,7 @@ STDAPI DllRegisterServer()
 		apoClsidString = RegistryHelper::getGuidString(EQUALIZERAPO_PRE_MIX_GUID);
 
 		RegistryHelper::createKey(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString);
-		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString, L"", L"EqualizerAPO Pre-Mix Class");
+		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString, L"", L"Hibiki EQAPO Pre-Mix Class");
 		RegistryHelper::createKey(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32");
 		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32", L"", filename);
 		RegistryHelper::writeValue(L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Classes\\CLSID\\" + apoClsidString + L"\\InprocServer32", L"ThreadingModel", L"Both");

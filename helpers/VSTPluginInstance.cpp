@@ -22,6 +22,7 @@
 #include <inttypes.h>
 #include <cstdint>
 #include <cmath>
+#include <mutex>
 #include "StringHelper.h"
 #include "../Version.h"
 #include "VSTPluginLibrary.h"
@@ -34,8 +35,6 @@ using namespace Steinberg;
 using namespace Steinberg::Vst;
 
 #define equalizerApoVSTID VST_FOURCC('E', 'A', 'P', 'O');
-
-vst_time_info vstTime{ 0,0,0,0,0,0,0,0,0,0,{0}, 0xFFFF };
 
 class VSTPluginInstance::VST3MemoryStream : public IBStream
 {
@@ -363,7 +362,7 @@ public:
 
 	tresult PLUGIN_API getName(String128 name) override
 	{
-		wcsncpy_s((wchar_t*)name, 128, L"Equalizer APO", _TRUNCATE);
+		wcsncpy_s((wchar_t*)name, 128, L"Hibiki EQAPO", _TRUNCATE);
 		return kResultOk;
 	}
 
@@ -419,7 +418,7 @@ static intptr_t callback(struct vst_effect_t* effect, int32_t opcode, int32_t in
 		return equalizerApoVSTID;
 
 	case VST_EFFECT_OPCODE_PRODUCT_NAME:
-		strcpy_s((char*) ptr, 64, "Equalizer APO");
+		strcpy_s((char*) ptr, 64, "Hibiki EQAPO");
 		return 1;
 
 	case VST_EFFECT_OPCODE_VENDOR_VERSION:
@@ -438,10 +437,8 @@ static intptr_t callback(struct vst_effect_t* effect, int32_t opcode, int32_t in
 		return effect != NULL ? effect->control(effect, VST_EFFECT_OPCODE_EDITOR_KEEP_ALIVE, 0, 0, NULL, 0.0f) : 0;
 
 	case VST_HOST_OPCODE_GET_TIME:
-		if (instance != NULL) {
-			vstTime.sampleRate = instance->getSampleRate();
-			return (intptr_t)&vstTime;
-		}
+		if (instance != NULL)
+			return (intptr_t)instance->getVST2TimeInfo();
 		return 0;
 
 	case VST_HOST_OPCODE_GET_SAMPLE_RATE:
@@ -508,18 +505,16 @@ static const wchar_t* vst3EditorHostWindowClass = L"EqualizerAPOVST3EditorHost";
 
 static void registerVST3EditorHostWindowClass()
 {
-	static bool registered = false;
-	if (registered)
-		return;
-
-	WNDCLASSW wc;
-	memset(&wc, 0, sizeof(wc));
-	wc.lpfnWndProc = DefWindowProcW;
-	wc.hInstance = GetModuleHandleW(NULL);
-	wc.lpszClassName = vst3EditorHostWindowClass;
-	wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-	RegisterClassW(&wc);
-	registered = true;
+	static std::once_flag registered;
+	std::call_once(registered, []() {
+		WNDCLASSW wc;
+		memset(&wc, 0, sizeof(wc));
+		wc.lpfnWndProc = DefWindowProcW;
+		wc.hInstance = GetModuleHandleW(NULL);
+		wc.lpszClassName = vst3EditorHostWindowClass;
+		wc.hCursor = LoadCursor(NULL, IDC_ARROW);
+		RegisterClassW(&wc);
+	});
 }
 
 VSTPluginInstance::VSTPluginInstance(const std::shared_ptr<VSTPluginLibrary>& library, int processLevel, int vst3ClassIndex)
@@ -760,6 +755,12 @@ int VSTPluginInstance::getLanguage() const
 void VSTPluginInstance::setLanguage(int value)
 {
 	language = value;
+}
+
+vst_time_info* VSTPluginInstance::getVST2TimeInfo()
+{
+	vstTime.sampleRate = sampleRate;
+	return &vstTime;
 }
 
 const vector<VSTParameterDescriptor>& VSTPluginInstance::getParameterDescriptors() const

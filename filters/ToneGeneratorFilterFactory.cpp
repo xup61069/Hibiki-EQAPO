@@ -1,4 +1,5 @@
 #include "stdafx.h"
+#include <cmath>
 #include "helpers/MemoryHelper.h"
 #include "helpers/StringHelper.h"
 #include "ToneGeneratorFilter.h"
@@ -52,7 +53,14 @@ vector<IFilter*> ToneGeneratorFilterFactory::createFilter(const wstring& configP
 		else if (key == L"Mode")
 			mode = AudioTools::toUpper(value) == L"MIX" ? ToneGeneratorFilter::MIX : ToneGeneratorFilter::REPLACE;
 	}
+	const double twoPi = 6.28318530717958647692;
+	if (!std::isfinite(frequency) || !std::isfinite(start) ||
+		!std::isfinite(end) || !std::isfinite(duration) ||
+		!std::isfinite(level) || !std::isfinite(frequency * twoPi) ||
+		!std::isfinite(start * twoPi) || !std::isfinite(end * twoPi) ||
+		!std::isfinite(AudioTools::dbToGain(level) * 1.5))
+		return vector<IFilter*>();
 
-	void* mem = MemoryHelper::alloc(sizeof(ToneGeneratorFilter));
-	return vector<IFilter*>(1, new(mem) ToneGeneratorFilter(state, type, frequency, start, end, duration, level, channels, mode));
+	return adoptFilter(constructFilter<ToneGeneratorFilter>(
+		state, type, frequency, start, end, duration, level, channels, mode));
 }

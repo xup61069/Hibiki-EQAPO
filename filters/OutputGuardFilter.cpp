@@ -38,7 +38,11 @@ void OutputGuardFilter::process(double** output, double** input, unsigned frameC
 	for (size_t channel = 0; channel < channelCount; ++channel)
 	{
 		for (unsigned frame = 0; frame < frameCount; ++frame)
-			peak = max(peak, abs(input[channel][frame]));
+		{
+			const double sample = input[channel][frame];
+			if (std::isfinite(sample))
+				peak = max(peak, abs(sample));
+		}
 	}
 
 	double targetGain = 1.0;
@@ -53,7 +57,11 @@ void OutputGuardFilter::process(double** output, double** input, unsigned frameC
 	for (size_t channel = 0; channel < channelCount; ++channel)
 	{
 		for (unsigned frame = 0; frame < frameCount; ++frame)
-			output[channel][frame] = input[channel][frame] * currentGain;
+		{
+			const double sample = input[channel][frame];
+			output[channel][frame] = std::isfinite(sample) ?
+				sample * currentGain : 0.0;
+		}
 	}
 }
 #pragma AVRT_CODE_END

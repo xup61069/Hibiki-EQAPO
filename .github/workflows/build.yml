@@ -1,4 +1,4 @@
-name: Build Loudness Correction for Equalizer APO
+name: Build Hibiki EQAPO
 
 on:
   push:
@@ -20,12 +20,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: installer-${{ github.ref }}
+  group: hibiki-eqapo-installer-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   build-installer-x64:
-    name: Build x64 installer
+    name: Build Hibiki EQAPO x64 installer
     runs-on: windows-2025
 
     steps:
@@ -33,6 +33,13 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+
+      - name: Set up pinned Python
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
+        with:
+          python-version: "3.13.2"
+          architecture: "x64"
+          check-latest: false
 
       - name: Verify public source history
         shell: pwsh
@@ -53,6 +60,16 @@ jobs:
           .\scripts\build-installer-x64.ps1 `
             -Configuration "${{ inputs.configuration || 'Release' }}"
 
+      - name: Audit Monitor VST3 PE imports
+        if: ${{ (inputs.configuration || 'Release') == 'Release' }}
+        shell: pwsh
+        run: .\scripts\test-monitor-vst3-binary.ps1 -Configuration "Release"
+
+      - name: Test VST direct-path and hardlink self-load guard
+        if: ${{ (inputs.configuration || 'Release') == 'Release' }}
+        shell: pwsh
+        run: .\scripts\test-vst-self-load-guard.ps1 -Configuration "Release"
+
       - name: Test runtime loudness processing
         shell: pwsh
         run: .\scripts\test-runtime-loudness.ps1 -Configuration "${{ inputs.configuration || 'Release' }}"
@@ -70,7 +87,7 @@ jobs:
       - name: Upload UI regression matrix
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: EqualizerAPO-${{ inputs.configuration || 'Release' }}-ui-regression
+          name: Hibiki-EQAPO-${{ inputs.configuration || 'Release' }}-ui-regression
           path: |
             artifacts/ui-regression/*.png
             artifacts/ui-regression/manifest.json
@@ -82,7 +99,7 @@ jobs:
         shell: pwsh
         run: |
           $version = .\scripts\get-project-version.ps1
-          $path = "Setup/EqualizerAPO-x64-$version.exe"
+          $path = "Setup/Hibiki-EQAPO-x64-$version.exe"
           if (!(Test-Path -LiteralPath $path)) { throw "Installer not found: $path" }
           "path=$path" >> $env:GITHUB_OUTPUT
           "checksum=$path.sha256" >> $env:GITHUB_OUTPUT
@@ -90,7 +107,7 @@ jobs:
       - name: Upload installer
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: EqualizerAPO-x64-${{ inputs.configuration || 'Release' }}-installer
+          name: Hibiki-EQAPO-x64-${{ inputs.configuration || 'Release' }}-installer
           path: |
             ${{ steps.installer.outputs.path }}
             ${{ steps.installer.outputs.checksum }}

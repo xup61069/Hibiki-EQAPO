@@ -228,6 +228,7 @@ private:
 	bool closeToTray = false;
 	bool quitRequested = false;
 	bool restoringTemporaryState = false;
+	bool suppressInstantSave = false;
 	bool applyingAutoPreampAdjustment = false;
 	QString temporaryRecoveryOwner;
 	quint64 temporaryRecoveryProcessStartedAt = 0;

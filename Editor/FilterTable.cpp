@@ -47,6 +47,7 @@
 #include <memory>
 
 #include "MainWindow.h"
+#include "helpers/VSTParameterParser.h"
 
 namespace
 {
@@ -106,6 +107,150 @@ bool parseEditablePreampLine(
 	if (commaDecimal != nullptr)
 		*commaDecimal = valueText.contains(',');
 	return true;
+}
+
+struct FilterParameterToken
+{
+	int start = 0;
+	int end = 0;
+	QString value;
+};
+
+QList<FilterParameterToken> tokenizeFilterParameters(const QString& parameters)
+{
+	QList<FilterParameterToken> tokens;
+	int index = 0;
+	while (index < parameters.size())
+	{
+		while (index < parameters.size() && parameters[index] == ' ')
+			++index;
+		if (index >= parameters.size())
+			break;
+
+		FilterParameterToken token;
+		token.start = index;
+		bool inQuotes = false;
+		for (; index < parameters.size(); ++index)
+		{
+			const QChar ch = parameters[index];
+			if (ch == ' ' && !inQuotes)
+				break;
+			if (ch == '"')
+			{
+				inQuotes = !inQuotes;
+				if (inQuotes && index > token.start && parameters[index - 1] == '"')
+					token.value += '"';
+			}
+			else
+			{
+				token.value += ch;
+			}
+		}
+		token.end = index;
+		// Keep syntactically present empty quoted tokens. The production parser
+		// drops their value, but the cloner still has to remove the original raw
+		// span (for example a malformed `HostId ""`) before inserting a new ID.
+		if (token.end > token.start)
+			tokens.append(token);
+	}
+	return tokens;
+}
+
+void removeFilterParameterPairs(
+	QString& text,
+	int parametersOffset,
+	const QList<FilterParameterToken>& tokens,
+	const QList<int>& keyTokenIndices)
+{
+	for (auto it = keyTokenIndices.crbegin(); it != keyTokenIndices.crend(); ++it)
+	{
+		const int keyIndex = *it;
+		const int start = parametersOffset + tokens[keyIndex].start;
+		const int end = parametersOffset + (keyIndex + 1 < tokens.size()
+			? tokens[keyIndex + 1].end
+			: tokens[keyIndex].end);
+		text.remove(start, end - start);
+	}
+}
+
+QString cloneFilterLineWithNewInstanceIds(const QString& sourceText)
+{
+	QString clonedText = sourceText;
+	const int separator = sourceText.indexOf(':');
+	if (separator < 0)
+		return clonedText;
+
+	QString command = sourceText.left(separator).trimmed();
+	if (command.startsWith('#'))
+		command = command.mid(1).trimmed();
+	const QString parameters = sourceText.mid(separator + 1);
+	const QList<FilterParameterToken> tokens =
+		tokenizeFilterParameters(parameters);
+
+	if (command == QStringLiteral("OutProcVSTPlugin"))
+	{
+		QList<int> hostIdTokenIndices;
+		std::vector<std::wstring> tokenValues;
+		tokenValues.reserve(static_cast<std::size_t>(tokens.size()));
+		for (const FilterParameterToken& token : tokens)
+			tokenValues.push_back(token.value.toStdWString());
+
+		for (std::size_t i = 0; i < tokenValues.size();)
+		{
+			const std::wstring& key = tokenValues[i];
+			if (key == L"Library" || key == L"ChunkData" ||
+				key == L"ClassIndex" || key == L"MidiConfig" ||
+				key == L"Engine" || key == L"HostId")
+			{
+				if (key == L"HostId")
+					hostIdTokenIndices.append(static_cast<int>(i));
+				i += i + 1 < tokenValues.size() ? 2 : 1;
+				continue;
+			}
+			if (i + 1 >= tokenValues.size())
+				break;
+
+			float value = 0.0f;
+			if (VSTParseFiniteFloat(tokenValues[i + 1], value))
+			{
+				i += 2;
+				continue;
+			}
+			if (VSTParseLegacyParameterIndex(key) &&
+				i + 2 < tokenValues.size() &&
+				VSTParseFiniteFloat(tokenValues[i + 2], value))
+			{
+				i += 3;
+				continue;
+			}
+			++i;
+		}
+
+		removeFilterParameterPairs(
+			clonedText, separator + 1, tokens, hostIdTokenIndices);
+		// Put the authoritative pair first. Even if the source row contains some
+		// other malformed/dangling parameter, it cannot consume the fresh ID.
+		clonedText.insert(separator + 1, " HostId " +
+			QUuid::createUuid().toString(QUuid::WithoutBraces) + " ");
+	}
+	else if (command == QStringLiteral("VUMeter"))
+	{
+		QList<int> meterIdTokenIndices;
+		for (int i = 0; i < tokens.size(); i += 2)
+		{
+			if (tokens[i].value.compare(
+				QStringLiteral("MeterId"), Qt::CaseInsensitive) == 0)
+			{
+				meterIdTokenIndices.append(i);
+			}
+		}
+		removeFilterParameterPairs(
+			clonedText, separator + 1, tokens, meterIdTokenIndices);
+		clonedText.insert(separator + 1, " MeterId " +
+			QUuid::createUuid().toString(QUuid::WithoutBraces) + " ");
+	}
+
+	return clonedText;
 }
 }
 #include "FilterTableRow.h"
@@ -220,6 +365,8 @@ FilterTable::FilterTable(MainWindow* mainWindow, QWidget* parent)
 
 FilterTable::~FilterTable()
 {
+	qDeleteAll(items);
+	items.clear();
 	for (IFilterGUIFactory* factory : factories)
 		delete factory;
 	factories.clear();
@@ -255,6 +402,8 @@ void FilterTable::updateGuis()
 		{
 			item->prefs.clear();
 			item->gui->storePreferences(item->prefs);
+			item->runtimeState.clear();
+			item->gui->takeRuntimeState(item->runtimeState);
 		}
 	}
 
@@ -322,6 +471,8 @@ void FilterTable::updateGuis()
 		if (gui != NULL)
 		{
 			gui->loadPreferences(item->prefs);
+			gui->restoreRuntimeState(item->runtimeState);
+			item->runtimeState.clear();
 
 			connect(gui, SIGNAL(updateModel()), this, SLOT(updateModel()));
 			connect(gui, SIGNAL(updateChannels()), this, SLOT(updateChannels()));
@@ -573,12 +724,21 @@ bool FilterTable::applyPreampReduction(const PreampAdjustmentPlan& plan)
 	return true;
 }
 
-void FilterTable::setLines(const QString& configPath, const QList<QString>& lines)
+bool FilterTable::setLines(const QString& configPath, const QList<QString>& lines)
+{
+	// Preflight is intentionally side-effect free. External resources are
+	// released only immediately before this table mutation.
+	if (!prepareDeleteAllItems() || !commitDeleteItems(items))
+		return false;
+	setLinesAfterDeleteCommit(configPath, lines);
+	return true;
+}
+
+void FilterTable::setLinesAfterDeleteCommit(
+	const QString& configPath,
+	const QList<QString>& lines)
 {
 	this->configPath = configPath;
-
-	for (Item* item : items)
-		prepareDeleteItem(item);
 
 	selected.clear();
 	focused = NULL;
@@ -680,24 +840,7 @@ FilterTable::Item* FilterTable::cloneItem(FilterTable::Item* item, bool insertBe
 		item->gui->storePreferences(item->prefs);
 	}
 
-	QString clonedText = item->text;
-	const QRegularExpression outProcCommand("^\\s*(?:#\\s*)?OutProcVSTPlugin\\s*:");
-	if (outProcCommand.match(clonedText).hasMatch())
-	{
-		const QString replacement = " HostId " + QUuid::createUuid().toString(QUuid::WithoutBraces);
-		const QRegularExpression hostId("(?:(?<=:)\\s*|\\s+)HostId\\s+(?:\"[^\"]*\"|\\S+)");
-		clonedText.remove(hostId);
-		clonedText += replacement;
-	}
-
-	const QRegularExpression vuMeterCommand("^\\s*(?:#\\s*)?VUMeter\\s*:");
-	if (vuMeterCommand.match(clonedText).hasMatch())
-	{
-		const QString replacement = " MeterId " + QUuid::createUuid().toString(QUuid::WithoutBraces);
-		const QRegularExpression meterId("(?:(?<=:)\\s*|\\s+)MeterId\\s+(?:\"[^\"]*\"|\\S+)");
-		clonedText.remove(meterId);
-		clonedText += replacement;
-	}
+	const QString clonedText = cloneFilterLineWithNewInstanceIds(item->text);
 
 	Item* clone = new Item(clonedText);
 	clone->prefs = item->prefs;
@@ -712,18 +855,80 @@ FilterTable::Item* FilterTable::cloneItem(FilterTable::Item* item, bool insertBe
 	return clone;
 }
 
-void FilterTable::removeItem(FilterTable::Item* item)
+bool FilterTable::replaceItemText(FilterTable::Item* item, const QString& text)
 {
-	items.removeOne(item);
-	prepareDeleteItem(item);
-	delete item;
-	emit linesChanged();
+	if (item == NULL || !items.contains(item))
+		return false;
+	if (item->text == text)
+		return true;
+	if (!prepareItemReplacement(item) || !commitDeleteItem(item))
+		return false;
+
+	item->text = text;
+	return true;
 }
 
-void FilterTable::prepareDeleteItem(FilterTable::Item* item)
+bool FilterTable::prepareItemReplacement(FilterTable::Item* item)
 {
-	if (item != NULL && item->gui != NULL)
-		item->gui->prepareDelete();
+	return item != NULL && items.contains(item) && prepareDeleteItem(item);
+}
+
+bool FilterTable::removeItem(FilterTable::Item* item)
+{
+	if (item == NULL || !items.contains(item) || !prepareDeleteItem(item) ||
+		!commitDeleteItem(item))
+		return false;
+
+	items.removeOne(item);
+	selected.remove(item);
+	if (focused == item)
+		focused = NULL;
+	if (selectionStart == item)
+		selectionStart = NULL;
+	delete item;
+	emit linesChanged();
+	return true;
+}
+
+bool FilterTable::prepareDeleteItem(FilterTable::Item* item)
+{
+	return item == NULL || item->gui == NULL || item->gui->prepareDelete();
+}
+
+bool FilterTable::commitDeleteItem(FilterTable::Item* item)
+{
+	return item == NULL || item->gui == NULL || item->gui->commitDelete();
+}
+
+bool FilterTable::prepareDeleteItems(const QList<FilterTable::Item*>& candidateItems)
+{
+	for (Item* item : candidateItems)
+	{
+		if (!prepareDeleteItem(item))
+			return false;
+	}
+	return true;
+}
+
+bool FilterTable::prepareDeleteAllItems()
+{
+	return prepareDeleteItems(items);
+}
+
+bool FilterTable::commitDeleteItems(
+	const QList<FilterTable::Item*>& candidateItems)
+{
+	for (Item* item : candidateItems)
+	{
+		if (!commitDeleteItem(item))
+			return false;
+	}
+	return true;
+}
+
+bool FilterTable::commitDeleteAllItems()
+{
+	return prepareDeleteItems(items) && commitDeleteItems(items);
 }
 
 QMenu* FilterTable::createAddPopupMenu()
@@ -766,33 +971,64 @@ QMenu* FilterTable::createAddPopupMenu()
 
 void FilterTable::cut()
 {
-	copy();
-	deleteSelectedLines();
+	const QList<Item*> itemsToCut = selectedItemsInOrder();
+	if (itemsToCut.isEmpty() || !prepareDeleteItems(itemsToCut))
+		return;
+	if (!commitDeleteItems(itemsToCut))
+		return;
+
+	// commitDelete() may synchronously recover newer VST state into Item::text.
+	// Build the clipboard only after that succeeds, then consume that exact set.
+	copyItemsToClipboard(itemsToCut);
+	deletePreparedItems(itemsToCut);
 }
 
 void FilterTable::copy()
 {
-	QString text;
-	QList<QVariantMap> prefsList;
-	bool first = true;
+	copyItemsToClipboard(selectedItemsInOrder());
+}
+
+QList<FilterTable::Item*> FilterTable::selectedItemsInOrder() const
+{
+	QList<Item*> result;
 	for (Item* item : items)
 	{
 		if (selected.contains(item))
-		{
-			if (first)
-				first = false;
-			else
-				text += "\n";
-			text += item->text;
-			prefsList.append(item->prefs);
-		}
+			result.append(item);
 	}
+	return result;
+}
 
-	if (selected.size() > 0)
+void FilterTable::populateMimeDataFromItems(
+	FilterTableMimeData* mimeData,
+	const QList<Item*>& sourceItems)
+{
+	if (mimeData == NULL)
+		return;
+	QString text;
+	QList<QVariantMap> prefsList;
+	bool first = true;
+	for (Item* item : sourceItems)
+	{
+		if (first)
+			first = false;
+		else
+			text += "\n";
+		text += item->text;
+		if (item->gui != NULL)
+			item->gui->storePreferences(item->prefs);
+		prefsList.append(item->prefs);
+	}
+	mimeData->setText(text);
+	mimeData->setPrefsList(prefsList);
+}
+
+void FilterTable::copyItemsToClipboard(const QList<Item*>& itemsToCopy)
+{
+	if (!itemsToCopy.isEmpty())
 	{
 		FilterTableMimeData* mimeData = new FilterTableMimeData;
-		mimeData->setText(text);
-		mimeData->setPrefsList(prefsList);
+		populateMimeDataFromItems(mimeData, itemsToCopy);
 		QClipboard* clipboard = QApplication::clipboard();
 		clipboard->setMimeData(mimeData);
 	}
@@ -826,7 +1062,7 @@ void FilterTable::paste()
 		selectionStart = NULL;
 		for (int i = 0; i < textLines.size(); i++)
 		{
-			QString line = textLines[i];
+			const QString line = cloneFilterLineWithNewInstanceIds(textLines[i]);
 			Item* item = new Item(line);
 			if (!prefsList.isEmpty())
 				item->prefs = prefsList[i];
@@ -844,18 +1080,33 @@ void FilterTable::paste()
 	}
 }
 
-void FilterTable::deleteSelectedLines()
+bool FilterTable::deleteSelectedLines()
 {
+	const QList<Item*> itemsToDelete = selectedItemsInOrder();
+	if (itemsToDelete.isEmpty())
+		return true;
+	if (!prepareDeleteItems(itemsToDelete) ||
+		!commitDeleteItems(itemsToDelete))
+		return false;
+	deletePreparedItems(itemsToDelete);
+	return true;
+}
+
+void FilterTable::deletePreparedItems(const QList<Item*>& itemsToDelete)
+{
+	QSet<Item*> deleteSet;
+	for (Item* item : itemsToDelete)
+		deleteSet.insert(item);
+
 	QList<Item*> newItems;
 	for (Item* item : items)
 	{
-		if (selected.contains(item))
+		if (deleteSet.contains(item))
 		{
 			if (item == focused)
 				focused = NULL;
 			if (item == selectionStart)
 				selectionStart = NULL;
-			prepareDeleteItem(item);
 			delete item;
 		}
 		else
@@ -1096,24 +1347,12 @@ void FilterTable::mouseMoveEvent(QMouseEvent* event)
 	{
 		if ((event->position().toPoint() - dragStartPos).manhattanLength() >= QApplication::startDragDistance())
 		{
-			QString text;
-			QList<QVariantMap> prefsList;
-			bool first = true;
 			int i = 0;
 			bool dragPosInside = false;
 			for (Item* item : items)
 			{
 				if (selected.contains(item))
 				{
-					if (first)
-						first = false;
-					else
-						text += "\n";
-					text += item->text;
-					if (item->gui != NULL)
-						item->gui->storePreferences(item->prefs);
-					prefsList.append(item->prefs);
-
 					if (!dragPosInside)
 					{
 						FilterTableRow* tableRow = qobject_cast<FilterTableRow*>(gridLayout->itemAtPosition(i, 0)->widget());
@@ -1127,32 +1366,49 @@ void FilterTable::mouseMoveEvent(QMouseEvent* event)
 
 			if (selected.size() > 0 && dragPosInside)
 			{
+				QList<Item*> itemsToDelete;
+				for (Item* item : items)
+				{
+					if (selected.contains(item))
+						itemsToDelete.append(item);
+				}
+				// This phase must remain side-effect free: the user can still cancel
+				// the drag or choose Copy after it begins.
+				if (!prepareDeleteItems(itemsToDelete))
+				{
+					dragStartPos = event->position().toPoint();
+					QWidget::mouseMoveEvent(event);
+					return;
+				}
+
 				FilterTableMimeData* mimeData = new FilterTableMimeData;
-				mimeData->setText(text);
-				mimeData->setPrefsList(prefsList);
+				populateMimeDataFromItems(mimeData, itemsToDelete);
+				mimeData->setMoveCommitHandler(
+					[this, itemsToDelete, mimeData]()
+					{
+						if (!prepareDeleteItems(itemsToDelete) ||
+							!commitDeleteItems(itemsToDelete))
+							return false;
+						// A successful shutdown can recover newer VST state. Refresh
+						// the payload before an in-process target inserts anything.
+						populateMimeDataFromItems(mimeData, itemsToDelete);
+						return true;
+					});
 
 				QDrag* drag = new QDrag(this);
 				drag->setMimeData(mimeData);
-				QSet<Item*> selectedBefore = selected;
 				internalDrag = true;
 				Qt::DropAction action = drag->exec(Qt::MoveAction | Qt::CopyAction);
 				internalDrag = false;
 				if (action == Qt::MoveAction)
 				{
-					for (Item* item : selectedBefore)
-					{
-						items.removeOne(item);
-						if (focused == item)
-							focused = NULL;
-						if (selectionStart == item)
-							selectionStart = NULL;
-						selected.remove(item);
-						prepareDeleteItem(item);
-						delete item;
-					}
+					// In-process targets invoke this before accepting their drop.
+					// External targets cannot, so commit here before removing the
+					// source. A failed commit always retains every source row.
+					if (mimeData->commitMove())
+						deletePreparedItems(itemsToDelete);
 				}
-
-				if (action != Qt::IgnoreAction)
+				else if (action != Qt::IgnoreAction)
 				{
 					emit linesChanged();
 					updateGuis();
@@ -1214,10 +1470,19 @@ void FilterTable::dropEvent(QDropEvent* event)
 		else
 			event->setDropAction(Qt::MoveAction);
 
+		const FilterTableMimeData* filterTableMimeData = qobject_cast<const FilterTableMimeData*>(mimeData);
+		const bool cloneInstanceIds = event->dropAction() == Qt::CopyAction;
+		if (!cloneInstanceIds && filterTableMimeData != NULL &&
+			!filterTableMimeData->commitMove())
+		{
+			event->ignore();
+			insertArrow->hide();
+			return;
+		}
+
 		QString text = mimeData->text();
 		QStringList textLines = text.split("\n");
 		QList<QVariantMap> prefsList;
-		const FilterTableMimeData* filterTableMimeData = qobject_cast<const FilterTableMimeData*>(mimeData);
 		if (filterTableMimeData != NULL)
 			prefsList = filterTableMimeData->getPrefsList();
 
@@ -1231,6 +1496,8 @@ void FilterTable::dropEvent(QDropEvent* event)
 		for (int i = 0; i < textLines.size(); i++)
 		{
 			QString line = textLines[i];
+			if (cloneInstanceIds)
+				line = cloneFilterLineWithNewInstanceIds(line);
 			Item* item = new Item(line);
 			if (!prefsList.isEmpty())
 				item->prefs = prefsList[i];

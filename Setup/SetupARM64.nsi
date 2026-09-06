@@ -7,4 +7,4 @@
 
 !include "Setup.nsi"
 
-OutFile "EqualizerAPO-ARM64-${VERSION}.exe"
+OutFile "Hibiki-EQAPO-ARM64-${VERSION}.exe"

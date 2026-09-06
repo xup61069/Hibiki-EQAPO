@@ -47,9 +47,11 @@ vector<IFilter*> ConvolutionFilterFactory::createFilter(const wstring& configPat
 					configuredPath).lexically_normal()
 				: configuredPath;
 
-			void* mem = MemoryHelper::alloc(sizeof(ConvolutionFilter));
-			if (mem != NULL)
-				filter = new(mem) ConvolutionFilter(absolutePath.wstring());
+			filter = constructFilter<ConvolutionFilter>(absolutePath.wstring());
+		}
+		catch (const std::bad_alloc&)
+		{
+			throw;
 		}
 		catch (const std::exception&)
 		{
@@ -57,7 +59,5 @@ vector<IFilter*> ConvolutionFilterFactory::createFilter(const wstring& configPat
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

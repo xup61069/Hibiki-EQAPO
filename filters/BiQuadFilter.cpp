@@ -68,8 +68,11 @@ std::vector<std::wstring> BiQuadFilter::initialize(float sampleRate, unsigned ma
     x1.assign(channelCount, 0.0); x2.assign(channelCount, 0.0);
     y1.assign(channelCount, 0.0); y2.assign(channelCount, 0.0);
 
+    const bool parametersValid = BiQuad::isConfigurationValid(
+        type, dbGain, freq, bandwidthOrQOrS, isBandwidthOrS, isCornerFreq);
     double biquadFreq = freq;
-    if (isCornerFreq && (type == BiQuad::LOW_SHELF || type == BiQuad::HIGH_SHELF))
+    if (parametersValid && isCornerFreq &&
+        (type == BiQuad::LOW_SHELF || type == BiQuad::HIGH_SHELF))
     {
         double s = bandwidthOrQOrS;
         if (!isBandwidthOrS) // Q
@@ -86,7 +89,11 @@ std::vector<std::wstring> BiQuadFilter::initialize(float sampleRate, unsigned ma
     }
 
     // 1. Create a single master BiQuad to perform the coefficient calculation.
-    BiQuad masterBiquad(type, dbGain, biquadFreq, sampleRate, bandwidthOrQOrS, isBandwidthOrS);
+    BiQuad masterBiquad;
+    if (parametersValid)
+        masterBiquad = BiQuad(
+            type, dbGain, biquadFreq, sampleRate,
+            bandwidthOrQOrS, isBandwidthOrS);
 
     // 2. Prepare variables to receive the coefficients.
     double temp_a0;

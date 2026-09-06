@@ -773,8 +773,13 @@ class UiProductizationTests(unittest.TestCase):
             begin_temporary.index("else\n\t\t{", begin_temporary.index("else if (result.rollbackVerified)"))
         ]
         self.assertIn("clearTemporaryRecoveryJournal();", verified_branch)
+        unverified_start = begin_temporary.index(
+            "else\n\t\t{", begin_temporary.index("else if (result.rollbackVerified)")
+        )
         unverified_branch = begin_temporary[
-            begin_temporary.index("else\n\t\t{", begin_temporary.index("else if (result.rollbackVerified)")) :
+            unverified_start : begin_temporary.index(
+                "\t\treturn false;", unverified_start
+            )
         ]
         self.assertNotIn("clearTemporaryRecoveryJournal();", unverified_branch)
         self.assertIn("QMessageBox::critical", unverified_branch)

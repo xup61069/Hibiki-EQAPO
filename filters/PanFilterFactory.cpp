@@ -23,6 +23,5 @@ vector<IFilter*> PanFilterFactory::createFilter(const wstring& configPath, wstri
 			width = wcstod(parts[i + 1].c_str(), NULL);
 	}
 
-	void* mem = MemoryHelper::alloc(sizeof(PanFilter));
-	return vector<IFilter*>(1, new(mem) PanFilter(position, width));
+	return adoptFilter(constructFilter<PanFilter>(position, width));
 }

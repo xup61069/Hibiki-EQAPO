@@ -176,7 +176,7 @@
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="937"/>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1020"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1021"/>
         <source>APO Loudness / VU Meter</source>
         <translation>APO 響度／VU 電平表</translation>
     </message>
@@ -442,12 +442,12 @@
 <context>
     <name>ChorusFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1095"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
         <source>Chorus</source>
         <translation>合唱</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1095"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
         <source>Effects</source>
         <translation>效果</translation>
     </message>
@@ -845,12 +845,12 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>CrossfeedFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1085"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
         <source>Crossfeed</source>
         <translation>串音饋送</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1085"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
         <source>Effects</source>
         <translation>效果</translation>
     </message>
@@ -1044,7 +1044,7 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>FilterTable</name>
     <message>
-        <location filename="../FilterTable.cpp" line="351"/>
+        <location filename="../FilterTable.cpp" line="502"/>
         <source>Add filter</source>
         <translation>新增過濾器</translation>
     </message>
@@ -1633,6 +1633,11 @@ Alexander Walch</source>
         <translation>全域（Windows 預設）</translation>
     </message>
     <message>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
+        <source>Applies Windows volume as an extra gain inside Hibiki EQAPO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint&apos;s reported dB.</source>
+        <translation>在 Hibiki EQAPO 內額外套用 Windows 音量增益。僅適用於路由端點會回報音量變化、卻未實際降低音訊的情況；否則音量會被衰減兩次。「線性」使用端點比例值，「對數」使用比例值的平方，「Windows」則使用端點回報的 dB。</translation>
+    </message>
+    <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="440"/>
         <source>Calibrate</source>
         <translation>校準</translation>
@@ -1662,8 +1667,8 @@ Alexander Walch</source>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="464"/>
         <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="472"/>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="549"/>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="578"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="552"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="581"/>
         <source>Calibration not applied</source>
         <translation>未套用校正</translation>
     </message>
@@ -1683,9 +1688,8 @@ Alexander Walch</source>
         <translation>APO 音量跟隨衰減：</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
         <source>Applies Windows volume as an extra gain inside Equalizer APO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint&apos;s reported dB.</source>
-        <translation>在 Equalizer APO 內額外套用 Windows 音量增益。僅適用於路由端點會回報音量變化、卻未實際降低音訊的情況；否則音量會被衰減兩次。「線性」使用端點比例值，「對數」使用比例值的平方，「Windows」則使用端點回報的 dB。</translation>
+        <translation type="vanished">在 Equalizer APO 內額外套用 Windows 音量增益。僅適用於路由端點會回報音量變化、卻未實際降低音訊的情況；否則音量會被衰減兩次。「線性」使用端點比例值，「對數」使用比例值的平方，「Windows」則使用端點回報的 dB。</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="386"/>
@@ -1703,7 +1707,7 @@ Alexander Walch</source>
         <translation>停用</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="550"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="553"/>
         <source>Playback became muted, inaudible, or unavailable. The measured level was not applied; restore the endpoint and run calibration again.</source>
         <translation>播放端點已靜音、無聲或無法使用，因此未套用量測值。請恢復端點後重新執行校正。</translation>
     </message>
@@ -1718,7 +1722,7 @@ Alexander Walch</source>
         <translation>無法讀取綁定的播放音量。請重新連接裝置，或改用其他可讀取的播放綁定後再試一次。</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="579"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="582"/>
         <source>The selected volume-follow curve produced an inaudible level. Raise the volume and run calibration again.</source>
         <translation>所選音量跟隨曲線產生了無法聽見的音量。請提高音量後重新執行校正。</translation>
     </message>
@@ -1766,12 +1770,12 @@ Alexander Walch</source>
         <translation>請先儲存目前的設定檔，並排除任何暫時性的音訊狀態後再進行校正。</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="535"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="536"/>
         <source>Audio processing was not restored</source>
         <translation>未還原音訊處理</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="536"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUI.cpp" line="537"/>
         <source>The temporary calibration state could not be restored automatically. Close the editor and use temporary audio recovery before continuing.</source>
         <translation>暫時的校正狀態無法自動還原。請關閉設定編輯器，使用暫時音訊復原功能後再繼續。</translation>
     </message>
@@ -1920,42 +1924,42 @@ Alexander Walch</source>
         <translation>請將所選播放裝置設為 Windows 預設播放裝置，然後重新開啟校正。未播放任何測試噪音。</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="282"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="289"/>
         <source>Preparing pink noise…</source>
         <translation>正在準備粉紅噪音…</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="287"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="294"/>
         <source>Pink-noise resource could not be opened</source>
         <translation>無法開啟粉紅噪音資源</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="294"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="301"/>
         <source>Pink-noise resource could not be decoded</source>
         <translation>無法解碼粉紅噪音資源</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="300"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="307"/>
         <source>Calibration audio buffer could not be created</source>
         <translation>無法建立校正音訊緩衝區</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="331"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="338"/>
         <source>Calibration signal could not be prepared</source>
         <translation>無法準備校正訊號</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="347"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="354"/>
         <source>Windows could not start calibration playback</source>
         <translation>Windows 無法開始校正播放</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="360"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="367"/>
         <source>Playing on the left speaker</source>
         <translation>正在左喇叭播放</translation>
     </message>
     <message>
-        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="361"/>
+        <location filename="../guis/LoudnessCorrectionFilterGUIDialog.cpp" line="368"/>
         <source>Playing on the right speaker</source>
         <translation>正在右喇叭播放</translation>
     </message>
@@ -2386,7 +2390,7 @@ Alexander Walch</source>
     </message>
     <message>
         <location filename="../MainWindow.ui" line="360"/>
-        <location filename="../MainWindow.cpp" line="1163"/>
+        <location filename="../MainWindow.cpp" line="1177"/>
         <source>Exit</source>
         <translation>退出</translation>
     </message>
@@ -2430,243 +2434,266 @@ Alexander Walch</source>
         <translation type="vanished">Equalizer APO %0 設定編輯器</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="807"/>
-        <location filename="../MainWindow.cpp" line="1152"/>
+        <location filename="../MainWindow.cpp" line="821"/>
+        <location filename="../MainWindow.cpp" line="1166"/>
         <source>Instant mode</source>
         <translation>即時模式</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="810"/>
+        <location filename="../MainWindow.cpp" line="824"/>
         <source>Changes are saved immediately</source>
         <translation>變更會立即儲存</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="818"/>
+        <location filename="../MainWindow.cpp" line="832"/>
         <source>Device: </source>
         <translation>裝置：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="833"/>
+        <location filename="../MainWindow.cpp" line="847"/>
         <source>Channel configuration: </source>
         <translation>聲道設定：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="855"/>
+        <location filename="../MainWindow.cpp" line="869"/>
         <source>Default</source>
         <translation>預設</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="857"/>
+        <location filename="../MainWindow.cpp" line="871"/>
         <source>Playback devices:</source>
         <translation>播放裝置：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="868"/>
+        <location filename="../MainWindow.cpp" line="882"/>
         <source>Capture devices:</source>
         <translation>擷取裝置：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="887"/>
+        <location filename="../MainWindow.cpp" line="901"/>
         <source>Headroom:</source>
         <translation>餘裕：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="890"/>
+        <location filename="../MainWindow.cpp" line="904"/>
         <source>Estimated headroom</source>
         <translation>預估餘裕</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="895"/>
+        <location filename="../MainWindow.cpp" line="909"/>
         <source>Analysis status</source>
         <translation>分析狀態</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="892"/>
+        <location filename="../MainWindow.cpp" line="906"/>
         <source>Waiting for analysis</source>
         <translation>等待分析</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="794"/>
-        <source>Equalizer APO %1 Configuration Editor</source>
-        <translation>Equalizer APO %1 設定編輯器</translation>
+        <location filename="../MainWindow.cpp" line="808"/>
+        <source>Hibiki EQAPO %1 Configuration Editor</source>
+        <translation>Hibiki EQAPO %1 設定編輯器</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="924"/>
+        <location filename="../MainWindow.cpp" line="938"/>
         <source>Automatic (%1)</source>
         <translation>自動（%1）</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="961"/>
+        <location filename="../MainWindow.cpp" line="975"/>
         <source>Workspace tools</source>
         <translation>工作區工具</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="969"/>
+        <location filename="../MainWindow.cpp" line="983"/>
         <source>Profile:</source>
         <translation>設定檔：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="977"/>
+        <location filename="../MainWindow.cpp" line="991"/>
         <source>Configuration profile</source>
         <translation>設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="978"/>
         <source>Open a configuration profile from the Equalizer APO config folder</source>
-        <translation>從 Equalizer APO 設定檔資料夾開啟設定檔</translation>
+        <translation type="vanished">從 Equalizer APO 設定檔資料夾開啟設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="984"/>
-        <location filename="../MainWindow.cpp" line="1414"/>
+        <location filename="../MainWindow.cpp" line="998"/>
+        <location filename="../MainWindow.cpp" line="1428"/>
         <source>Duplicate profile</source>
         <translation>複製設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="985"/>
+        <location filename="../MainWindow.cpp" line="999"/>
         <source>Duplicate the current profile</source>
         <translation>複製目前的設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="991"/>
+        <location filename="../MainWindow.cpp" line="1005"/>
         <source>Find a filter or setting…</source>
         <translation>尋找濾鏡或設定…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="995"/>
+        <location filename="../MainWindow.cpp" line="1009"/>
         <source>Find a filter or setting</source>
         <translation>尋找濾鏡或設定</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1002"/>
+        <location filename="../MainWindow.cpp" line="1016"/>
         <source>Find next</source>
         <translation>尋找下一個</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1004"/>
+        <location filename="../MainWindow.cpp" line="1018"/>
         <source>Find next (F3)</source>
         <translation>尋找下一個 (F3)</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1007"/>
+        <location filename="../MainWindow.cpp" line="1021"/>
         <source>Find previous</source>
         <translation>尋找上一個</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1012"/>
+        <location filename="../MainWindow.cpp" line="1026"/>
         <source>Find</source>
         <translation>尋找</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1033"/>
+        <location filename="../MainWindow.cpp" line="1047"/>
         <source>Capture A</source>
         <translation>擷取 A</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1034"/>
+        <location filename="../MainWindow.cpp" line="1048"/>
         <source>Capture the current filter state as comparison A</source>
         <translation>將目前的濾鏡狀態擷取為比較 A</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1039"/>
-        <location filename="../MainWindow.cpp" line="2459"/>
-        <location filename="../MainWindow.cpp" line="2570"/>
-        <location filename="../MainWindow.cpp" line="2610"/>
-        <location filename="../MainWindow.cpp" line="2823"/>
+        <location filename="../MainWindow.cpp" line="1053"/>
+        <location filename="../MainWindow.cpp" line="2555"/>
+        <location filename="../MainWindow.cpp" line="2669"/>
+        <location filename="../MainWindow.cpp" line="2709"/>
+        <location filename="../MainWindow.cpp" line="2932"/>
         <source>Compare A</source>
         <translation>比較 A</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1042"/>
+        <location filename="../MainWindow.cpp" line="1056"/>
         <source>Switch between captured A and the current B state</source>
         <translation>在已擷取的 A 與目前 B 狀態之間切換</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1047"/>
-        <location filename="../MainWindow.cpp" line="2783"/>
-        <location filename="../MainWindow.cpp" line="2842"/>
+        <location filename="../MainWindow.cpp" line="1061"/>
+        <location filename="../MainWindow.cpp" line="2892"/>
+        <location filename="../MainWindow.cpp" line="2951"/>
         <source>Bypass</source>
         <translation>旁路</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1050"/>
+        <location filename="../MainWindow.cpp" line="1064"/>
         <source>Temporarily bypass every command in the current profile</source>
         <translation>暫時旁路目前設定檔中的所有命令</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1056"/>
-        <location filename="../MainWindow.cpp" line="1237"/>
+        <location filename="../MainWindow.cpp" line="1070"/>
+        <location filename="../MainWindow.cpp" line="1251"/>
         <source>Ready</source>
         <translation>就緒</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1061"/>
+        <location filename="../MainWindow.cpp" line="1075"/>
         <source>Workspace status</source>
         <translation>工作區狀態</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1065"/>
-        <location filename="../MainWindow.cpp" line="1150"/>
+        <location filename="../MainWindow.cpp" line="1079"/>
+        <location filename="../MainWindow.cpp" line="1164"/>
         <source>Profiles</source>
         <translation>設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1069"/>
+        <location filename="../MainWindow.cpp" line="1083"/>
         <source>Open profile</source>
         <translation>開啟設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1073"/>
+        <location filename="../MainWindow.cpp" line="1087"/>
         <source>Duplicate current profile…</source>
         <translation>複製目前的設定檔…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1077"/>
+        <location filename="../MainWindow.cpp" line="1091"/>
         <source>Rename current profile…</source>
         <translation>重新命名目前的設定檔…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1082"/>
+        <location filename="../MainWindow.cpp" line="1096"/>
         <source>Import profile…</source>
         <translation>匯入設定檔…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1086"/>
+        <location filename="../MainWindow.cpp" line="1100"/>
         <source>Export current profile…</source>
         <translation>匯出目前的設定檔…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1091"/>
+        <location filename="../MainWindow.cpp" line="1105"/>
         <source>Link current profile to selected device</source>
         <translation>將目前的設定檔連結至所選裝置</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1093"/>
+        <location filename="../MainWindow.cpp" line="1107"/>
         <source>Clear selected device profile link</source>
         <translation>清除所選裝置的設定檔連結</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1097"/>
+        <location filename="../MainWindow.cpp" line="1111"/>
         <source>Keep running in the notification area</source>
         <translation>繼續在通知區域執行</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1129"/>
-        <location filename="../MainWindow.cpp" line="2940"/>
+        <location filename="../MainWindow.cpp" line="1143"/>
+        <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>
         <translation>Windows 通知區域無法使用</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1139"/>
-        <source>Equalizer APO Configuration Editor</source>
-        <translation>Equalizer APO 設定檔編輯器</translation>
+        <location filename="../MainWindow.cpp" line="1153"/>
+        <source>Hibiki EQAPO Configuration Editor</source>
+        <translation>Hibiki EQAPO 設定檔編輯器</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1142"/>
+        <location filename="../MainWindow.cpp" line="1156"/>
         <source>Show Configuration Editor</source>
         <translation>顯示設定檔編輯器</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="4342"/>
+        <location filename="../MainWindow.cpp" line="2860"/>
+        <source>Hibiki EQAPO bypassed</source>
+        <translation>Hibiki EQAPO 已旁路</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="3057"/>
+        <source>A registry value that is required for the operation of Hibiki EQAPO is not set correctly.
+Do you want to run the Device Selector application to fix the problem?</source>
+        <translation>Hibiki EQAPO 運作所需的登錄檔值設定不正確。
+是否要執行裝置選擇器應用程式來修復此問題？</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="3066"/>
+        <source>Hibiki EQAPO has not been installed to the selected device.
+Do you want to run the Device Selector application to fix the problem?</source>
+        <translation>Hibiki EQAPO 尚未安裝到所選裝置。
+是否要執行裝置選擇器應用程式來修復此問題？</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="3261"/>
+        <source>Hibiki EQAPO is still running</source>
+        <translation>Hibiki EQAPO 仍在執行</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="4612"/>
         <source>The configuration file %1 has unsaved changes.</source>
         <translation>設定檔 %1 有未儲存的變更。</translation>
     </message>
@@ -2687,48 +2714,48 @@ Alexander Walch</source>
         <translation type="vanished">已開啟 %0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1316"/>
-        <location filename="../MainWindow.cpp" line="1318"/>
+        <location filename="../MainWindow.cpp" line="1330"/>
+        <location filename="../MainWindow.cpp" line="1332"/>
         <source>No profiles found</source>
         <translation>找不到設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1405"/>
+        <location filename="../MainWindow.cpp" line="1419"/>
         <source>Open a profile before duplicating it</source>
         <translation>請先開啟設定檔再複製</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1410"/>
+        <location filename="../MainWindow.cpp" line="1424"/>
         <source>New profile</source>
         <translation>新增設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1411"/>
+        <location filename="../MainWindow.cpp" line="1425"/>
         <source> copy</source>
         <translation> 副本</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1414"/>
-        <location filename="../MainWindow.cpp" line="1539"/>
+        <location filename="../MainWindow.cpp" line="1428"/>
+        <location filename="../MainWindow.cpp" line="1553"/>
         <source>Profile name:</source>
         <translation>設定檔名稱：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1422"/>
-        <location filename="../MainWindow.cpp" line="1479"/>
-        <location filename="../MainWindow.cpp" line="1546"/>
+        <location filename="../MainWindow.cpp" line="1436"/>
+        <location filename="../MainWindow.cpp" line="1493"/>
+        <location filename="../MainWindow.cpp" line="1560"/>
         <source>Invalid profile name</source>
         <translation>設定檔名稱無效</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1423"/>
+        <location filename="../MainWindow.cpp" line="1437"/>
         <source>Use a file name without &lt; &gt; : &quot; / \ | ? * and without a trailing space or period.</source>
         <translation>檔案名稱不得包含 &lt; &gt; : &quot; / \ | ? *，且結尾不得有空格或句點。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1429"/>
-        <location filename="../MainWindow.cpp" line="1488"/>
-        <location filename="../MainWindow.cpp" line="1552"/>
+        <location filename="../MainWindow.cpp" line="1443"/>
+        <location filename="../MainWindow.cpp" line="1502"/>
+        <location filename="../MainWindow.cpp" line="1566"/>
         <source>Profile already exists</source>
         <translation>設定檔已存在</translation>
     </message>
@@ -2741,34 +2768,33 @@ Alexander Walch</source>
         <translation type="vanished">已建立 %0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1451"/>
-        <location filename="../MainWindow.cpp" line="1456"/>
+        <location filename="../MainWindow.cpp" line="1465"/>
+        <location filename="../MainWindow.cpp" line="1470"/>
         <source>Save the profile before renaming it</source>
         <translation>請先儲存設定檔再重新命名</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1461"/>
         <source>Only profiles in the Equalizer APO config folder can be renamed</source>
-        <translation>只有 Equalizer APO 設定檔資料夾中的設定檔才能重新命名</translation>
+        <translation type="vanished">只有 Equalizer APO 設定檔資料夾中的設定檔才能重新命名</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1466"/>
+        <location filename="../MainWindow.cpp" line="1480"/>
         <source>config.txt is the active root configuration and cannot be renamed here</source>
         <translation>config.txt 是目前作用中的根設定，無法在此重新命名</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1472"/>
-        <location filename="../MainWindow.cpp" line="1492"/>
+        <location filename="../MainWindow.cpp" line="1486"/>
+        <location filename="../MainWindow.cpp" line="1506"/>
         <source>Rename profile</source>
         <translation>重新命名設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1472"/>
+        <location filename="../MainWindow.cpp" line="1486"/>
         <source>New profile name:</source>
         <translation>新設定檔名稱：</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1480"/>
+        <location filename="../MainWindow.cpp" line="1494"/>
         <source>Use a valid Windows file name without a trailing space or period.</source>
         <translation>請使用有效的 Windows 檔案名稱，結尾不得有空格或句點。</translation>
     </message>
@@ -2777,12 +2803,12 @@ Alexander Walch</source>
         <translation type="vanished">其他設定檔中的 %0 參照不會自動變更。仍要重新命名嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1499"/>
+        <location filename="../MainWindow.cpp" line="1513"/>
         <source>Rename failed</source>
         <translation>重新命名失敗</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1500"/>
+        <location filename="../MainWindow.cpp" line="1514"/>
         <source>Could not rename the profile. Check file permissions and try again.</source>
         <translation>無法重新命名設定檔。請檢查檔案權限後再試一次。</translation>
     </message>
@@ -2791,37 +2817,36 @@ Alexander Walch</source>
         <translation type="vanished">已將設定檔重新命名為 %0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1533"/>
-        <location filename="../MainWindow.cpp" line="1539"/>
+        <location filename="../MainWindow.cpp" line="1547"/>
+        <location filename="../MainWindow.cpp" line="1553"/>
         <source>Import profile</source>
         <translation>匯入設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1546"/>
+        <location filename="../MainWindow.cpp" line="1560"/>
         <source>Enter a valid Windows file name.</source>
         <translation>請輸入有效的 Windows 檔案名稱。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1558"/>
+        <location filename="../MainWindow.cpp" line="1572"/>
         <source>Import failed</source>
         <translation>匯入失敗</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1559"/>
         <source>The profile could not be copied into the Equalizer APO config folder.</source>
-        <translation>無法將設定檔複製到 Equalizer APO 設定檔資料夾。</translation>
+        <translation type="vanished">無法將設定檔複製到 Equalizer APO 設定檔資料夾。</translation>
     </message>
     <message>
         <source>Imported %0</source>
         <translation type="vanished">已匯入 %0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1576"/>
+        <location filename="../MainWindow.cpp" line="1590"/>
         <source>Open a profile before exporting it</source>
         <translation>請先開啟設定檔再匯出</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1582"/>
+        <location filename="../MainWindow.cpp" line="1596"/>
         <source>Export profile</source>
         <translation>匯出設定檔</translation>
     </message>
@@ -2830,7 +2855,7 @@ Alexander Walch</source>
         <translation type="vanished">已將設定檔匯出至 %0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1620"/>
+        <location filename="../MainWindow.cpp" line="1634"/>
         <source>Select a saved profile and playback device first</source>
         <translation>請先選取已儲存的設定檔和播放裝置</translation>
     </message>
@@ -2839,12 +2864,12 @@ Alexander Walch</source>
         <translation type="vanished">已將 %0 連結至所選裝置</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1633"/>
+        <location filename="../MainWindow.cpp" line="1647"/>
         <source>Select a playback device first</source>
         <translation>請先選取播放裝置</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1638"/>
+        <location filename="../MainWindow.cpp" line="1652"/>
         <source>Cleared the selected device profile link</source>
         <translation>已清除所選裝置的設定檔連結</translation>
     </message>
@@ -2857,48 +2882,48 @@ Alexander Walch</source>
         <translation type="vanished">符合第 %0 列</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1883"/>
-        <location filename="../MainWindow.cpp" line="2005"/>
+        <location filename="../MainWindow.cpp" line="1935"/>
+        <location filename="../MainWindow.cpp" line="2095"/>
         <source>The current profile could not be read; temporary audio remains active</source>
         <translation>無法讀取目前設定檔；暫時音訊仍處於啟用狀態</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1890"/>
-        <location filename="../MainWindow.cpp" line="2018"/>
+        <location filename="../MainWindow.cpp" line="1942"/>
+        <location filename="../MainWindow.cpp" line="2107"/>
         <source>External profile change</source>
         <translation>外部設定檔變更</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1891"/>
-        <location filename="../MainWindow.cpp" line="2019"/>
-        <location filename="../MainWindow.cpp" line="2363"/>
+        <location filename="../MainWindow.cpp" line="1943"/>
+        <location filename="../MainWindow.cpp" line="2108"/>
+        <location filename="../MainWindow.cpp" line="2453"/>
         <source>This profile changed in another program while temporary audio was active. Restore saved profile will overwrite those external changes.</source>
         <translation>此設定檔在暫時音訊啟用期間被其他程式變更。「還原已儲存的設定檔」將覆寫這些外部變更。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1897"/>
-        <location filename="../MainWindow.cpp" line="2025"/>
-        <location filename="../MainWindow.cpp" line="2369"/>
+        <location filename="../MainWindow.cpp" line="1949"/>
+        <location filename="../MainWindow.cpp" line="2114"/>
+        <location filename="../MainWindow.cpp" line="2459"/>
         <source>Keep external changes</source>
         <translation>保留外部變更</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1918"/>
-        <location filename="../MainWindow.cpp" line="2032"/>
-        <location filename="../MainWindow.cpp" line="2530"/>
-        <location filename="../MainWindow.cpp" line="2575"/>
-        <location filename="../MainWindow.cpp" line="2690"/>
-        <location filename="../MainWindow.cpp" line="2740"/>
+        <location filename="../MainWindow.cpp" line="1970"/>
+        <location filename="../MainWindow.cpp" line="2122"/>
+        <location filename="../MainWindow.cpp" line="2629"/>
+        <location filename="../MainWindow.cpp" line="2674"/>
+        <location filename="../MainWindow.cpp" line="2799"/>
+        <location filename="../MainWindow.cpp" line="2849"/>
         <source>Kept external profile changes</source>
         <translation>已保留外部設定檔變更</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2362"/>
+        <location filename="../MainWindow.cpp" line="2452"/>
         <source>Temporary audio recovery</source>
         <translation>暫時音訊復原</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2988"/>
+        <location filename="../MainWindow.cpp" line="3097"/>
         <source>Audio enhancements are not enabled for the device
 %1 %2.
 Do you want to run the Device Selector application to fix the problem?</source>
@@ -2906,306 +2931,324 @@ Do you want to run the Device Selector application to fix the problem?</source>
 是否要執行裝置選擇器應用程式來修復此問題？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3034"/>
+        <location filename="../MainWindow.cpp" line="3143"/>
         <source>Error while reading configuration file: %1</source>
         <translation>讀取設定檔時發生錯誤：%1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3107"/>
+        <location filename="../MainWindow.cpp" line="3216"/>
         <source>Error while writing configuration file: %1</source>
         <translation>寫入設定檔時發生錯誤：%1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3122"/>
+        <location filename="../MainWindow.cpp" line="3231"/>
         <source>Only %1/%2 bytes have been written!</source>
         <translation>僅寫入了 %1/%2 位元組！</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3236"/>
+        <location filename="../MainWindow.cpp" line="3375"/>
         <source>Opened the profile linked to this device: %1</source>
         <translation>已開啟與此裝置連結的設定檔：%1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3661"/>
-        <location filename="../MainWindow.cpp" line="3666"/>
+        <location filename="../MainWindow.cpp" line="3813"/>
+        <location filename="../MainWindow.cpp" line="3818"/>
         <source>%1 dB</source>
         <translation>%1 dB</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3677"/>
+        <location filename="../MainWindow.cpp" line="3829"/>
         <source>%1 ms (%2 s.)</source>
         <translation>%1 毫秒（%2 個取樣）</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3679"/>
+        <location filename="../MainWindow.cpp" line="3831"/>
         <source>%1 ms</source>
         <translation>%1 毫秒</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3686"/>
+        <location filename="../MainWindow.cpp" line="3838"/>
         <source>%1 % (one core)</source>
         <translation>%1 %（單一核心）</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3771"/>
+        <location filename="../MainWindow.cpp" line="3923"/>
         <source>Auto preamp cannot safely edit this configuration; add or adjust a root Preamp manually</source>
         <translation>自動前級無法安全編輯此設定；請手動新增或調整根層 Preamp</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3801"/>
+        <location filename="../MainWindow.cpp" line="3953"/>
         <source>This one-time cut uses the sampled linear response and current Windows-volume snapshot for the selected channel. It is not a limiter and cannot guarantee later volume or source changes, nonlinear processing, or intersample peaks. Review the edit and save it manually.</source>
         <translation>此一次性衰減使用所選聲道的取樣線性響應與目前的 Windows 音量快照。它不是限幅器，無法保證防止後續音量或音源變更、非線性處理或取樣間峰值。請檢查變更後再手動儲存。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3843"/>
+        <location filename="../MainWindow.cpp" line="3995"/>
         <source>Reduced Preamp by %1 dB for %2; save the file to apply it</source>
         <translation>已將 %2 的前級增益降低 %1 dB；請儲存檔案以套用</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1895"/>
-        <location filename="../MainWindow.cpp" line="2023"/>
-        <location filename="../MainWindow.cpp" line="2367"/>
+        <location filename="../MainWindow.cpp" line="1947"/>
+        <location filename="../MainWindow.cpp" line="2112"/>
+        <location filename="../MainWindow.cpp" line="2457"/>
         <source>Restore saved profile</source>
         <translation>還原已儲存的設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2378"/>
-        <location filename="../MainWindow.cpp" line="2410"/>
+        <location filename="../MainWindow.cpp" line="2468"/>
+        <location filename="../MainWindow.cpp" line="2500"/>
         <source>Kept the current profile; no file was overwritten</source>
         <translation>已保留目前設定檔；未覆寫任何檔案</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1765"/>
-        <location filename="../MainWindow.cpp" line="1831"/>
-        <location filename="../MainWindow.cpp" line="1836"/>
-        <location filename="../MainWindow.cpp" line="2039"/>
-        <location filename="../MainWindow.cpp" line="2107"/>
-        <location filename="../MainWindow.cpp" line="2244"/>
-        <location filename="../MainWindow.cpp" line="2255"/>
-        <location filename="../MainWindow.cpp" line="2416"/>
-        <location filename="../MainWindow.cpp" line="2482"/>
-        <location filename="../MainWindow.cpp" line="2515"/>
-        <location filename="../MainWindow.cpp" line="2560"/>
-        <location filename="../MainWindow.cpp" line="2601"/>
-        <location filename="../MainWindow.cpp" line="2613"/>
-        <location filename="../MainWindow.cpp" line="2629"/>
-        <location filename="../MainWindow.cpp" line="2661"/>
-        <location filename="../MainWindow.cpp" line="2724"/>
-        <location filename="../MainWindow.cpp" line="2771"/>
-        <location filename="../MainWindow.cpp" line="2800"/>
+        <location filename="../MainWindow.cpp" line="1792"/>
+        <location filename="../MainWindow.cpp" line="1858"/>
+        <location filename="../MainWindow.cpp" line="1863"/>
+        <location filename="../MainWindow.cpp" line="2129"/>
+        <location filename="../MainWindow.cpp" line="2197"/>
+        <location filename="../MainWindow.cpp" line="2334"/>
+        <location filename="../MainWindow.cpp" line="2345"/>
+        <location filename="../MainWindow.cpp" line="2506"/>
+        <location filename="../MainWindow.cpp" line="2578"/>
+        <location filename="../MainWindow.cpp" line="2614"/>
+        <location filename="../MainWindow.cpp" line="2659"/>
+        <location filename="../MainWindow.cpp" line="2700"/>
+        <location filename="../MainWindow.cpp" line="2712"/>
+        <location filename="../MainWindow.cpp" line="2728"/>
+        <location filename="../MainWindow.cpp" line="2770"/>
+        <location filename="../MainWindow.cpp" line="2833"/>
+        <location filename="../MainWindow.cpp" line="2880"/>
+        <location filename="../MainWindow.cpp" line="2909"/>
         <source>A temporary audio state could not be recovered automatically</source>
         <translation>無法自動復原暫時音訊狀態</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="715"/>
+        <location filename="../MainWindow.cpp" line="729"/>
         <source>Dock analysis panel</source>
         <translation>停駐分析面板</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="718"/>
+        <location filename="../MainWindow.cpp" line="732"/>
         <source>Return the analysis panel to the bottom of the editor</source>
         <translation>將分析面板停駐回編輯器底部</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="899"/>
+        <location filename="../MainWindow.cpp" line="913"/>
         <source>Auto preamp (current ≤ 0 dB)</source>
         <translation>自動前級（目前 ≤ 0 dB）</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="901"/>
+        <location filename="../MainWindow.cpp" line="915"/>
         <source>One-time estimated cut for a supported static per-channel chain from the latest saved current-file analysis; review and save manually</source>
         <translation>依最新且已儲存的目前檔案分析，對支援的靜態逐聲道處理鏈估算一次性衰減；請檢查後手動儲存</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1230"/>
-        <source>Equalizer APO · %1</source>
-        <translation>Equalizer APO · %1</translation>
+        <location filename="../MainWindow.cpp" line="992"/>
+        <source>Open a configuration profile from the Hibiki EQAPO config folder</source>
+        <translation>從 Hibiki EQAPO 設定檔資料夾開啟設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1265"/>
+        <location filename="../MainWindow.cpp" line="1244"/>
+        <source>Hibiki EQAPO · %1</source>
+        <translation>Hibiki EQAPO · %1</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="1279"/>
         <source>No configuration profiles were found in %1</source>
         <translation>在 %1 中找不到設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1266"/>
+        <location filename="../MainWindow.cpp" line="1280"/>
         <source>Open a configuration profile from %1</source>
         <translation>從 %1 開啟設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1308"/>
-        <location filename="../MainWindow.cpp" line="1395"/>
+        <location filename="../MainWindow.cpp" line="1322"/>
+        <location filename="../MainWindow.cpp" line="1409"/>
         <source>Opened %1</source>
         <translation>已開啟 %1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1430"/>
-        <location filename="../MainWindow.cpp" line="1489"/>
-        <location filename="../MainWindow.cpp" line="1553"/>
+        <location filename="../MainWindow.cpp" line="1444"/>
+        <location filename="../MainWindow.cpp" line="1503"/>
+        <location filename="../MainWindow.cpp" line="1567"/>
         <source>A profile named %1 already exists.</source>
         <translation>名為 %1 的設定檔已存在。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1440"/>
+        <location filename="../MainWindow.cpp" line="1454"/>
         <source>Created %1</source>
         <translation>已建立 %1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1493"/>
+        <location filename="../MainWindow.cpp" line="1475"/>
+        <source>Only profiles in the Hibiki EQAPO config folder can be renamed</source>
+        <translation>只有 Hibiki EQAPO 設定檔資料夾中的設定檔才能重新命名</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="1507"/>
         <source>References to %1 inside other configuration files are not changed automatically. Rename it anyway?</source>
         <translation>其他設定檔中的 %1 參照不會自動變更。仍要重新命名嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1525"/>
+        <location filename="../MainWindow.cpp" line="1539"/>
         <source>Renamed profile to %1</source>
         <translation>已將設定檔重新命名為 %1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1566"/>
+        <location filename="../MainWindow.cpp" line="1573"/>
+        <source>The profile could not be copied into the Hibiki EQAPO config folder.</source>
+        <translation>無法將設定檔複製到 Hibiki EQAPO 設定檔資料夾。</translation>
+    </message>
+    <message>
+        <location filename="../MainWindow.cpp" line="1580"/>
         <source>Imported %1</source>
         <translation>已匯入 %1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1590"/>
+        <location filename="../MainWindow.cpp" line="1604"/>
         <source>Exported profile to %1</source>
         <translation>已將設定檔匯出至 %1</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1625"/>
+        <location filename="../MainWindow.cpp" line="1639"/>
         <source>Linked %1 to the selected device</source>
         <translation>已將 %1 連結至所選裝置</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1654"/>
-        <location filename="../MainWindow.cpp" line="1672"/>
+        <location filename="../MainWindow.cpp" line="1668"/>
+        <location filename="../MainWindow.cpp" line="1686"/>
         <source>No filter or setting matches “%1”</source>
         <translation>沒有濾鏡或設定符合「%1」</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1656"/>
-        <location filename="../MainWindow.cpp" line="1674"/>
+        <location filename="../MainWindow.cpp" line="1670"/>
+        <location filename="../MainWindow.cpp" line="1688"/>
         <source>Match on row %1</source>
         <translation>符合第 %1 列</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1754"/>
+        <location filename="../MainWindow.cpp" line="1769"/>
+        <location filename="../MainWindow.cpp" line="1781"/>
+        <location filename="../MainWindow.cpp" line="1886"/>
         <source>Save the profile before configuring MIDI</source>
         <translation>設定 MIDI 前請先儲存設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1788"/>
         <location filename="../MainWindow.cpp" line="1815"/>
+        <location filename="../MainWindow.cpp" line="1842"/>
         <source>The profile changed outside the editor; MIDI configuration was not started</source>
         <translation>設定檔已在編輯器外變更；未開始 MIDI 設定</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1847"/>
+        <location filename="../MainWindow.cpp" line="1899"/>
         <source>This row temporarily released its MIDI input</source>
         <translation>此列已暫時釋放 MIDI 輸入</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2422"/>
+        <location filename="../MainWindow.cpp" line="2512"/>
         <source>Recovered the profile from an interrupted temporary audio state</source>
         <translation>已從中斷的暫時音訊狀態復原設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2433"/>
-        <location filename="../MainWindow.cpp" line="2494"/>
+        <location filename="../MainWindow.cpp" line="2522"/>
+        <location filename="../MainWindow.cpp" line="2529"/>
+        <location filename="../MainWindow.cpp" line="2593"/>
         <source>Save the profile before starting an audible A/B comparison</source>
         <translation>開始可聽 A/B 比較前請儲存設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2461"/>
+        <location filename="../MainWindow.cpp" line="2557"/>
         <source>Captured comparison A. Make changes, then choose Compare A.</source>
         <translation>已擷取比較 A。進行變更後，選擇「比較 A」。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2473"/>
+        <location filename="../MainWindow.cpp" line="2569"/>
         <source>Comparison A belongs to another profile. Capture it again here.</source>
         <translation>比較 A 屬於其他設定檔。請在此重新擷取。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2531"/>
-        <location filename="../MainWindow.cpp" line="2542"/>
-        <location filename="../MainWindow.cpp" line="2576"/>
+        <location filename="../MainWindow.cpp" line="2630"/>
+        <location filename="../MainWindow.cpp" line="2641"/>
+        <location filename="../MainWindow.cpp" line="2675"/>
         <source>Could not activate comparison A</source>
         <translation>無法啟用比較 A</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2556"/>
-        <location filename="../MainWindow.cpp" line="2583"/>
-        <location filename="../MainWindow.cpp" line="2598"/>
+        <location filename="../MainWindow.cpp" line="2655"/>
+        <location filename="../MainWindow.cpp" line="2682"/>
+        <location filename="../MainWindow.cpp" line="2697"/>
         <source>Return to B</source>
         <translation>返回 B</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2584"/>
+        <location filename="../MainWindow.cpp" line="2683"/>
         <source>Listening to captured A</source>
         <translation>正在聆聽已擷取的 A</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2612"/>
+        <location filename="../MainWindow.cpp" line="2711"/>
         <source>Returned to current B</source>
         <translation>已返回目前 B</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2641"/>
+        <location filename="../MainWindow.cpp" line="2739"/>
+        <location filename="../MainWindow.cpp" line="2750"/>
         <source>Save the profile before using audible bypass</source>
         <translation>使用可聽旁路前請儲存設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2691"/>
-        <location filename="../MainWindow.cpp" line="2707"/>
-        <location filename="../MainWindow.cpp" line="2741"/>
+        <location filename="../MainWindow.cpp" line="2800"/>
+        <location filename="../MainWindow.cpp" line="2816"/>
+        <location filename="../MainWindow.cpp" line="2850"/>
         <source>Could not activate temporary bypass</source>
         <translation>無法啟用暫時旁路</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2720"/>
-        <location filename="../MainWindow.cpp" line="2747"/>
-        <location filename="../MainWindow.cpp" line="2769"/>
+        <location filename="../MainWindow.cpp" line="2829"/>
+        <location filename="../MainWindow.cpp" line="2856"/>
+        <location filename="../MainWindow.cpp" line="2878"/>
         <source>Restore audio</source>
         <translation>還原音訊</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2748"/>
+        <location filename="../MainWindow.cpp" line="2857"/>
         <source>Current profile is temporarily bypassed</source>
         <translation>目前設定檔已暫時旁路</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2751"/>
         <source>Equalizer APO bypassed</source>
-        <translation>Equalizer APO 已旁路</translation>
+        <translation type="vanished">Equalizer APO 已旁路</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2752"/>
+        <location filename="../MainWindow.cpp" line="2861"/>
         <source>Choose Restore audio to re-enable the current profile.</source>
         <translation>選擇「還原音訊」以重新啟用目前的設定檔。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1918"/>
-        <location filename="../MainWindow.cpp" line="2784"/>
+        <location filename="../MainWindow.cpp" line="1970"/>
+        <location filename="../MainWindow.cpp" line="2893"/>
         <source>Audio processing restored</source>
         <translation>音訊處理已還原</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2948"/>
+        <location filename="../MainWindow.cpp" line="3057"/>
         <source>Registry problem</source>
         <translation>登錄檔問題</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2957"/>
+        <location filename="../MainWindow.cpp" line="3066"/>
         <source>APO not installed to device</source>
         <translation>未將 APO 安裝到裝置</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2988"/>
+        <location filename="../MainWindow.cpp" line="3097"/>
         <source>Audio enhancements disabled</source>
         <translation>音訊增強功能已停用</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3034"/>
-        <location filename="../MainWindow.cpp" line="3107"/>
-        <location filename="../MainWindow.cpp" line="3122"/>
+        <location filename="../MainWindow.cpp" line="3143"/>
+        <location filename="../MainWindow.cpp" line="3216"/>
+        <location filename="../MainWindow.cpp" line="3231"/>
         <source>Error</source>
         <translation>錯誤</translation>
     </message>
@@ -3222,20 +3265,19 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation type="vanished">僅寫入了 %0/%1 位元組！</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3152"/>
         <source>Equalizer APO is still running</source>
-        <translation>Equalizer APO 仍在執行</translation>
+        <translation type="vanished">Equalizer APO 仍在執行</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3153"/>
+        <location filename="../MainWindow.cpp" line="3262"/>
         <source>Use the notification-area icon to reopen profiles or restore bypassed audio.</source>
         <translation>使用通知區域圖示重新開啟設定檔，或還原已旁路的音訊。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3211"/>
-        <location filename="../MainWindow.cpp" line="3213"/>
-        <location filename="../MainWindow.cpp" line="3215"/>
-        <location filename="../MainWindow.cpp" line="3219"/>
+        <location filename="../MainWindow.cpp" line="3350"/>
+        <location filename="../MainWindow.cpp" line="3352"/>
+        <location filename="../MainWindow.cpp" line="3354"/>
+        <location filename="../MainWindow.cpp" line="3358"/>
         <source>From device</source>
         <translation>從裝置</translation>
     </message>
@@ -3244,8 +3286,8 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation type="vanished">已開啟與此裝置連結的設定檔：%0</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3641"/>
-        <location filename="../MainWindow.cpp" line="3699"/>
+        <location filename="../MainWindow.cpp" line="3793"/>
+        <location filename="../MainWindow.cpp" line="3851"/>
         <source>Analysis is unavailable for the selected device</source>
         <translation>無法分析所選裝置</translation>
     </message>
@@ -3270,32 +3312,32 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation type="vanished">%0 % (單核)</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3708"/>
+        <location filename="../MainWindow.cpp" line="3860"/>
         <source>Clipping risk detected · lower preamp gain</source>
         <translation>偵測到削波風險 · 降低前級增益</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3709"/>
+        <location filename="../MainWindow.cpp" line="3861"/>
         <source>Response analysis is up to date</source>
         <translation>響應分析已是最新</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3759"/>
+        <location filename="../MainWindow.cpp" line="3911"/>
         <source>Run a fresh Current file analysis before adjusting Preamp</source>
         <translation>調整前級增益前，請先重新執行「目前檔案」分析</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3777"/>
+        <location filename="../MainWindow.cpp" line="3929"/>
         <source>selected channel</source>
         <translation>所選聲道</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3780"/>
+        <location filename="../MainWindow.cpp" line="3932"/>
         <source>Apply estimated Preamp safety cut</source>
         <translation>套用估算的前級增益安全衰減</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3784"/>
+        <location filename="../MainWindow.cpp" line="3936"/>
         <source>The latest analysis estimates a +%1 dB peak for %2.
 
 No root Preamp with enough editable range was found. Add a new %3 dB Preamp at the beginning of this file?</source>
@@ -3304,7 +3346,7 @@ No root Preamp with enough editable range was found. Add a new %3 dB Preamp at t
 找不到有足夠可編輯範圍的最外層前級增益。要在此檔案開頭新增 %3 dB 的前級增益嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3793"/>
+        <location filename="../MainWindow.cpp" line="3945"/>
         <source>The latest analysis estimates a +%1 dB peak for %2.
 
 Change the first editable root Preamp from %3 dB to %4 dB?</source>
@@ -3313,27 +3355,27 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
 要將第一個可編輯的最外層前級增益從 %3 dB 改為 %4 dB 嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3823"/>
-        <location filename="../MainWindow.cpp" line="3834"/>
+        <location filename="../MainWindow.cpp" line="3975"/>
+        <location filename="../MainWindow.cpp" line="3986"/>
         <source>The profile or analysis changed; no Preamp adjustment was made</source>
         <translation>設定檔或分析結果已變更；未調整前級增益</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3860"/>
-        <location filename="../MainWindow.cpp" line="3883"/>
-        <location filename="../MainWindow.cpp" line="3904"/>
+        <location filename="../MainWindow.cpp" line="4012"/>
+        <location filename="../MainWindow.cpp" line="4035"/>
+        <location filename="../MainWindow.cpp" line="4056"/>
         <source>Restart required</source>
         <translation>需要重新啟動</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3860"/>
-        <location filename="../MainWindow.cpp" line="3883"/>
-        <location filename="../MainWindow.cpp" line="3904"/>
+        <location filename="../MainWindow.cpp" line="4012"/>
+        <location filename="../MainWindow.cpp" line="4035"/>
+        <location filename="../MainWindow.cpp" line="4056"/>
         <source>Configuration Editor will be restarted to apply the changed settings. Proceed?</source>
         <translation>設定編輯器將重新啟動以套用變更。要繼續嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="4341"/>
+        <location filename="../MainWindow.cpp" line="4611"/>
         <source>Unsaved changes</source>
         <translation>未儲存的變更</translation>
     </message>
@@ -3342,22 +3384,22 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation type="vanished">設定檔 %0 有未儲存的變更。</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="4343"/>
+        <location filename="../MainWindow.cpp" line="4613"/>
         <source>Do you want to save the changes before closing the file?</source>
         <translation>關閉檔案前要儲存變更嗎？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="4397"/>
+        <location filename="../MainWindow.cpp" line="4667"/>
         <source>Analyzing the current signal path…</source>
         <translation>正在分析目前訊號路徑…</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="4452"/>
+        <location filename="../MainWindow.cpp" line="4722"/>
         <source>Select an installed playback device to run analysis</source>
         <translation>請選取已安裝的播放裝置以執行分析</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3392"/>
+        <location filename="../MainWindow.cpp" line="3544"/>
         <source>Open file</source>
         <translation>開啟檔案</translation>
     </message>
@@ -3366,17 +3408,15 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation type="vanished">自動 (%0)</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2948"/>
         <source>A registry value that is required for the operation of Equalizer APO is not set correctly.
 Do you want to run the Device Selector application to fix the problem?</source>
-        <translation>Equalizer APO 操作所需的登錄檔值設定不正確。
+        <translation type="vanished">Equalizer APO 操作所需的登錄檔值設定不正確。
 是否要執行裝置選擇器應用程式來修復此問題？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="2957"/>
         <source>Equalizer APO has not been installed to the selected device.
 Do you want to run the Device Selector application to fix the problem?</source>
-        <translation>Equalizer APO 尚未安裝到所選裝置。
+        <translation type="vanished">Equalizer APO 尚未安裝到所選裝置。
 是否要執行裝置選擇器應用程式來修復此問題？</translation>
     </message>
     <message>
@@ -3387,48 +3427,51 @@ Do you want to run the Device Selector application to fix the problem?</source>
 是否要執行裝置選擇器應用程式來修復此問題？</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1533"/>
-        <location filename="../MainWindow.cpp" line="1582"/>
-        <location filename="../MainWindow.cpp" line="3394"/>
-        <location filename="../MainWindow.cpp" line="3452"/>
+        <location filename="../MainWindow.cpp" line="1547"/>
+        <location filename="../MainWindow.cpp" line="1596"/>
+        <location filename="../MainWindow.cpp" line="3546"/>
+        <location filename="../MainWindow.cpp" line="3604"/>
         <source>E-APO configurations (*.txt)</source>
         <translation>E-APO 設定檔 (*.txt)</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3449"/>
+        <location filename="../MainWindow.cpp" line="3601"/>
         <source>Save file as</source>
         <translation>檔案另存為</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="3480"/>
+        <location filename="../MainWindow.cpp" line="3632"/>
         <source>Unsaved</source>
         <translation>未儲存</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1743"/>
-        <location filename="../MainWindow.cpp" line="1800"/>
-        <location filename="../MainWindow.cpp" line="1825"/>
+        <location filename="../MainWindow.cpp" line="1759"/>
+        <location filename="../MainWindow.cpp" line="1827"/>
+        <location filename="../MainWindow.cpp" line="1852"/>
+        <location filename="../MainWindow.cpp" line="1888"/>
         <source>A temporary audio state could not be activated</source>
         <translation>無法啟用暫時音訊狀態</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1755"/>
+        <location filename="../MainWindow.cpp" line="1770"/>
+        <location filename="../MainWindow.cpp" line="1782"/>
+        <location filename="../MainWindow.cpp" line="1887"/>
         <source>Save the profile before starting calibration</source>
         <translation>開始校正前請儲存設定檔</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1789"/>
         <location filename="../MainWindow.cpp" line="1816"/>
+        <location filename="../MainWindow.cpp" line="1843"/>
         <source>The profile changed outside the editor; calibration was not started</source>
         <translation>設定檔已在設定編輯器外變更，未開始校正</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1835"/>
+        <location filename="../MainWindow.cpp" line="1862"/>
         <source>Audio processing was not restored</source>
         <translation>音訊處理未還原</translation>
     </message>
     <message>
-        <location filename="../MainWindow.cpp" line="1848"/>
+        <location filename="../MainWindow.cpp" line="1900"/>
         <source>Calibration contour is temporarily bypassed</source>
         <translation>校正等響曲線暫時略過</translation>
     </message>
@@ -3690,22 +3733,22 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation>請先儲存目前的設定檔，並排除任何暫時性的音訊狀態後再進行校正。</translation>
     </message>
     <message>
-        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="406"/>
+        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="407"/>
         <source>Audio processing was not restored</source>
         <translation>未還原音訊處理</translation>
     </message>
     <message>
-        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="407"/>
+        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="408"/>
         <source>The temporary original-calibration state could not be restored automatically. Close the editor and use temporary audio recovery before continuing.</source>
         <translation>暫時的原版校準狀態無法自動還原。請關閉設定編輯器，使用暫時音訊復原功能後再繼續。</translation>
     </message>
     <message>
-        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="420"/>
+        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="423"/>
         <source>Original calibration not applied</source>
         <translation>未套用原版校準</translation>
     </message>
     <message>
-        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="421"/>
+        <location filename="../guis/OriginalLoudnessCorrectionFilterGUI.cpp" line="424"/>
         <source>Playback became muted or unavailable. The measurement was discarded.</source>
         <translation>播放已靜音或無法使用，已捨棄量測值。</translation>
     </message>
@@ -3726,12 +3769,12 @@ Do you want to run the Device Selector application to fix the problem?</source>
 <context>
     <name>PanFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1075"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
         <source>Pan</source>
         <translation>聲像</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1075"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
         <source>Basic filters</source>
         <translation>基本濾波器</translation>
     </message>
@@ -3849,12 +3892,12 @@ Do you want to run the Device Selector application to fix the problem?</source>
 <context>
     <name>ReverbFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1105"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
         <source>Reverb</source>
         <translation>殘響</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1105"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
         <source>Effects</source>
         <translation>效果</translation>
     </message>
@@ -3904,12 +3947,12 @@ Do you want to run the Device Selector application to fix the problem?</source>
 <context>
     <name>ToneGeneratorFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1065"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
         <source>Tone generator</source>
         <translation>音調產生器</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1065"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
         <source>Basic filters</source>
         <translation>基本濾波器</translation>
     </message>
@@ -4242,7 +4285,10 @@ Do you want to run the Device Selector application to fix the problem?</source>
     <name>VSTPluginFilterGUI</name>
     <message>
         <location filename="../guis/VSTPluginFilterGUI.ui" line="44"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="297"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="375"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="459"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1549"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1574"/>
         <source>Open panel</source>
         <translation>開啟面板</translation>
     </message>
@@ -4267,45 +4313,46 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation>VST 外掛程式：</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="717"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1605"/>
         <source>No file selected.</source>
         <translation>未選擇檔案。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="727"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1615"/>
         <source>File not found.</source>
         <translation>未找到檔案。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="730"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1618"/>
         <source>Library could not be loaded.</source>
         <translation>無法載入程式庫。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="733"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1621"/>
         <source>Library does not contain needed functions.</source>
         <translation>程式庫不包含所需的函式。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="741"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1629"/>
         <source>Library has the wrong architecture. Only %1-bit libraries are supported.</source>
         <translation>程式庫的架構不正確。僅支援 %1 位元程式庫。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="761"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1649"/>
         <source>Plugin crashed during initialization.</source>
         <translation>外掛程式在初始化期間當機。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="140"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="141"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="981"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="174"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="175"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1879"/>
         <source>Select VST plugin</source>
         <translation>選擇 VST 外掛程式</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="236"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="665"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="322"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1329"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1575"/>
         <source>Out-of-process VST host</source>
         <translation>程序外 VST 主控程式</translation>
     </message>
@@ -4318,54 +4365,121 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <translation type="vanished">正在重新載入 VST 外掛程式</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="441"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="464"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="516"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="369"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="612"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="640"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="740"/>
         <source>Hide panel</source>
         <translation>隱藏面板</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="454"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="664"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1003"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="369"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="626"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1328"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1901"/>
         <source>Show panel</source>
         <translation>顯示面板</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="465"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="517"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="370"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="641"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="741"/>
         <source>Out-of-process VST panel is open</source>
         <translation>程序外 VST 面板已開啟</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="477"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="492"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="507"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="653"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="666"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="676"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="698"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="717"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="727"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1363"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1399"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1567"/>
         <source>VST plugin</source>
         <translation>VST 外掛程式</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="477"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="653"/>
         <source>%1 was not found next to Editor.exe.</source>
         <translation>在 Editor.exe 旁找不到 %1。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="492"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="698"/>
         <source>Could not create temporary VST host configuration.</source>
         <translation>無法建立暫存 VST 主控程式設定。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="507"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="717"/>
         <source>Could not start the out-of-process VST host.</source>
         <translation>無法啟動程序外 VST 主控程式。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="983"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1458"/>
+        <source>The out-of-process VST host could not be stopped. This row was left unchanged. Close the host and try again.</source>
+        <translation>無法停止程序外 VST 主控程式。此列未變更。請關閉主控程式後再試一次。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1490"/>
+        <source>The out-of-process VST host stopped, but its latest state could not be recovered. This row and its temporary state file were left unchanged. Try again before removing the row.</source>
+        <translation>程序外 VST 主控程式已停止，但無法回收其最新狀態。此列與暫存狀態檔均保持不變。請先重試，再移除此列。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1429"/>
+        <source>The existing out-of-process VST host or its state file could not be verified. This row was left unchanged. Close the host and reload the profile before trying again.</source>
+        <translation>無法驗證既有的程序外 VST 主控程式或其狀態檔。此列未變更。請關閉主控程式並重新載入設定檔後再試一次。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1471"/>
+        <source>The out-of-process VST host stopped, but did not confirm that its final state was saved. This row and its temporary state file were left unchanged. Open the panel again to recover from the last readable snapshot.</source>
+        <translation>程序外 VST 主控程式已停止，但未確認已儲存最終狀態。此列與暫存狀態檔均保持不變。請再次開啟面板，從最後可讀取的快照復原。</translation>
+    </message>
+    <message>
+        <source>The out-of-process VST host stopped without confirming its final state. This row and its temporary state file were left unchanged. Open the panel again to recover from the last readable snapshot.</source>
+        <translation type="vanished">程序外 VST 主控程式已停止，且未確認其最終狀態。此列與暫存狀態檔均保持不變。請再次開啟面板，從最後可讀取的快照復原。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1364"/>
+        <source>The out-of-process VST host stopped without confirming its final state. Its last readable snapshot may be incomplete. Choose whether to use that snapshot, discard the temporary state, or leave this row unchanged.</source>
+        <translation>程序外 VST 主控程式停止時未確認最終狀態。最後可讀取的快照可能不完整。請選擇使用該快照、捨棄暫存狀態，或保持此列不變。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1369"/>
+        <source>Use last readable snapshot</source>
+        <translation>使用最後可讀取的快照</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="728"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1396"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1401"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1510"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1541"/>
+        <source>The temporary VST state could not be removed. It was left unchanged.</source>
+        <translation>無法移除 VST 暫存狀態；該檔案保持不變。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="376"/>
+        <source>Out-of-process VST state recovery is pending</source>
+        <translation>程序外 VST 狀態等待復原</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="667"/>
+        <source>The preserved temporary VST state cannot be read. Discard it and reopen the panel from the state currently stored in this row?</source>
+        <translation>無法讀取保留的 VST 暫存狀態。要捨棄該狀態，並從此列目前儲存的狀態重新開啟面板嗎？</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="677"/>
+        <source>The unreadable temporary VST state could not be removed. It was left unchanged.</source>
+        <translation>無法移除不可讀取的 VST 暫存狀態；該檔案保持不變。</translation>
+    </message>
+    <message>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1881"/>
         <source>VST plugins (*.dll *.vst3)</source>
         <translation>VST 外掛程式 (*.dll *.vst3)</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1078"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1976"/>
         <source>The library is not readable by the audio service.
 Change the file permissions or copy the file to the VSTPlugins directory.</source>
         <translation>音訊服務無法讀取此程式庫。
@@ -4386,104 +4500,104 @@ Change the file permissions or copy the files to the config directory.</source>
     </message>
     <message>
         <location filename="../guis/VSTPluginFilterGUI.ui" line="124"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="937"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1835"/>
         <source>Bind MIDI knobs, faders, and buttons to VST parameters</source>
         <translation>將 MIDI 旋鈕、推桿與按鈕綁定至 VST 參數</translation>
     </message>
     <message>
         <location filename="../guis/VSTPluginFilterGUI.ui" line="127"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="936"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1834"/>
         <source>MIDI control…</source>
         <translation>MIDI 控制…</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="142"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="176"/>
         <source>VST3 plug-in class</source>
         <translation>VST3 外掛類別</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="144"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="178"/>
         <source>MIDI control</source>
         <translation>MIDI 控制</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="146"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="180"/>
         <source>VST status</source>
         <translation>VST 狀態</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="298"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="460"/>
         <source>Out-of-process VST reload requested</source>
         <translation>已要求重新載入外部處理序 VST</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="302"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="464"/>
         <source>VST plugin reload requested</source>
         <translation>已要求重新載入 VST 外掛</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="321"/>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="346"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="486"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="511"/>
         <source>VST MIDI control</source>
         <translation>VST MIDI 控制</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="323"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="488"/>
         <source>Open the out-of-process panel once and close it after the plug-in state has been captured. MIDI mapping then has stable parameter IDs to target.</source>
         <translation>開啟一次外部處理序面板，並在擷取外掛狀態後關閉它。之後 MIDI 對應就能鎖定穩定的參數 ID。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="324"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="489"/>
         <source>This plug-in did not expose any writable parameters for MIDI control.</source>
         <translation>此外掛未提供可供 MIDI 控制寫入的參數。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="347"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="512"/>
         <source>Save the current profile and resolve any temporary audio state before configuring MIDI.</source>
         <translation>設定 MIDI 前，請先儲存目前設定檔並處理任何暫時音訊狀態。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="370"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="535"/>
         <source>Audio processing was not restored</source>
         <translation>未還原音訊處理</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="371"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="536"/>
         <source>The temporary MIDI-learning state could not be restored automatically. Close the editor and use temporary audio recovery before continuing.</source>
         <translation>無法自動還原暫時的 MIDI 學習狀態。請關閉編輯器並使用暫時音訊復原後再繼續。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="396"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="561"/>
         <source>Change VST3 plug-in class?</source>
         <translation>要變更 VST3 外掛類別嗎？</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="397"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="562"/>
         <source>Changing the class clears the saved plug-in state and any parameter-specific controls for this row.</source>
         <translation>變更類別會清除此列已儲存的外掛狀態及所有指定參數的控制設定。</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="799"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1687"/>
         <source>Change VST plug-in?</source>
         <translation>要變更 VST 外掛嗎？</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="800"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1688"/>
         <source>Changing the plug-in may clear its saved state and MIDI mappings. Continue?</source>
         <translation>變更外掛可能會清除其已儲存的狀態與 MIDI 對應。要繼續嗎？</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="928"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1826"/>
         <source>MIDI control… (%1)</source>
         <translation>MIDI 控制…（%1）</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="930"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1828"/>
         <source>%1 MIDI mapping(s) active</source>
         <translation>已啟用 %1 個 MIDI 對應</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUI.cpp" line="1123"/>
+        <location filename="../guis/VSTPluginFilterGUI.cpp" line="2021"/>
         <source>The plugin seemingly accesses these files not readable by the audio service:
 %1
 Change the file permissions or copy the files to the config directory.</source>
@@ -4508,18 +4622,18 @@ Change the file permissions or copy the files to the config directory.</source>
 <context>
     <name>VSTPluginFilterGUIFactory</name>
     <message>
-        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="51"/>
+        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="52"/>
         <source>VST plugin</source>
         <translation>VST 外掛程式</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="51"/>
         <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="52"/>
+        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="53"/>
         <source>Plugins</source>
         <translation>外掛程式</translation>
     </message>
     <message>
-        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="52"/>
+        <location filename="../guis/VSTPluginFilterGUIFactory.cpp" line="53"/>
         <source>Out-of-process VST plugin</source>
         <translation>程序外 VST 外掛程式</translation>
     </message>
@@ -4527,12 +4641,12 @@ Change the file permissions or copy the files to the config directory.</source>
 <context>
     <name>VUMeterFilterGUIFactory</name>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1115"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>
         <source>VU meter</source>
         <translation>VU 電平表</translation>
     </message>
     <message>
-        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1115"/>
+        <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>
         <source>Analysis</source>
         <translation>分析</translation>
     </message>

@@ -27,6 +27,8 @@
 #include <cmath>
 #include <algorithm>
 #include <atomic>
+#include <limits>
+#include <memory>
 #include <string>
 #include <thread>
 #include <vector>
@@ -43,13 +45,79 @@
 #include "../helpers/MemoryHelper.h"
 #include "../helpers/FFTWHelper.h"
 #include "../helpers/VSTMidiBindingCodec.h"
+#include "../helpers/VSTPluginLibrary.h"
 #include "../filters/ConvolutionFilter.h"
 #include "../filters/GraphicEQFilter.h"
+#include "../filters/BiQuadFilterFactory.h"
+#include "../filters/CopyFilterFactory.h"
+#include "../filters/DelayFilter.h"
+#include "../filters/DelayFilterFactory.h"
+#include "../filters/IIRFilterFactory.h"
+#include "../filters/OutProcBiquadFilter.h"
+#include "../filters/OutProcBiquadFilterFactory.h"
+#include "../filters/OutProcGainFilterFactory.h"
+#include "../filters/OutProcVSTPluginFilterFactory.h"
+#include "../filters/OutputGuardFilter.h"
+#include "../filters/OutputGuardFilterFactory.h"
+#include "../filters/ParametricEQFilterFactory.h"
+#include "../filters/PreampFilterFactory.h"
+#include "../filters/ToneGeneratorFilterFactory.h"
+#include "../filters/ToneGeneratorFilter.h"
 #include "../filters/loudnessCorrection/LoudnessCorrectionFilter.h"
 #include "../filters/loudnessCorrection/OriginalLoudnessCorrectionFilter.h"
 #include "../filters/loudnessCorrection/OriginalLoudnessCorrectionFilterFactory.h"
 
 using namespace std;
+
+class FilterEngineTestAccess
+{
+public:
+	static void addFactory(FilterEngine& engine, IFilterFactory* factory)
+	{
+		engine.factories.push_back(factory);
+	}
+
+	static bool watchesRegistryKey(
+		const FilterEngine& engine,
+		const std::wstring& key)
+	{
+		return engine.watchRegistryKeys.find(key) !=
+			engine.watchRegistryKeys.end();
+	}
+
+	static bool hasPendingConfiguration(const FilterEngine& engine)
+	{
+		return engine.pendingConfig.load(std::memory_order_acquire) != nullptr;
+	}
+
+	static unsigned transitionLength(const FilterEngine& engine)
+	{
+		return engine.transitionLength;
+	}
+
+	static void forceTransitionLength(FilterEngine& engine, unsigned length)
+	{
+		engine.transitionLength = length;
+	}
+};
+
+class AllocationFailureFilterFactory final : public IFilterFactory
+{
+public:
+	vector<IFilter*> createFilter(
+		const wstring& configPath,
+		wstring& command,
+		wstring& parameters) override
+	{
+		if (command == L"ForceAllocationFailure")
+		{
+			MemoryHelper::allocArray(
+				(std::numeric_limits<size_t>::max)(), 2);
+			command.clear();
+		}
+		return vector<IFilter*>();
+	}
+};
 
 class LoudnessCorrectionFilterTestAccess
 {
@@ -93,6 +161,15 @@ public:
 		const LoudnessCorrectionFilter& filter)
 	{
 		return filter._volumeFollowRampRemaining;
+	}
+
+	static void enableSyntheticAutomaticVolumePublisher(
+		LoudnessCorrectionFilter& filter)
+	{
+		// initialize() uses a manual value to avoid depending on the machine's
+		// real endpoint. The rest of this benchmark then emulates the automatic
+		// publisher that owns runtime volume updates in production.
+		filter._parameters.useManualVolume = false;
 	}
 
 	static void beginRuntimeBypass(LoudnessCorrectionFilter& filter)
@@ -530,6 +607,22 @@ public:
 
 namespace
 {
+	template<typename Sample>
+	bool getSafeSampleCount(
+		unsigned channelCount,
+		unsigned frameCount,
+		size_t& sampleCount) noexcept
+	{
+		const size_t maximumSize = (std::numeric_limits<size_t>::max)();
+		if (frameCount != 0 &&
+			static_cast<size_t>(channelCount) > maximumSize / frameCount)
+		{
+			return false;
+		}
+		sampleCount = static_cast<size_t>(channelCount) * frameCount;
+		return sampleCount <= maximumSize / sizeof(Sample);
+	}
+
 	int nextPowerOfTwo(int value)
 	{
 		int result = 1;
@@ -682,9 +775,12 @@ namespace
 		double maxAbsError = 0.0;
 		double rmsError = 0.0;
 		double maxReference = 0.0;
+		bool finite = true;
 		int maxIndex = 0;
 		for (int index = 0; index < inputLength; ++index)
 		{
+			finite = finite && std::isfinite(actual[index]) &&
+				std::isfinite(reference[index]);
 			const double error = fabs(actual[index] - reference[index]);
 			if (error > maxAbsError)
 			{
@@ -697,7 +793,8 @@ namespace
 		rmsError = sqrt(rmsError / inputLength);
 		const double relativeError = maxReference > 0.0 ?
 			maxAbsError / maxReference : maxAbsError;
-		const bool passed = maxAbsError < 1e-8 || relativeError < 1e-8;
+		const bool passed = finite &&
+			(maxAbsError < 1e-8 || relativeError < 1e-8);
 
 		printf(
 			"%s sr=%d flen=%d hlen=%d blocks=%d max=%0.12g rel=%0.12g rms=%0.12g idx=%d\n",
@@ -789,7 +886,11 @@ namespace
 				const double expected =
 					(channel == 0 ? 0.125 : -0.25) * scale;
 				for (double sample : inPlace ? input[channel] : output[channel])
+				{
+					if (!std::isfinite(sample))
+						return std::numeric_limits<double>::infinity();
 					error = (std::max)(error, std::abs(sample - expected));
+				}
 			}
 			return error;
 		};
@@ -872,6 +973,392 @@ namespace
 
 		passed = reachedWet && sawValidTransition && passed;
 		printf("%s: %s\n", name, passed ? "PASS" : "FAIL");
+		return passed;
+	}
+
+	class NonFiniteImpulseConvolutionFilter : public ConvolutionFilter
+	{
+	public:
+		NonFiniteImpulseConvolutionFilter()
+			: ConvolutionFilter(L"")
+		{
+		}
+
+	protected:
+		bool prepareImpulseResponse(
+			std::vector<std::vector<double>>& impulseResponses) override
+		{
+			impulseResponses.push_back(std::vector<double>(
+				1, std::numeric_limits<double>::quiet_NaN()));
+			return true;
+		}
+	};
+
+	bool runFailClosedConvolutionCase(
+		const char* name,
+		ConvolutionFilter& filter,
+		bool inPlace)
+	{
+		const unsigned frameCount = 64;
+		const unsigned channelCount = 2;
+		vector<wstring> channelNames = { L"L", L"R" };
+		filter.initialize(48000.0f, frameCount, channelNames);
+
+		vector<vector<double>> input(
+			channelCount, vector<double>(frameCount));
+		vector<vector<double>> output(
+			channelCount, vector<double>(frameCount, 123.0));
+		vector<double*> inputChannels(channelCount);
+		vector<double*> outputChannels(channelCount);
+		for (unsigned channel = 0; channel < channelCount; ++channel)
+		{
+			for (unsigned frame = 0; frame < frameCount; ++frame)
+			{
+				input[channel][frame] =
+					(channel == 0 ? 0.125 : -0.25) + frame * 1.0e-4;
+			}
+			inputChannels[channel] = input[channel].data();
+			outputChannels[channel] = inPlace ?
+				input[channel].data() : output[channel].data();
+		}
+
+		filter.process(
+			outputChannels.data(), inputChannels.data(), frameCount);
+		bool passed = true;
+		for (unsigned channel = 0; channel < channelCount; ++channel)
+		{
+			const vector<double>& rendered = inPlace ?
+				input[channel] : output[channel];
+			for (unsigned frame = 0; frame < frameCount; ++frame)
+			{
+				const double expected =
+					(channel == 0 ? 0.125 : -0.25) + frame * 1.0e-4;
+				passed = passed && std::isfinite(rendered[frame]) &&
+					rendered[frame] == expected;
+			}
+		}
+
+		printf("%s: %s\n", name, passed ? "PASS" : "FAIL");
+		return passed;
+	}
+
+	bool runInvalidConvolutionInputTests()
+	{
+		bool passed = true;
+		{
+			const vector<FilterNode> nodes = {
+				FilterNode(0.0, 0.0), FilterNode(100.0, 6.0)
+			};
+			GraphicEQFilter filter(nodes, 1024);
+			passed = runFailClosedConvolutionCase(
+				"GraphicEQ zero-frequency fails dry out-of-place",
+				filter, false) && passed;
+		}
+		{
+			const vector<FilterNode> nodes = { FilterNode(-1.0, 6.0) };
+			GraphicEQFilter filter(nodes, 1024);
+			passed = runFailClosedConvolutionCase(
+				"GraphicEQ negative-frequency fails dry in-place",
+				filter, true) && passed;
+		}
+		{
+			const vector<FilterNode> nodes = {
+				FilterNode(100.0, 0.0), FilterNode(100.0, 6.0)
+			};
+			GraphicEQFilter filter(nodes, 1024);
+			passed = runFailClosedConvolutionCase(
+				"GraphicEQ duplicate-frequency fails dry out-of-place",
+				filter, false) && passed;
+		}
+		{
+			const vector<FilterNode> nodes = { FilterNode(
+				std::numeric_limits<double>::infinity(), 6.0) };
+			GraphicEQFilter filter(nodes, 1024);
+			passed = runFailClosedConvolutionCase(
+				"GraphicEQ non-finite frequency fails dry out-of-place",
+				filter, false) && passed;
+		}
+		{
+			const vector<FilterNode> nodes = { FilterNode(
+				100.0, std::numeric_limits<double>::infinity()) };
+			GraphicEQFilter filter(nodes, 1024);
+			passed = runFailClosedConvolutionCase(
+				"GraphicEQ non-finite gain fails dry in-place",
+				filter, true) && passed;
+		}
+		{
+			NonFiniteImpulseConvolutionFilter filter;
+			passed = runFailClosedConvolutionCase(
+				"Convolution non-finite impulse fails dry",
+				filter, false) && passed;
+		}
+		return passed;
+	}
+
+	bool expectNumericFactoryRejection(
+		const char* name,
+		IFilterFactory& factory,
+		const wchar_t* commandValue,
+		const wchar_t* parametersValue)
+	{
+		wstring command(commandValue);
+		wstring parameters(parametersValue);
+		vector<IFilter*> filters = factory.createFilter(L"", command, parameters);
+		const bool passed = filters.empty();
+		for (IFilter* filter : filters)
+		{
+			filter->~IFilter();
+			MemoryHelper::free(filter);
+		}
+		printf("%s: %s\n", name, passed ? "PASS" : "FAIL");
+		return passed;
+	}
+
+	bool runInvalidNumericFactoryTests()
+	{
+		bool passed = true;
+		PreampFilterFactory preampFactory;
+		passed = expectNumericFactoryRejection(
+			"Preamp NaN rejected", preampFactory,
+			L"Preamp", L"nan dB") && passed;
+		passed = expectNumericFactoryRejection(
+			"Preamp finite dB overflow rejected", preampFactory,
+			L"Preamp", L"1e308 dB") && passed;
+
+		OutProcGainFilterFactory outProcGainFactory;
+		passed = expectNumericFactoryRejection(
+			"OutProcGain infinity rejected", outProcGainFactory,
+			L"OutProcGain", L"inf dB") && passed;
+
+		OutputGuardFilterFactory outputGuardFactory;
+		passed = expectNumericFactoryRejection(
+			"OutputGuard finite dB overflow rejected", outputGuardFactory,
+			L"OutputGuard", L"1e308 dB") && passed;
+
+		BiQuadFilterFactory biquadFactory;
+		passed = expectNumericFactoryRejection(
+			"BiQuad finite gain overflow rejected", biquadFactory,
+			L"Filter 1", L"ON PK Fc 1000 Hz Gain 1e308 dB Q 1") && passed;
+		passed = expectNumericFactoryRejection(
+			"BiQuad zero frequency rejected", biquadFactory,
+			L"Filter 1", L"ON PK Fc 0 Hz Gain 0 dB Q 1") && passed;
+		passed = expectNumericFactoryRejection(
+			"BiQuad negative Q rejected", biquadFactory,
+			L"Filter 1", L"ON LPQ Fc 1000 Hz Q -1") && passed;
+		passed = expectNumericFactoryRejection(
+			"BiQuad zero bandwidth rejected", biquadFactory,
+			L"Filter 1", L"ON PK Fc 1000 Hz Gain 0 dB BW Oct 0") && passed;
+		passed = expectNumericFactoryRejection(
+			"BiQuad zero shelf slope rejected", biquadFactory,
+			L"Filter 1", L"ON LS 0 dB Fc 1000 Hz Gain 1 dB") && passed;
+
+		OutProcBiquadFilterFactory outProcBiquadFactory;
+		passed = expectNumericFactoryRejection(
+			"OutProcBiquad finite gain overflow rejected", outProcBiquadFactory,
+			L"OutProcBiquad", L"ON PK Fc 1000 Hz Gain 1e308 dB Q 1") && passed;
+		passed = expectNumericFactoryRejection(
+			"OutProcBiquad negative frequency rejected", outProcBiquadFactory,
+			L"OutProcBiquad", L"ON PK Fc -1 Hz Gain 0 dB Q 1") && passed;
+		passed = expectNumericFactoryRejection(
+			"OutProcBiquad zero Q rejected", outProcBiquadFactory,
+			L"OutProcBiquad", L"ON LPQ Fc 1000 Hz Q 0") && passed;
+		passed = expectNumericFactoryRejection(
+			"OutProcBiquad negative bandwidth rejected", outProcBiquadFactory,
+			L"OutProcBiquad", L"ON PK Fc 1000 Hz Gain 0 dB BW Oct -1") && passed;
+		passed = expectNumericFactoryRejection(
+			"OutProcBiquad zero shelf slope rejected", outProcBiquadFactory,
+			L"OutProcBiquad", L"ON LS 0 dB Fc 1000 Hz Gain 1 dB") && passed;
+
+		IIRFilterFactory iirFactory;
+		passed = expectNumericFactoryRejection(
+			"IIR non-finite coefficient rejected", iirFactory,
+			L"Filter 1", L"ON IIR Order 1 Coefficients 1 0 1e999 0") && passed;
+		passed = expectNumericFactoryRejection(
+			"IIR normalized coefficient overflow rejected", iirFactory,
+			L"Filter 1", L"ON IIR Order 1 Coefficients 1e308 0 1e-308 0") && passed;
+		passed = expectNumericFactoryRejection(
+			"IIR unstable denominator rejected", iirFactory,
+			L"Filter 1", L"ON IIR Order 1 Coefficients 1 0 1 -2") && passed;
+
+		CopyFilterFactory copyFactory;
+		passed = expectNumericFactoryRejection(
+			"Copy non-finite factor rejected", copyFactory,
+			L"Copy", L"L=1e999*R") && passed;
+		passed = expectNumericFactoryRejection(
+			"Copy decibel conversion overflow rejected", copyFactory,
+			L"Copy", L"L=1e308dB*R") && passed;
+
+		DelayFilterFactory delayFactory;
+		passed = expectNumericFactoryRejection(
+			"Delay infinity rejected", delayFactory,
+			L"Delay", L"inf samples") && passed;
+
+		ToneGeneratorFilterFactory toneFactory;
+		passed = expectNumericFactoryRejection(
+			"ToneGenerator NaN rejected", toneFactory,
+			L"ToneGenerator", L"Frequency nan Hz") && passed;
+		passed = expectNumericFactoryRejection(
+			"ToneGenerator level overflow rejected", toneFactory,
+			L"ToneGenerator", L"Level 1e308 dB") && passed;
+		passed = expectNumericFactoryRejection(
+			"ToneGenerator phase overflow rejected", toneFactory,
+			L"ToneGenerator", L"Frequency 1e308 Hz") && passed;
+
+		const vector<ParametricEQFilter::Band> bands =
+			ParametricEQFilterFactory::parseBands(
+				L"ON PK Fc 1000 Hz Gain 1e999 dB Q 1");
+		const bool parametricPassed = bands.empty();
+		printf("ParametricEQ numeric overflow ignored: %s\n",
+			parametricPassed ? "PASS" : "FAIL");
+		passed = parametricPassed && passed;
+
+		{
+			DelayFilter delay(10.0, true);
+			vector<wstring> channelNames = { L"L" };
+			delay.initialize(48000.0f, 8, channelNames);
+			delay.initialize(
+				std::numeric_limits<float>::infinity(), 8, channelNames);
+			vector<double> input(8);
+			vector<double> output(8, 123.0);
+			for (unsigned frame = 0; frame < input.size(); ++frame)
+				input[frame] = 0.125 + frame * 1.0e-3;
+			double* inputChannel = input.data();
+			double* outputChannel = output.data();
+			delay.process(&outputChannel, &inputChannel,
+				static_cast<unsigned>(input.size()));
+			const bool delayReinitializePassed = input == output;
+			printf("Delay failed reinitialization remains dry: %s\n",
+				delayReinitializePassed ? "PASS" : "FAIL");
+			passed = delayReinitializePassed && passed;
+		}
+
+		{
+			OutputGuardFilter guard(-1.0);
+			vector<wstring> channelNames = { L"L" };
+			guard.initialize(48000.0f, 4, channelNames);
+			vector<double> input = {
+				std::numeric_limits<double>::quiet_NaN(),
+				std::numeric_limits<double>::infinity(),
+				-std::numeric_limits<double>::infinity(),
+				0.25
+			};
+			vector<double> output(4, 123.0);
+			double* inputChannel = input.data();
+			double* outputChannel = output.data();
+			guard.process(&outputChannel, &inputChannel, 4);
+			const bool guardPassed = output[0] == 0.0 &&
+				output[1] == 0.0 && output[2] == 0.0 &&
+				std::isfinite(output[3]);
+			printf("OutputGuard sanitizes non-finite samples: %s\n",
+				guardPassed ? "PASS" : "FAIL");
+			passed = guardPassed && passed;
+		}
+
+		{
+			ToneGeneratorFilter tone(
+				true,
+				ToneGeneratorFilter::SINE,
+				1.0e307,
+				20.0,
+				20000.0,
+				10.0,
+				-20.0,
+				L"all",
+				ToneGeneratorFilter::REPLACE);
+			vector<wstring> channelNames = { L"L" };
+			tone.initialize((std::numeric_limits<float>::min)(), 4, channelNames);
+			vector<double> input = { 0.1, 0.2, 0.3, 0.4 };
+			vector<double> output(4, 123.0);
+			double* inputChannel = input.data();
+			double* outputChannel = output.data();
+			tone.process(&outputChannel, &inputChannel, 4);
+			const bool toneRuntimePassed = input == output;
+			printf("ToneGenerator invalid phase increment remains dry: %s\n",
+				toneRuntimePassed ? "PASS" : "FAIL");
+			passed = toneRuntimePassed && passed;
+		}
+
+		return passed;
+	}
+
+	bool runBiQuadStabilityTests()
+	{
+		auto isIdentity = [](const BiQuad& filter)
+		{
+			double coefficients[4] = {};
+			double a0 = 0.0;
+			filter.getCoefficients(coefficients, a0);
+			return a0 == 1.0 && coefficients[0] == 0.0 &&
+				coefficients[1] == 0.0 && coefficients[2] == 0.0 &&
+				coefficients[3] == 0.0;
+		};
+		auto finiteImpulse = [](BiQuad& filter, bool expectIdentity)
+		{
+			double tail = 0.0;
+			for (unsigned frame = 0; frame < 8192; ++frame)
+			{
+				const double input = frame == 0 ? 1.0 : 0.0;
+				const double output = filter.process(input);
+				if (!std::isfinite(output) ||
+					(expectIdentity && output != input) || std::abs(output) > 4.0)
+				{
+					return false;
+				}
+				tail = output;
+			}
+			return expectIdentity || std::abs(tail) < 1.0e-12;
+		};
+
+		BiQuad negativeQ(
+			BiQuad::LOW_PASS, 0.0, 1000.0, 48000.0, -1.0, false);
+		bool negativeQPassed = !negativeQ.isValid() && isIdentity(negativeQ) &&
+			finiteImpulse(negativeQ, true);
+		printf("BiQuad negative-Q identity stability: %s\n",
+			negativeQPassed ? "PASS" : "FAIL");
+
+		BiQuad nyquist(
+			BiQuad::LOW_PASS, 0.0, 24000.0, 48000.0, 0.707, false);
+		bool nyquistPassed = !nyquist.isValid() && isIdentity(nyquist) &&
+			finiteImpulse(nyquist, true);
+		printf("BiQuad Nyquist identity stability: %s\n",
+			nyquistPassed ? "PASS" : "FAIL");
+
+		BiQuad stable(
+			BiQuad::LOW_PASS, 0.0, 1000.0, 48000.0, 0.707, false);
+		bool stablePassed = stable.isValid() && !isIdentity(stable) &&
+			finiteImpulse(stable, false);
+		printf("BiQuad valid impulse stability: %s\n",
+			stablePassed ? "PASS" : "FAIL");
+
+		OutProcBiquadFilter outProcNyquist(
+			BiQuad::LOW_PASS, 0.0, 24000.0, 0.707, false, false);
+		vector<wstring> channels = { L"L" };
+		outProcNyquist.initialize(48000.0f, 4, channels);
+		double inputSamples[4] = { 0.25, -0.5, 0.75, -1.0 };
+		double outputSamples[4] = {};
+		double* input[] = { inputSamples };
+		double* output[] = { outputSamples };
+		outProcNyquist.process(output, input, 4);
+		bool outProcPassed = std::equal(
+			std::begin(inputSamples), std::end(inputSamples),
+			std::begin(outputSamples));
+		printf("OutProcBiquad Nyquist remains dry: %s\n",
+			outProcPassed ? "PASS" : "FAIL");
+
+		return negativeQPassed && nyquistPassed && stablePassed && outProcPassed;
+	}
+
+	bool runMemoryHelperAllocationCheckpointTests()
+	{
+		MemoryHelper::clearAllocationFailure();
+		void* rejected = MemoryHelper::allocArray(
+			(std::numeric_limits<size_t>::max)(), 2);
+		const bool detected = rejected == NULL &&
+			MemoryHelper::consumeAllocationFailure();
+		const bool consumed = !MemoryHelper::consumeAllocationFailure();
+		const bool passed = detected && consumed;
+		printf("MemoryHelper allocation-failure checkpoint: %s\n",
+			passed ? "PASS" : "FAIL");
 		return passed;
 	}
 
@@ -1053,6 +1540,10 @@ namespace
 		}
 		passed = runHybridConvPartitionLimitTests() && passed;
 		passed = runHybridConvLegacyWrapperFailureTests() && passed;
+		passed = runInvalidConvolutionInputTests() && passed;
+		passed = runInvalidNumericFactoryTests() && passed;
+		passed = runBiQuadStabilityTests() && passed;
+		passed = runMemoryHelperAllocationCheckpointTests() && passed;
 		passed = runAsyncConvolutionFrameMismatchTests() && passed;
 
 		printf("HybridConv correctness benchmark: %s\n",
@@ -1632,6 +2123,12 @@ namespace
 		LoudnessCorrectionFilter::FilterParameters duplicateBinding(std::wstring(
 			L"Schema 1 Model FormulaLoudnessV1 Binding All Binding Single State 1 "
 			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1"));
+		LoudnessCorrectionFilter::FilterParameters invalidReferenceLevel(std::wstring(
+			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+			L"ReferenceLevel invalid ReferenceOffset 0 Attenuation 1"));
+		LoudnessCorrectionFilter::FilterParameters invalidReferenceOffset(std::wstring(
+			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+			L"ReferenceLevel 80 ReferenceOffset invalid Attenuation 1"));
 		passed = checkCase("unmarked-mixomo-legacy-fails-closed",
 			!mixomoLegacy.isInitialized()) && passed;
 		passed = checkCase("unknown-model-fails-closed",
@@ -1644,6 +2141,53 @@ namespace
 			!invalidBinding.isInitialized()) && passed;
 		passed = checkCase("duplicate-binding-fails-closed",
 			!duplicateBinding.isInitialized()) && passed;
+		passed = checkCase("invalid-reference-level-fails-closed",
+			!invalidReferenceLevel.isInitialized()) && passed;
+		passed = checkCase("invalid-reference-offset-fails-closed",
+			!invalidReferenceOffset.isInitialized()) && passed;
+
+		const std::wstring overflowNumber(400, L'9');
+		LoudnessCorrectionFilter::FilterParameters overflowReferenceLevel(
+			std::wstring(
+				L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+				L"ReferenceLevel ") + overflowNumber +
+			L" ReferenceOffset 0 Attenuation 1");
+		LoudnessCorrectionFilter::FilterParameters overflowReferenceOffset(
+			std::wstring(
+				L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+				L"ReferenceLevel 80 ReferenceOffset ") + overflowNumber +
+			L" Attenuation 1");
+		passed = checkCase("overflow-reference-level-fails-closed",
+			!overflowReferenceLevel.isInitialized()) && passed;
+		passed = checkCase("overflow-reference-offset-fails-closed",
+			!overflowReferenceOffset.isInitialized()) && passed;
+
+		LoudnessCorrectionFilter::FilterParameters invalidAttenuation(std::wstring(
+			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation invalid"));
+		LoudnessCorrectionFilter::FilterParameters overflowAttenuation(
+			std::wstring(
+				L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+				L"ReferenceLevel 80 ReferenceOffset 0 Attenuation ") +
+			overflowNumber);
+		LoudnessCorrectionFilter::FilterParameters invalidVolume(std::wstring(
+			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1 Volume invalid"));
+		LoudnessCorrectionFilter::FilterParameters overflowVolume(
+			std::wstring(
+				L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
+				L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1 Volume ") +
+			overflowNumber);
+		passed = checkCase("invalid-attenuation-defaults-to-one",
+			invalidAttenuation.isInitialized() &&
+			invalidAttenuation.attenuation == 1.0f) && passed;
+		passed = checkCase("overflow-attenuation-defaults-to-one",
+			overflowAttenuation.isInitialized() &&
+			overflowAttenuation.attenuation == 1.0f) && passed;
+		passed = checkCase("invalid-volume-defaults-to-automatic",
+			invalidVolume.isInitialized() && !invalidVolume.useManualVolume) && passed;
+		passed = checkCase("overflow-volume-defaults-to-automatic",
+			overflowVolume.isInitialized() && !overflowVolume.useManualVolume) && passed;
 
 		LoudnessCorrectionFilter::FilterParameters fastEngine(std::wstring(
 			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
@@ -1845,6 +2389,8 @@ namespace
 		LoudnessCorrectionFilter filter(parameters);
 		filter.initialize(
 			static_cast<float>(sampleRate), blockSize, vector<wstring>(1, L"C"));
+		LoudnessCorrectionFilterTestAccess::enableSyntheticAutomaticVolumePublisher(
+			filter);
 
 		double inputStorage[blockSize];
 		double outputStorage[blockSize];
@@ -1853,18 +2399,23 @@ namespace
 		double* inputChannels[] = { inputStorage };
 		double* outputChannels[] = { outputStorage };
 		filter.process(outputChannels, inputChannels, blockSize);
+		bool initialGainPassed = true;
 		for (unsigned frame = 0; frame < blockSize; ++frame)
 		{
 			if (std::abs(outputStorage[frame] - inputStorage[frame] * 0.1) > epsilon)
-				passed = false;
+				initialGainPassed = false;
 		}
+		if (!initialGainPassed)
+			fprintf(stderr, "volume-follow-initial-manual-gain failed.\n");
+		passed = initialGainPassed && passed;
 
 		LoudnessCorrectionFilterTestAccess::publishVolumeState(
 			filter, -6.020599913279624, 0.5, false);
 		filter.process(outputChannels, inputChannels, blockSize);
-		passed = LoudnessCorrectionFilterTestAccess::volumeFollowRampRemaining(filter) > 0 &&
+		bool rampPassed =
+			LoudnessCorrectionFilterTestAccess::volumeFollowRampRemaining(filter) > 0 &&
 			outputStorage[0] > inputStorage[0] * 0.1 &&
-			outputStorage[0] < inputStorage[0] * 0.5 && passed;
+			outputStorage[0] < inputStorage[0] * 0.5;
 		for (unsigned block = 0;
 			block < 8 &&
 			LoudnessCorrectionFilterTestAccess::volumeFollowRampRemaining(filter) > 0;
@@ -1872,19 +2423,28 @@ namespace
 		{
 			filter.process(outputChannels, inputChannels, blockSize);
 		}
-		passed = std::abs(
+		rampPassed = std::abs(
 			LoudnessCorrectionFilterTestAccess::currentVolumeFollowGain(filter) - 0.5) <=
 			epsilon &&
 			LoudnessCorrectionFilterTestAccess::volumeFollowRampRemaining(filter) == 0 &&
-			passed;
+			rampPassed;
+		if (!rampPassed)
+			fprintf(stderr, "volume-follow-target-ramp failed.\n");
+		passed = rampPassed && passed;
 
 		LoudnessCorrectionFilterTestAccess::beginRuntimeBypass(filter);
 		filter.process(outputChannels, inputChannels, blockSize);
-		passed = std::abs(outputStorage[0] - inputStorage[0] * 0.5) <= epsilon && passed;
+		bool recoveryPassed =
+			std::abs(outputStorage[0] - inputStorage[0] * 0.5) <= epsilon;
 		LoudnessCorrectionFilterTestAccess::publishRuntimeRecovery(
 			filter, -6.020599913279624);
 		filter.process(outputChannels, inputChannels, blockSize);
-		passed = !LoudnessCorrectionFilterTestAccess::runtimeBypass(filter) && passed;
+		recoveryPassed =
+			!LoudnessCorrectionFilterTestAccess::runtimeBypass(filter) &&
+			recoveryPassed;
+		if (!recoveryPassed)
+			fprintf(stderr, "volume-follow-runtime-recovery failed.\n");
+		passed = recoveryPassed && passed;
 
 		LoudnessCorrectionFilterTestAccess::publishVolumeState(
 			filter, -6.020599913279624, 0.5, true);
@@ -1899,9 +2459,12 @@ namespace
 			filter.process(outputChannels, inputChannels, blockSize);
 		}
 		filter.process(outputChannels, inputChannels, blockSize);
-		passed =
+		const bool mutePassed =
 			LoudnessCorrectionFilterTestAccess::volumeFollowRampRemaining(filter) == 0 &&
-			std::abs(outputStorage[0]) <= epsilon && passed;
+			std::abs(outputStorage[0]) <= epsilon;
+		if (!mutePassed)
+			fprintf(stderr, "volume-follow-mute-ramp failed.\n");
+		passed = mutePassed && passed;
 
 		// Every channel must share one ramp position. Compare out-of-place and
 		// in-place filters, then retarget halfway through a ramp and require the
@@ -1915,12 +2478,17 @@ namespace
 			static_cast<float>(sampleRate), blockSize, stereoChannels);
 		inPlaceFilter.initialize(
 			static_cast<float>(sampleRate), blockSize, stereoChannels);
+		LoudnessCorrectionFilterTestAccess::enableSyntheticAutomaticVolumePublisher(
+			outOfPlaceFilter);
+		LoudnessCorrectionFilterTestAccess::enableSyntheticAutomaticVolumePublisher(
+			inPlaceFilter);
 		double stereoInput[2][blockSize];
 		double stereoOutput[2][blockSize];
 		double inPlaceStorage[2][blockSize];
 		double* stereoInputChannels[] = { stereoInput[0], stereoInput[1] };
 		double* stereoOutputChannels[] = { stereoOutput[0], stereoOutput[1] };
 		double* inPlaceChannels[] = { inPlaceStorage[0], inPlaceStorage[1] };
+		bool stereoRampPassed = true;
 		auto prepareStereoBlock = [&]()
 		{
 			for (unsigned channel = 0; channel < 2; ++channel)
@@ -1943,17 +2511,18 @@ namespace
 			{
 				for (unsigned frame = 0; frame < frameCount; ++frame)
 				{
-					passed = std::abs(
+					stereoRampPassed = std::abs(
 						stereoOutput[channel][frame] -
-						inPlaceStorage[channel][frame]) <= epsilon && passed;
-					passed = std::abs(
+						inPlaceStorage[channel][frame]) <= epsilon && stereoRampPassed;
+					stereoRampPassed = std::abs(
 						stereoOutput[channel][frame] -
-						stereoOutput[0][frame]) <= epsilon && passed;
+						stereoOutput[0][frame]) <= epsilon && stereoRampPassed;
 				}
 			}
 		};
 		processStereoBlock(blockSize);
-		passed = std::abs(stereoOutput[0][0] - 0.1) <= epsilon && passed;
+		stereoRampPassed =
+			std::abs(stereoOutput[0][0] - 0.1) <= epsilon && stereoRampPassed;
 
 		const double firstTargetDb = -6.020599913279624;
 		LoudnessCorrectionFilterTestAccess::publishVolumeState(
@@ -1967,8 +2536,9 @@ namespace
 				outOfPlaceFilter);
 		double lastBeforeRetarget = stereoOutput[0][partialRampFrames - 1];
 		const double oldStepBound = std::abs(0.5 - 0.1) / 480.0 + epsilon;
-		passed = std::abs(lastBeforeRetarget - currentBeforeRetarget) <=
-			oldStepBound && passed;
+		stereoRampPassed = std::abs(
+			lastBeforeRetarget - currentBeforeRetarget) <= oldStepBound &&
+			stereoRampPassed;
 
 		const double retargetGain = 0.05;
 		const double retargetDb = 20.0 * std::log10(retargetGain);
@@ -1979,10 +2549,14 @@ namespace
 		processStereoBlock(64);
 		const double retargetStepBound =
 			std::abs(currentBeforeRetarget - retargetGain) / 480.0 + epsilon;
-		passed = std::abs(stereoOutput[0][0] - currentBeforeRetarget) <=
+		stereoRampPassed = std::abs(
+			stereoOutput[0][0] - currentBeforeRetarget) <=
 			retargetStepBound &&
 			stereoOutput[0][0] <= currentBeforeRetarget + epsilon &&
-			stereoOutput[0][0] >= retargetGain - epsilon && passed;
+			stereoOutput[0][0] >= retargetGain - epsilon && stereoRampPassed;
+		if (!stereoRampPassed)
+			fprintf(stderr, "volume-follow-stereo-retarget failed.\n");
+		passed = stereoRampPassed && passed;
 
 		// Keep volume follow as a final wideband stage while active Full/Fast
 		// correction crosses raw -> common A, warms, fades, and reaches the
@@ -2068,11 +2642,15 @@ namespace
 		unavailableFilter.initialize(
 			static_cast<float>(sampleRate), blockSize, vector<wstring>(1, L"C"));
 		unavailableFilter.process(outputChannels, inputChannels, blockSize);
-		passed = std::abs(
+		bool unavailablePassed = std::abs(
 			LoudnessCorrectionFilterTestAccess::currentVolumeFollowGain(
-				unavailableFilter)) <= epsilon && passed;
+				unavailableFilter)) <= epsilon;
 		for (unsigned frame = 0; frame < blockSize; ++frame)
-			passed = std::abs(outputStorage[frame]) <= epsilon && passed;
+			unavailablePassed =
+				std::abs(outputStorage[frame]) <= epsilon && unavailablePassed;
+		if (!unavailablePassed)
+			fprintf(stderr, "volume-follow-unavailable-binding-fail-closed failed.\n");
+		passed = unavailablePassed && passed;
 
 		Parameters disabled = parameters;
 		disabled.state = false;
@@ -2080,8 +2658,13 @@ namespace
 		disabledFilter.initialize(
 			static_cast<float>(sampleRate), blockSize, vector<wstring>(1, L"C"));
 		disabledFilter.process(outputChannels, inputChannels, blockSize);
+		bool disabledPassed = true;
 		for (unsigned frame = 0; frame < blockSize; ++frame)
-			passed = outputStorage[frame] == inputStorage[frame] && passed;
+			disabledPassed =
+				outputStorage[frame] == inputStorage[frame] && disabledPassed;
+		if (!disabledPassed)
+			fprintf(stderr, "volume-follow-disabled-identity failed.\n");
+		passed = disabledPassed && passed;
 
 		printf("Loudness APO volume follow: %s\n", passed ? "passed" : "failed");
 		return passed;
@@ -2311,6 +2894,153 @@ namespace
 			engine.getDeviceString().empty() && passed;
 
 		printf("FilterEngine device-info reuse: %s\n", passed ? "passed" : "failed");
+		return passed;
+	}
+
+	bool writeFilterEngineTestConfig(
+		const std::wstring& path,
+		const char* contents)
+	{
+		HANDLE file = CreateFileW(
+			path.c_str(), GENERIC_WRITE, 0, NULL, CREATE_ALWAYS,
+			FILE_ATTRIBUTE_TEMPORARY, NULL);
+		if (file == INVALID_HANDLE_VALUE)
+			return false;
+		const DWORD length = static_cast<DWORD>(strlen(contents));
+		DWORD written = 0;
+		const bool succeeded = WriteFile(
+			file, contents, length, &written, NULL) != FALSE &&
+			written == length;
+		CloseHandle(file);
+		return succeeded;
+	}
+
+	bool runFilterEngineFailedReloadTransactionTests()
+	{
+		wchar_t tempDirectory[MAX_PATH] = {};
+		wchar_t tempFilename[MAX_PATH] = {};
+		if (GetTempPathW(MAX_PATH, tempDirectory) == 0 ||
+			GetTempFileNameW(tempDirectory, L"EAP", 0, tempFilename) == 0)
+		{
+			printf("FilterEngine failed-reload transaction: FAIL (temp file)\n");
+			return false;
+		}
+
+		const std::wstring configPath(tempFilename);
+		bool passed = writeFilterEngineTestConfig(
+			configPath, "Preamp: -6 dB\r\n");
+		if (passed)
+		{
+			FilterEngine engine;
+			FilterEngineTestAccess::addFactory(
+				engine, new AllocationFailureFilterFactory());
+			engine.initialize(48000.0f, 1, 1, 1, 0, 8, configPath);
+			passed = FilterEngineTestAccess::transitionLength(engine) == 480 && passed;
+
+			double input = 1.0;
+			double initialOutput = 0.0;
+			engine.process(&initialOutput, &input, 1);
+			const std::wstring activeWatchKey =
+				L"Software\\EqualizerAPO\\BenchmarkActiveWatch";
+			engine.watchRegistryKey(activeWatchKey);
+
+			passed = writeFilterEngineTestConfig(
+				configPath,
+				"Preamp: 6 dB\r\nForceAllocationFailure: ON\r\n") && passed;
+			const bool failedReloadNeedsRetirement = engine.loadConfig(configPath);
+			double failedReloadOutput = 0.0;
+			engine.process(&failedReloadOutput, &input, 1);
+			passed = !failedReloadNeedsRetirement &&
+				!FilterEngineTestAccess::hasPendingConfiguration(engine) &&
+				FilterEngineTestAccess::watchesRegistryKey(engine, activeWatchKey) &&
+				std::isfinite(initialOutput) &&
+				std::abs(failedReloadOutput - initialOutput) <= 1.0e-12 && passed;
+
+			HANDLE lockedConfig = CreateFileW(
+				configPath.c_str(), GENERIC_READ, 0, NULL, OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL, NULL);
+			bool lockedReloadPassed = lockedConfig != INVALID_HANDLE_VALUE;
+			if (lockedReloadPassed)
+			{
+				const ULONGLONG start = GetTickCount64();
+				const bool lockedReloadNeedsRetirement =
+					engine.loadConfig(configPath);
+				const ULONGLONG elapsed = GetTickCount64() - start;
+				CloseHandle(lockedConfig);
+				double lockedReloadOutput = 0.0;
+				engine.process(&lockedReloadOutput, &input, 1);
+				lockedReloadPassed = !lockedReloadNeedsRetirement &&
+					elapsed < 5000 &&
+					!FilterEngineTestAccess::hasPendingConfiguration(engine) &&
+					FilterEngineTestAccess::watchesRegistryKey(
+						engine, activeWatchKey) &&
+					std::abs(lockedReloadOutput - initialOutput) <= 1.0e-12;
+			}
+			printf("FilterEngine locked-file reload timeout: %s\n",
+				lockedReloadPassed ? "PASS" : "FAIL");
+			passed = lockedReloadPassed && passed;
+
+			passed = writeFilterEngineTestConfig(
+				configPath, "Preamp: -3 dB\r\n") && passed;
+			const bool publishedReloadNeedsRetirement = engine.loadConfig(configPath);
+			const std::wstring pendingWatchKey =
+				L"Software\\EqualizerAPO\\BenchmarkPendingWatch";
+			engine.watchRegistryKey(pendingWatchKey);
+			const bool overlappingReloadNeedsRetirement = engine.loadConfig(configPath);
+			passed = publishedReloadNeedsRetirement &&
+				!overlappingReloadNeedsRetirement &&
+				FilterEngineTestAccess::hasPendingConfiguration(engine) &&
+				FilterEngineTestAccess::watchesRegistryKey(engine, pendingWatchKey) &&
+				passed;
+
+			FilterEngineTestAccess::forceTransitionLength(engine, 0);
+			double zeroLengthTransitionOutput = 0.0;
+			engine.process(&zeroLengthTransitionOutput, &input, 1);
+			const double expectedNewOutput = std::pow(10.0, -3.0 / 20.0);
+			const bool zeroLengthTransitionPassed =
+				!FilterEngineTestAccess::hasPendingConfiguration(engine) &&
+				std::isfinite(zeroLengthTransitionOutput) &&
+				std::abs(zeroLengthTransitionOutput - expectedNewOutput) <= 1.0e-12;
+			printf("FilterEngine zero-length transition: %s\n",
+				zeroLengthTransitionPassed ? "PASS" : "FAIL");
+			passed = zeroLengthTransitionPassed && passed;
+
+			FilterEngine tinyRateEngine;
+			tinyRateEngine.initialize(50.0f, 1, 1, 1, 0, 8, configPath);
+			const bool tinyRatePassed =
+				FilterEngineTestAccess::transitionLength(tinyRateEngine) == 1;
+
+			FilterEngine invalidRateEngine;
+			invalidRateEngine.initialize(
+				(std::numeric_limits<float>::quiet_NaN)(),
+				1, 1, 1, 0, 8, configPath);
+			double invalidRateOutput = 0.0;
+			invalidRateEngine.process(&invalidRateOutput, &input, 1);
+			const bool invalidRatePassed =
+				FilterEngineTestAccess::transitionLength(invalidRateEngine) == 0 &&
+				invalidRateEngine.getMaxFrameCount() == 0 &&
+				invalidRateOutput == input;
+
+			FilterEngine excessiveRateEngine;
+			excessiveRateEngine.initialize(
+				(std::numeric_limits<float>::max)(),
+				1, 1, 1, 0, 8, configPath);
+			double excessiveRateOutput = 0.0;
+			excessiveRateEngine.process(&excessiveRateOutput, &input, 1);
+			const bool excessiveRatePassed =
+				FilterEngineTestAccess::transitionLength(excessiveRateEngine) == 0 &&
+				excessiveRateEngine.getMaxFrameCount() == 0 &&
+				excessiveRateOutput == input;
+			const bool sampleRateBoundaryPassed = tinyRatePassed &&
+				invalidRatePassed && excessiveRatePassed;
+			printf("FilterEngine sample-rate transition bounds: %s\n",
+				sampleRateBoundaryPassed ? "PASS" : "FAIL");
+			passed = sampleRateBoundaryPassed && passed;
+		}
+
+		DeleteFileW(configPath.c_str());
+		printf("FilterEngine failed-reload transaction: %s\n",
+			passed ? "PASS" : "FAIL");
 		return passed;
 	}
 
@@ -3391,6 +4121,7 @@ namespace
 		passed = runLoudnessRuntimeContextTests() && passed;
 		passed = runLoudnessOfflineAnalysisTests() && passed;
 		passed = runFilterEngineDeviceInfoReuseTests() && passed;
+		passed = runFilterEngineFailedReloadTransactionTests() && passed;
 		passed = runLoudnessCrossoverCoefficientTests() && passed;
 		passed = runLoudnessResponseAggregationTests() && passed;
 		for (LoudnessCorrectionFilter::FilterParameters::EngineMode engine : {
@@ -3680,6 +4411,40 @@ namespace
 	}
 }
 
+static int runVSTSelfLoadGuardTest(const string& pathArgument)
+{
+	const wstring path = StringHelper::toWString(pathArgument, CP_ACP);
+	if (path.empty() || !VSTPluginLibrary::isCurrentModulePath(path))
+	{
+		fprintf(stderr,
+			"VST self-load guard did not recognize the current module identity.\n");
+		return 1;
+	}
+
+	shared_ptr<VSTPluginLibrary> library = VSTPluginLibrary::getInstance(path);
+	if (library == nullptr ||
+		library->initialize() != AbstractLibrary::RECURSIVE_LOADING)
+	{
+		fprintf(stderr,
+			"In-process VST self-load was not rejected before LoadLibrary.\n");
+		return 1;
+	}
+
+	OutProcVSTPluginFilterFactory factory;
+	wstring command = L"OutProcVSTPlugin";
+	wstring parameters = L"Library \"" + path + L"\"";
+	vector<IFilter*> filters = factory.createFilter(L"", command, parameters);
+	if (!filters.empty())
+	{
+		fprintf(stderr,
+			"Out-of-process VST self-load was not rejected before host creation.\n");
+		return 1;
+	}
+
+	printf("VST in-process/out-of-process self-load guard: PASS\n");
+	return 0;
+}
+
 int main(int argc, char** argv)
 {
 	try
@@ -3689,7 +4454,7 @@ int main(int argc, char** argv)
 		if (REVISION != 0)
 			versionStream << "." << REVISION;
 		TCLAP::CmdLine cmd("Benchmark generates a linear sine sweep or reads from the given input file. "
-			"It then filters the waveform using the Equalizer APO filter configuration "
+			"It then filters the waveform using the Hibiki EQAPO filter configuration "
 			"and finally writes to the given file or into the user's temp directory.", ' ', versionStream.str());
 
 		TCLAP::SwitchArg convSelfTestArg(
@@ -3703,6 +4468,10 @@ int main(int argc, char** argv)
 		TCLAP::SwitchArg loudnessPerformanceArg(
 			"", "loudness-performance",
 			"Measure native loudness initialization, update, and callback cost", cmd);
+		TCLAP::ValueArg<string> vstSelfIdentityTestArg(
+			"", "vst-self-identity-test",
+			"Verify that a path or hardlink to this executable is rejected by both VST self-load paths",
+			false, "", "path", cmd);
 		TCLAP::ValueArg<string> configArg("", "config", "Configuration file to load instead of the installed config.txt", false, "", "path", cmd);
 		TCLAP::ValueArg<string> guidArg("", "guid", "Endpoint GUID to use when parsing configuration (Default: <empty>)", false, "", "string", cmd);
 		TCLAP::ValueArg<string> connectionnameArg("", "connectionname", "Connection name to use when parsing configuration (Default: File output)", false, "File output", "string", cmd);
@@ -3720,12 +4489,25 @@ int main(int argc, char** argv)
 
 		bool verbose = verboseArg.getValue();
 		LogHelper::set(stderr, verbose, true, true);
+		if (!vstSelfIdentityTestArg.getValue().empty())
+			return runVSTSelfLoadGuardTest(vstSelfIdentityTestArg.getValue());
 		if (convSelfTestArg.getValue())
+		{
+			// Expected fail-closed cases intentionally exercise error logging. Keep
+			// those diagnostics in the captured test transcript without presenting
+			// successful self-tests as native stderr failures to PowerShell callers.
+			LogHelper::set(stdout, verbose, true, false);
 			return runConvolutionSelfTest();
+		}
 		if (loudnessTransitionTestArg.getValue())
 			return runLoudnessTransitionTests();
 		if (loudnessPerformanceArg.getValue())
 			return runLoudnessPerformanceBenchmark();
+		if (batchsizeArg.getValue() == 0)
+		{
+			fprintf(stderr, "Error: --batchsize must be greater than zero.\n");
+			return 1;
+		}
 #ifdef _DEBUG
 		_CrtSetDbgFlag(_CRTDBG_ALLOC_MEM_DF | _CRTDBG_LEAK_CHECK_DF);
 		// _CrtSetBreakAlloc(3318);
@@ -3736,7 +4518,8 @@ int main(int argc, char** argv)
 		unsigned channelMask;
 		unsigned frameCount;
 		float length;
-		float* buf;
+		size_t sampleCount = 0;
+		vector<float> buf;
 
 		if (REVISION == 0)
 			printf("Benchmark %d.%d\n", MAJOR, MINOR);
@@ -3761,20 +4544,59 @@ int main(int argc, char** argv)
 				fprintf(stderr, "%s", sf_strerror(inFile));
 				return 1;
 			}
+			SCOPE_EXIT
+			{
+				if (inFile != NULL)
+					sf_close(inFile);
+			};
+			if (info.samplerate <= 0 ||
+				info.samplerate >= (std::numeric_limits<int>::max)() ||
+				info.channels <= 0 ||
+				info.frames <= 0 ||
+				static_cast<unsigned long long>(info.frames) >
+					(std::numeric_limits<unsigned>::max)())
+			{
+				fprintf(stderr, "Input file has invalid rate, channel, or frame metadata.\n");
+				return 1;
+			}
 
-			sampleRate = info.samplerate;
-			channelCount = info.channels;
+			sampleRate = static_cast<unsigned>(info.samplerate);
+			channelCount = static_cast<unsigned>(info.channels);
 			channelMask = 0;
-			frameCount = (unsigned)info.frames;
-			length = float(frameCount) / sampleRate;
+			frameCount = static_cast<unsigned>(info.frames);
+			length = static_cast<float>(
+				static_cast<double>(frameCount) / sampleRate);
 
-			buf = new float[frameCount * channelCount];
+			if (!getSafeSampleCount<float>(
+					channelCount, frameCount, sampleCount))
+			{
+				fprintf(stderr, "Input file sample count is too large.\n");
+				return 1;
+			}
+			buf.resize(sampleCount);
 
 			sf_count_t numRead = 0;
-			while (numRead < frameCount)
-				numRead += sf_readf_float(inFile, buf + numRead * channelCount, frameCount - numRead);
+			while (numRead < info.frames)
+			{
+				const sf_count_t framesRead = sf_readf_float(
+					inFile,
+					buf.data() + static_cast<size_t>(numRead) * channelCount,
+					info.frames - numRead);
+				if (framesRead <= 0)
+				{
+					fprintf(stderr, "Input read made no progress: %s\n",
+						sf_strerror(inFile));
+					return 1;
+				}
+				numRead += framesRead;
+			}
 
-			sf_close(inFile);
+			if (sf_close(inFile) != 0)
+			{
+				inFile = NULL;
+				fprintf(stderr, "Could not close input file cleanly.\n");
+				return 1;
+			}
 			inFile = NULL;
 
 			double readTime = timer.stop();
@@ -3785,36 +4607,65 @@ int main(int argc, char** argv)
 			sampleRate = rateArg.getValue();
 			channelMask = 0;
 			channelCount = channelArg.getValue();
-			float sweepFrom = fromArg.getValue();
-			float sweepTo = toArg.getValue();
-			float sweepDiff = sweepTo - sweepFrom;
+			const double sweepFrom = fromArg.getValue();
+			const double sweepTo = toArg.getValue();
 			length = lengthArg.getValue();
-			frameCount = (unsigned)(length * sampleRate);
+			if (sampleRate == 0 ||
+				sampleRate >= static_cast<unsigned>((std::numeric_limits<int>::max)()) ||
+				channelCount == 0 ||
+				channelCount > static_cast<unsigned>((std::numeric_limits<int>::max)()) ||
+				!std::isfinite(length) || length <= 0.0f ||
+				!std::isfinite(sweepFrom) || sweepFrom <= 0.0 ||
+				!std::isfinite(sweepTo) || sweepTo <= 0.0 ||
+				sweepFrom > static_cast<double>(sampleRate) * 0.5 ||
+				sweepTo > static_cast<double>(sampleRate) * 0.5)
+			{
+				fprintf(stderr, "Generated sweep parameters must be finite, positive, and within Nyquist.\n");
+				return 1;
+			}
+			const double requestedFrames =
+				static_cast<double>(length) * sampleRate;
+			if (!std::isfinite(requestedFrames) || requestedFrames < 1.0 ||
+				requestedFrames >
+					static_cast<double>((std::numeric_limits<unsigned>::max)()))
+			{
+				fprintf(stderr, "Generated sweep frame count is out of range.\n");
+				return 1;
+			}
+			frameCount = static_cast<unsigned>(requestedFrames);
+			const double sweepDiff = sweepTo - sweepFrom;
 
 			printf("No input file given, so generating linear sine sweep from %g to %g Hz over %g seconds\n", sweepFrom, sweepTo, length);
 
 			PrecisionTimer timer;
 			timer.start();
 
-			buf = new float[frameCount * channelCount];
+			if (!getSafeSampleCount<float>(
+					channelCount, frameCount, sampleCount))
+			{
+				fprintf(stderr, "Generated sweep sample count is too large.\n");
+				return 1;
+			}
+			buf.resize(sampleCount);
 			for (unsigned i = 0; i < frameCount; i++)
 			{
 				double t = i * 1.0 / sampleRate;
-				float s = (float)sin(((sweepFrom + sweepDiff * (t / length) / 2) * t) * 2 * M_PI);
+				float s = static_cast<float>(sin(
+					((sweepFrom + sweepDiff * (t / length) / 2) * t) *
+					2 * M_PI));
 
 				for (unsigned j = 0; j < channelCount; j++)
-					buf[i * channelCount + j] = s;
+					buf[static_cast<size_t>(i) * channelCount + j] = s;
 			}
 
 			double genTime = timer.stop();
 			printf("Generating sweep took %g seconds\n", genTime);
 		}
 
-		unsigned batchsize = batchsizeArg.getValue();
+		const unsigned batchsize =
+			min(batchsizeArg.getValue(), frameCount);
 
-		float* buf2 = new float[frameCount * channelCount];
-		for (unsigned i = 0; i < frameCount * channelCount; i++)
-			buf2[i] = 0.0f;
+		vector<float> buf2(sampleCount, 0.0f);
 
 		PrecisionTimer timer;
 		timer.start();
@@ -3835,20 +4686,33 @@ int main(int argc, char** argv)
 
 			timer.start();
 
-			for (unsigned i = 0; i < frameCount; i += batchsize)
+			unsigned processedFrames = 0;
+			while (processedFrames < frameCount)
 			{
-				engine.process(buf2 + i * channelCount, buf + i * channelCount, min(batchsize, frameCount - i));
+				const unsigned blockFrames =
+					min(batchsize, frameCount - processedFrames);
+				const size_t offset =
+					static_cast<size_t>(processedFrames) * channelCount;
+				engine.process(
+					buf2.data() + offset, buf.data() + offset, blockFrames);
+				processedFrames += blockFrames;
 			}
 
 			double time = timer.stop();
 
-			printf("%d samples processed in %f seconds\n", frameCount * channelCount, time);
+			printf("%zu samples processed in %f seconds\n", sampleCount, time);
 			printf("This is equivalent to %.2f%% CPU load (one core) when processing in real time\n", 100.0f * time / length);
 
-			unsigned clipCount = 0;
+			size_t clipCount = 0;
 			float max = 0;
-			for (unsigned i = 0; i < frameCount * channelCount; i++)
+			bool outputIsFinite = true;
+			for (size_t i = 0; i < sampleCount; i++)
 			{
+				if (!std::isfinite(buf2[i]))
+				{
+					outputIsFinite = false;
+					continue;
+				}
 				float f = fabs(buf2[i]);
 				if (f > max)
 					max = f;
@@ -3858,14 +4722,25 @@ int main(int argc, char** argv)
 
 			printf("Max output level: %f (%f dB)", max, log10(max) * 20.0f);
 			if (clipCount > 0)
-				printf(" (%d samples clipped!)", clipCount);
+				printf(" (%zu samples clipped!)", clipCount);
 			printf("\n");
+			if (!outputIsFinite)
+			{
+				fprintf(stderr, "Processing produced non-finite output samples.\n");
+				return 1;
+			}
 
 			string output = outputArg.getValue();
 			if (output == "")
 			{
 				char temp[255];
-				GetTempPathA(sizeof(temp) / sizeof(wchar_t), temp);
+				const DWORD pathLength = GetTempPathA(
+					static_cast<DWORD>(sizeof(temp) / sizeof(temp[0])), temp);
+				if (pathLength == 0 || pathLength >= sizeof(temp))
+				{
+					fprintf(stderr, "Could not resolve the temporary output path.\n");
+					return 1;
+				}
 
 				output = temp;
 				output += "testout.wav";
@@ -3873,23 +4748,46 @@ int main(int argc, char** argv)
 
 			printf("\nWriting output to %s\n", output.c_str());
 
-			SF_INFO info = {frameCount, (int)sampleRate, (int)channelCount, SF_FORMAT_WAV | SF_FORMAT_PCM_16, 0};
+			SF_INFO info = {};
+			info.frames = static_cast<sf_count_t>(frameCount);
+			info.samplerate = static_cast<int>(sampleRate);
+			info.channels = static_cast<int>(channelCount);
+			info.format = SF_FORMAT_WAV | SF_FORMAT_PCM_16;
 			SNDFILE* outFile = sf_open(output.c_str(), SFM_WRITE, &info);
 			if (outFile == NULL)
 			{
 				fprintf(stderr, "%s", sf_strerror(outFile));
 				return 1;
 			}
+			SCOPE_EXIT
+			{
+				if (outFile != NULL)
+					sf_close(outFile);
+			};
 
 			sf_count_t numWritten = 0;
 			while (numWritten < frameCount)
-				numWritten += sf_writef_float(outFile, buf2 + numWritten * channelCount, frameCount - numWritten);
+			{
+				const sf_count_t framesWritten = sf_writef_float(
+					outFile,
+					buf2.data() + static_cast<size_t>(numWritten) * channelCount,
+					static_cast<sf_count_t>(frameCount) - numWritten);
+				if (framesWritten <= 0)
+				{
+					fprintf(stderr, "Output write made no progress: %s\n",
+						sf_strerror(outFile));
+					return 1;
+				}
+				numWritten += framesWritten;
+			}
 
-			sf_close(outFile);
+			if (sf_close(outFile) != 0)
+			{
+				outFile = NULL;
+				fprintf(stderr, "Could not close output file cleanly.\n");
+				return 1;
+			}
 			outFile = NULL;
-
-			delete[] buf;
-			delete[] buf2;
 		}
 
 		if (!noPauseArg.getValue())
@@ -3897,9 +4795,24 @@ int main(int argc, char** argv)
 
 		return 0;
 	}
-	catch (TCLAP::ArgException e)
+	catch (const TCLAP::ArgException& e)
 	{
 		printf("Error: %s for arg %s\n", e.error().c_str(), e.argId().c_str());
 		return -1;
+	}
+	catch (const std::bad_alloc&)
+	{
+		fprintf(stderr, "Benchmark could not allocate the requested buffers.\n");
+		return 1;
+	}
+	catch (const std::exception& e)
+	{
+		fprintf(stderr, "Benchmark failed: %s\n", e.what());
+		return 1;
+	}
+	catch (...)
+	{
+		fprintf(stderr, "Benchmark failed with an unknown error.\n");
+		return 1;
 	}
 }

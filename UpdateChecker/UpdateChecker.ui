@@ -4,7 +4,7 @@
  <widget class="QDialog" name="UpdateCheckerClass">
   <property name="geometry"><rect><x>0</x><y>0</y><width>640</width><height>530</height></rect></property>
   <property name="minimumSize"><size><width>520</width><height>340</height></size></property>
-  <property name="windowTitle"><string notr="true">Checking for updates</string></property>
+  <property name="windowTitle"><string notr="true">Hibiki EQAPO — Checking for updates</string></property>
   <property name="windowIcon"><iconset resource="UpdateChecker.qrc"><normaloff>:/icons/software-update-available.ico</normaloff>:/icons/software-update-available.ico</iconset></property>
   <property name="styleSheet">
    <string notr="true">QDialog#UpdateCheckerClass {
@@ -64,7 +64,7 @@ QTextEdit#versionBrowser {
       <item>
        <layout class="QVBoxLayout" name="headerTextLayout">
         <property name="spacing"><number>4</number></property>
-        <item><widget class="QLabel" name="sectionLabel"><property name="text"><string notr="true">Loudness Correction for Equalizer APO</string></property></widget></item>
+        <item><widget class="QLabel" name="sectionLabel"><property name="text"><string notr="true">Hibiki EQAPO</string></property></widget></item>
         <item>
          <widget class="QLabel" name="titleLabel">
           <property name="text"><string notr="true">Checking for updates</string></property>

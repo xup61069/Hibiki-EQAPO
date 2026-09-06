@@ -56,6 +56,8 @@ public:
 
 private:
 	static std::wstring getStartupPath();
+	static std::wstring getLegacyStartupPath();
+	static std::wstring getStartupLinkArgs(std::wstring* path = NULL);
 	static std::wstring getClientPath();
 	static void createLink(const std::wstring& lnkPath, const std::wstring& path, const std::wstring& args);
 	static std::wstring getLinkArgs(const std::wstring& lnkPath, std::wstring* path = NULL);

@@ -27,6 +27,7 @@ class IIRFilter : public IFilter
 public:
 	IIRFilter(const std::vector<double>& coefficients);
 	virtual ~IIRFilter();
+	static bool coefficientsAreStable(const std::vector<double>& coefficients);
 	bool getInPlace() override {return true;}
 	std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) override;
 	void process(double** output, double** input, unsigned frameCount) override;
@@ -39,5 +40,7 @@ private:
 	unsigned channelCount;
 	double* x;
 	double* y;
+	bool allocationFailed;
+	bool stateReady;
 };
 #pragma AVRT_VTABLES_END

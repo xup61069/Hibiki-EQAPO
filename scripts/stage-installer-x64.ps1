@@ -10,10 +10,57 @@ $thirdParty = Join-Path $root "third_party"
 $triplet = "x64-windows"
 $outDir = Join-Path $root "x64\$Configuration"
 $libDir = Join-Path $root "Setup\lib64"
+$asioProxySource = Join-Path $root "x64\$Configuration\HibikiEQAPODriver.dll"
+$asioProxyStaged = Join-Path $libDir "HibikiEQAPODriver.dll"
+$includeMonitorVst3 = $Configuration -eq "Release"
+$monitorVst3SourceBundle = Join-Path $root "build\VST3\$Configuration\HibikiEQAPO\HibikiEQAPOMonitor.vst3"
+$monitorVst3SourceModule = Join-Path $monitorVst3SourceBundle "Contents\x86_64-win\HibikiEQAPOMonitor.vst3"
+$monitorVst3StagedBundle = Join-Path $libDir "VST3\HibikiEQAPOMonitor.vst3"
+$monitorVst3StagedPayload = Join-Path $monitorVst3StagedBundle "Contents\x86_64-win"
+$monitorVst3PayloadNames = @(
+	"HibikiEQAPOMonitor.vst3",
+	"msvcp140.dll",
+	"msvcp140_1.dll",
+	"vcruntime140.dll",
+	"vcruntime140_1.dll"
+)
 Import-Module (Join-Path $PSScriptRoot "VisualStudioTools.psm1") -Force
+Import-Module (Join-Path $PSScriptRoot "SafeGeneratedTree.psm1") -Force
+
+function Assert-RegularNonEmptyFile {
+	param(
+		[Parameter(Mandatory = $true)][string]$Path,
+		[Parameter(Mandatory = $true)][string]$Description
+	)
+
+	if (!(Test-Path -LiteralPath $Path -PathType Leaf)) {
+		throw "$Description not found: $Path"
+	}
+	$item = Get-Item -LiteralPath $Path -Force
+	if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0) {
+		throw "$Description must not be a reparse point: $Path"
+	}
+	if ($item.Length -le 0) {
+		throw "$Description is empty: $Path"
+	}
+	return $item.FullName
+}
 
 if (!(Test-Path -LiteralPath $outDir)) {
 	throw "Build output directory not found: $outDir"
+}
+$null = Assert-RegularNonEmptyFile `
+	-Path $asioProxySource `
+	-Description "Hibiki EQAPO driver"
+& (Join-Path $PSScriptRoot "test-asio-proxy-binary.ps1") -Path $asioProxySource
+if ($includeMonitorVst3) {
+	$null = Assert-RegularNonEmptyFile `
+		-Path $monitorVst3SourceModule `
+		-Description "Monitor VST3 module"
+	& (Join-Path $PSScriptRoot "test-monitor-vst3-binary.ps1") `
+		-Configuration $Configuration `
+		-BundlePath $monitorVst3SourceBundle `
+		-VisualStudioEdition $VisualStudioEdition
 }
 
 if ($QtRoot -eq "") {
@@ -53,8 +100,35 @@ foreach ($app in $qtApps) {
 	}
 }
 
-Remove-Item -LiteralPath $libDir -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $libDir | Out-Null
+$libDir = Reset-SafeGeneratedTree `
+	-AllowedRoot $root `
+	-GeneratedPath $libDir
+Copy-Item -LiteralPath $asioProxySource -Destination $asioProxyStaged -Force
+if ($includeMonitorVst3) {
+	New-Item -ItemType Directory -Force -Path $monitorVst3StagedPayload | Out-Null
+	$sourcePayload = Join-Path $monitorVst3SourceBundle "Contents\x86_64-win"
+	Assert-SafeDirectoryChainNoReparse `
+		-AllowedRoot $root `
+		-Path $sourcePayload `
+		-Description "Monitor VST3 source payload"
+	$sourceEntries = @(Get-ChildItem -LiteralPath $sourcePayload -Force)
+	foreach ($entry in $sourceEntries) {
+		if ($entry.PSIsContainer -or
+			($entry.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0 -or
+			$monitorVst3PayloadNames -notcontains $entry.Name) {
+			throw "Monitor VST3 source bundle contains an unexpected entry: $($entry.FullName)"
+		}
+	}
+	foreach ($name in $monitorVst3PayloadNames) {
+		$sourceFile = Join-Path $sourcePayload $name
+		$null = Assert-RegularNonEmptyFile `
+			-Path $sourceFile `
+			-Description "Monitor VST3 source payload"
+		Copy-Item -LiteralPath $sourceFile `
+			-Destination (Join-Path $monitorVst3StagedPayload $name) `
+			-Force
+	}
+}
 
 $vcpkgBin = Join-Path $thirdParty "vcpkg_installed\$triplet\bin"
 $runtimeDlls = @(
@@ -92,12 +166,14 @@ $vcRedistDir = Get-VisualStudioRedistDirectory `
 	-RequiredFiles $vcRuntimeDlls
 
 foreach ($dll in $vcRuntimeDlls) {
-	Copy-Item -LiteralPath (Join-Path $vcRedistDir $dll) -Destination (Join-Path $libDir $dll) -Force
+	$src = Join-Path $vcRedistDir $dll
+	Copy-Item -LiteralPath $src -Destination (Join-Path $libDir $dll) -Force
 }
 
 $deployDir = Join-Path $root "_build\qt-deploy-x64"
-Remove-Item -LiteralPath $deployDir -Recurse -Force -ErrorAction SilentlyContinue
-New-Item -ItemType Directory -Force -Path $deployDir | Out-Null
+$deployDir = Reset-SafeGeneratedTree `
+	-AllowedRoot $root `
+	-GeneratedPath $deployDir
 
 foreach ($app in $qtApps) {
 	$tempApp = Join-Path $deployDir $app
@@ -159,6 +235,7 @@ $requiredInstallerAssets = @(
 	(Join-Path $outDir "VoicemeeterClient.exe"),
 	(Join-Path $outDir "UpdateChecker.exe"),
 	(Join-Path $outDir "Editor.exe"),
+	(Join-Path $libDir "HibikiEQAPODriver.dll"),
 	(Join-Path $root "NOTICE.md"),
 	(Join-Path $root "Setup\\Configuration tutorial (online).url"),
 	(Join-Path $root "Setup\\Configuration reference (online).url"),
@@ -172,17 +249,18 @@ $requiredInstallerAssets = @(
 )
 $requiredInstallerAssets += $runtimeDlls | ForEach-Object { Join-Path $libDir $_ }
 $requiredInstallerAssets += $vcRuntimeDlls | ForEach-Object { Join-Path $libDir $_ }
+if ($includeMonitorVst3) {
+	$requiredInstallerAssets += $monitorVst3PayloadNames |
+		ForEach-Object { Join-Path $monitorVst3StagedPayload $_ }
+}
 $requiredInstallerAssets += $qtDlls | ForEach-Object { Join-Path $libDir $_ }
 $requiredInstallerAssets += $pluginFiles | ForEach-Object { Join-Path $libDir ("qt\\" + $_) }
 $requiredInstallerAssets += (Join-Path $libDir "libfftw3.dll")
 
 foreach ($asset in $requiredInstallerAssets) {
-	if (!(Test-Path -LiteralPath $asset -PathType Leaf)) {
-		throw "Required installer asset not found after staging: $asset"
-	}
-	if ((Get-Item -LiteralPath $asset).Length -eq 0) {
-		throw "Required installer asset is empty after staging: $asset"
-	}
+	$null = Assert-RegularNonEmptyFile `
+		-Path $asset `
+		-Description "Required installer asset after staging"
 }
 
 Write-Host "Installer staging is ready: $outDir and $libDir."

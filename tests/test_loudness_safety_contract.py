@@ -28,6 +28,15 @@ PARAMETER_ARCHIVE_HEADER = (
 FILTER_SOURCE = (
     ROOT / "filters" / "loudnessCorrection" / "LoudnessCorrectionFilter.cpp"
 ).read_text(encoding="utf-8")
+FILTER_FACTORY_SOURCE = (
+    ROOT
+    / "filters"
+    / "loudnessCorrection"
+    / "LoudnessCorrectionFilterFactory.cpp"
+).read_text(encoding="utf-8")
+FILTER_FACTORY_BASE_SOURCE = (ROOT / "IFilterFactory.h").read_text(
+    encoding="utf-8"
+)
 VOLUME_SOURCE = (
     ROOT / "filters" / "loudnessCorrection" / "VolumeController.cpp"
 ).read_text(encoding="utf-8")
@@ -87,6 +96,17 @@ PUBLIC_RELEASE_TEXT_PATHS = tuple(
 
 
 class LoudnessSafetyContractTests(unittest.TestCase):
+    def test_formula_factory_fails_closed_on_allocation_failure(self) -> None:
+        self.assertIn(
+            "adoptFilter(constructFilter<LoudnessCorrectionFilter>(",
+            FILTER_FACTORY_SOURCE,
+        )
+        self.assertIn("if (memory == NULL)", FILTER_FACTORY_BASE_SOURCE)
+        self.assertIn("catch (...)", FILTER_FACTORY_BASE_SOURCE)
+        self.assertIn("MemoryHelper::free(memory);", FILTER_FACTORY_BASE_SOURCE)
+        self.assertIn("filter->~IFilter();", FILTER_FACTORY_BASE_SOURCE)
+        self.assertIn("MemoryHelper::free(filter);", FILTER_FACTORY_BASE_SOURCE)
+
     def test_endpoint_volume_snapshot_and_callback_lifetime_are_safe(self) -> None:
         self.assertIn("struct EndpointVolumeState", VOLUME_HEADER)
         for token in (
@@ -126,8 +146,40 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         self.assertIn('archive.add(1, L"Schema")', FILTER_HEADER)
         self.assertIn('L"FormulaLoudnessV1"', FILTER_HEADER)
         self.assertIn("if (!(isFormulaSchema && isFormulaModel))", FILTER_HEADER)
-        self.assertIn("if (referenceLevel <= 0.0f)", FILTER_HEADER)
+        self.assertIn("!std::isfinite(referenceLevel)", FILTER_HEADER)
+        self.assertIn("!std::isfinite(referenceOffset)", FILTER_HEADER)
+        self.assertIn("referenceLevel <= 0.0f", FILTER_HEADER)
         self.assertNotIn("referenceLevel = 80.0f;", FILTER_HEADER)
+        self.assertIn(
+            "attenuationError != 0 || !std::isfinite(attenuation)", FILTER_HEADER
+        )
+        self.assertIn(
+            "volumeError == 0 && std::isfinite(manualVolume)", FILTER_HEADER
+        )
+        self.assertIn(
+            'checkCase("invalid-reference-level-fails-closed"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("invalid-reference-offset-fails-closed"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("overflow-reference-level-fails-closed"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("overflow-reference-offset-fails-closed"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("invalid-attenuation-defaults-to-one"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("overflow-attenuation-defaults-to-one"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("invalid-volume-defaults-to-automatic"', BENCHMARK_SOURCE
+        )
+        self.assertIn(
+            'checkCase("overflow-volume-defaults-to-automatic"', BENCHMARK_SOURCE
+        )
 
     def test_wide_literal_field_names_round_trip_through_native_codec(self) -> None:
         self.assertIn(
@@ -580,7 +632,7 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         release_workflow = (
             ROOT / ".github" / "workflows" / "release.yml"
         ).read_text(encoding="utf-8")
-        self.assertEqual(version, "3.0.7")
+        self.assertEqual(version, "3.1.0")
         self.assertEqual(manifest["version-string"], version)
         self.assertIn(f'default: "v{version}"', release_workflow)
 
@@ -610,11 +662,11 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         self.assertIn(fork_url, primary_readme)
         self.assertIn(fork_url, english_readme)
         self.assertEqual(
-            primary_readme.splitlines()[0], "# Equalizer APO 響度校正更新"
+            primary_readme.splitlines()[0], "# Hibiki EQAPO"
         )
         self.assertEqual(
             english_readme.splitlines()[0],
-            "# Loudness Correction for Equalizer APO",
+            "# Hibiki EQAPO",
         )
         self.assertNotIn("目前版本：", primary_readme)
         self.assertNotIn("Current release:", english_readme)

@@ -24,7 +24,7 @@ public:
 	explicit AudioToolFilterGUI(const QString& command, const QString& parameters);
 	~AudioToolFilterGUI() override;
 	void store(QString& command, QString& parameters) override;
-	void prepareDelete() override;
+	bool commitDelete() override;
 
 private:
 	QWidget* addSliderControl(QGridLayout* grid, const QString& label, QDoubleSpinBox** spin, double min, double max, double value, const QString& suffix, int row, int column, int decimals = 1);

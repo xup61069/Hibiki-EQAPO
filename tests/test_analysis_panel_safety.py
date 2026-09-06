@@ -177,7 +177,8 @@ class AnalysisPanelSafetyTests(unittest.TestCase):
         for token in (
             "loadedConfigurationFiles.clear()",
             "loadedConfigurationFiles.push_back({path, string(), false})",
-            "loadedConfigurationFiles.push_back({path, inputStream.str(), readSucceeded != FALSE})",
+            "loadedConfigurationFiles.push_back({path, inputStream.str(), false})",
+            "loadedConfigurationFiles.push_back({path, inputStream.str(), true})",
             "runtimeContext.volumeObservations = &runtimeVolumeObservations",
         ):
             self.assertIn(token, ENGINE_CPP)
@@ -278,7 +279,7 @@ class AnalysisPanelSafetyTests(unittest.TestCase):
         ]
         apply = TABLE_CPP[
             TABLE_CPP.index("bool FilterTable::applyPreampReduction") : TABLE_CPP.index(
-                "void FilterTable::setLines"
+                "bool FilterTable::setLines"
             )
         ]
         self.assertIn("trimmed.startsWith('#')", plan)
@@ -349,7 +350,9 @@ class AnalysisPanelSafetyTests(unittest.TestCase):
                 "bool MainWindow::on_tabWidget_tabCloseRequested"
             )
         ]
-        self.assertIn("&& !applyingAutoPreampAdjustment", lines_changed)
+        self.assertIn(
+            "&& !applyingAutoPreampAdjustment", " ".join(lines_changed.split())
+        )
         self.assertIn(
             "QScopedValueRollback<bool> adjustmentGuard(applyingAutoPreampAdjustment, true)",
             action,

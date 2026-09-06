@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <cmath>
 #include "helpers/MemoryHelper.h"
 #include "helpers/StringHelper.h"
 #include "helpers/LogHelper.h"
@@ -37,16 +38,14 @@ vector<IFilter*> PreampFilterFactory::createFilter(const wstring& configPath, ws
 
 		double preamp_dB;
 		int matched = swscanf_s(value.c_str(), L" %lf dB", &preamp_dB);
-		if (matched == 1)
+		if (matched == 1 && std::isfinite(preamp_dB) &&
+			std::isfinite(std::pow(10.0, preamp_dB / 20.0)))
 		{
 			TraceF(L"Adjusting preamp by %g dB", preamp_dB);
 
-			void* mem = MemoryHelper::alloc(sizeof(PreampFilter));
-			filter = new(mem) PreampFilter(preamp_dB);
+			filter = constructFilter<PreampFilter>(preamp_dB);
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

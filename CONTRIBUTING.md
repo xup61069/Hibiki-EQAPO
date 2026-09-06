@@ -1,6 +1,6 @@
 # Contributing
 
-Thank you for improving this Equalizer APO fork. Bug fixes, tested device-compatibility improvements, translations, and documentation corrections are welcome.
+Thank you for improving Hibiki EQAPO, an unofficial Equalizer APO compatibility fork. Bug fixes, tested device-compatibility improvements, translations, and documentation corrections are welcome.
 
 ## Before opening a change
 
@@ -11,7 +11,7 @@ Thank you for improving this Equalizer APO fork. Bug fixes, tested device-compat
 
 ## Local checks
 
-Use 64-bit Windows with Git, Python 3, CMake, and Visual Studio's Desktop development with C++ workload. Every change runs the baseline checks:
+Use 64-bit Windows with Git, **CPython 3.13.2 x64**, CMake, and Visual Studio's Desktop development with C++ workload. The Qt extractor dependency lock targets this exact Python ABI. Every change runs the baseline checks:
 
 ```powershell
 python -m unittest discover -s .\tests -p "test_*.py" -v

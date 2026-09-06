@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" ToolsVersion="14.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|x64">
+      <Configuration>Debug</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|x64">
+      <Configuration>Release</Configuration>
+      <Platform>x64</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{E89AB845-3184-43F0-8654-1AB9625B9D08}</ProjectGuid>
+    <Keyword>Win32Proj</Keyword>
+    <RootNamespace>MonitorVST3</RootNamespace>
+    <WindowsTargetPlatformVersion>10.0.22621.0</WindowsTargetPlatformVersion>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>true</UseDebugLibraries>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <ConfigurationType>DynamicLibrary</ConfigurationType>
+    <UseDebugLibraries>false</UseDebugLibraries>
+    <WholeProgramOptimization>true</WholeProgramOptimization>
+    <PlatformToolset>v145</PlatformToolset>
+    <CharacterSet>Unicode</CharacterSet>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props"
+            Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')"
+            Label="LocalAppDataPlatform" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <SolutionDir Condition="'$(SolutionDir)'=='' or '$(SolutionDir)'=='*Undefined*'">$(MSBuildProjectDirectory)\..\</SolutionDir>
+    <RepoRoot>$(MSBuildProjectDirectory)\..\</RepoRoot>
+    <VST3_SDK_ROOT>$(RepoRoot)third_party\vst3sdk</VST3_SDK_ROOT>
+    <LIBSNDFILE_LIB Condition="'$(LIBSNDFILE_LIB)'==''">$(RepoRoot)third_party\vcpkg_installed\$(Platform)-windows\lib</LIBSNDFILE_LIB>
+    <FFTW_LIB Condition="'$(FFTW_LIB)'==''">$(RepoRoot)third_party\vcpkg_installed\$(Platform)-windows\lib</FFTW_LIB>
+    <MONITOR_STATIC_LIB_SUBDIR Condition="'$(Configuration)'=='Debug'">debug\lib</MONITOR_STATIC_LIB_SUBDIR>
+    <MONITOR_STATIC_LIB_SUBDIR Condition="'$(Configuration)'!='Debug'">lib</MONITOR_STATIC_LIB_SUBDIR>
+    <MONITOR_STATIC_LIB_DIR Condition="'$(MONITOR_STATIC_LIB_DIR)'==''">$(RepoRoot)third_party\monitor_vcpkg_installed\x64-windows-static-md\$(MONITOR_STATIC_LIB_SUBDIR)</MONITOR_STATIC_LIB_DIR>
+    <MUPARSERX_LIB Condition="'$(MUPARSERX_LIB)'==''">$(RepoRoot)third_party\build\muparserx-$(Platform)-windows\$(Configuration)</MUPARSERX_LIB>
+	<OutDir>$(RepoRoot)build\VST3\$(Configuration)\HibikiEQAPO\HibikiEQAPOMonitor.vst3\Contents\x86_64-win\</OutDir>
+    <IntDir>$(MSBuildProjectDirectory)\obj\$(Platform)\$(Configuration)\</IntDir>
+	<TargetName>HibikiEQAPOMonitor</TargetName>
+    <TargetExt>.vst3</TargetExt>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>Level3</WarningLevel>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(RepoRoot);$(VST3_SDK_ROOT);$(RepoRoot)third_party\muparserx\parser;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>WIN32;_WINDOWS;_USRDLL;UNICODE;_UNICODE;MUP_USE_WIDE_STRING;NOMINMAX;_CRT_SECURE_NO_WARNINGS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <SDLCheck>true</SDLCheck>
+      <UseStandardPreprocessor>true</UseStandardPreprocessor>
+      <ConformanceMode>true</ConformanceMode>
+    </ClCompile>
+    <Link>
+      <SubSystem>Windows</SubSystem>
+      <GenerateDebugInformation>true</GenerateDebugInformation>
+      <AdditionalLibraryDirectories>$(MONITOR_STATIC_LIB_DIR);$(MUPARSERX_LIB);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(RepoRoot)x64\$(Configuration)\Common.lib;version.lib;Shlwapi.lib;authz.lib;crypt32.lib;dbghelp.lib;psapi.lib;sndfile.lib;FLAC.lib;ogg.lib;vorbis.lib;vorbisenc.lib;opus.lib;mpg123.lib;libmp3lame-static.lib;libmpghip-static.lib;fftw3.lib;muparserx.lib;winmm.lib;ole32.lib;ws2_32.lib;bcrypt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <IgnoreImportLibrary>true</IgnoreImportLibrary>
+      <ImportLibrary>$(IntDir)$(TargetName).lib</ImportLibrary>
+      <ProgramDatabaseFile>$(IntDir)$(TargetName).pdb</ProgramDatabaseFile>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Debug'">
+    <ClCompile>
+      <Optimization>Disabled</Optimization>
+      <PreprocessorDefinitions>DEVELOPMENT=1;_DEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(Configuration)'=='Release'">
+    <ClCompile>
+      <Optimization>MaxSpeed</Optimization>
+      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <IntrinsicFunctions>true</IntrinsicFunctions>
+      <PreprocessorDefinitions>RELEASE=1;NDEBUG;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+    <Link>
+      <EnableCOMDATFolding>true</EnableCOMDATFolding>
+      <OptimizeReferences>true</OptimizeReferences>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemGroup>
+    <ClCompile Include="MonitorVST3Factory.cpp" />
+    <ClCompile Include="MonitorVST3Processor.cpp" />
+    <ClCompile Include="MonitorVST3Controller.cpp" />
+    <ClCompile Include="$(RepoRoot)helpers\MemoryHelper.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\source\baseiids.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\source\fdebug.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\source\fobject.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\source\fstring.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\source\updatehandler.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\base\thread\source\flock.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\pluginterfaces\base\conststringtable.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\pluginterfaces\base\coreiids.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\pluginterfaces\base\funknown.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\pluginterfaces\base\ustring.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\common\commoniids.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\common\pluginview.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\main\dllmain.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\main\moduleinit.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\main\pluginfactory.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstaudioeffect.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstbus.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstcomponent.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstcomponentbase.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vsteditcontroller.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstinitiids.cpp" />
+    <ClCompile Include="$(VST3_SDK_ROOT)\public.sdk\source\vst\vstparameters.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="MonitorVST3Identity.h" />
+    <ClInclude Include="MonitorVST3State.h" />
+    <ClInclude Include="MonitorVST3Processor.h" />
+    <ClInclude Include="MonitorVST3Controller.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Common.vcxproj">
+      <Project>{6758B50E-B9F0-4389-A61D-A842F0545E1B}</Project>
+      <ReferenceOutputAssembly>false</ReferenceOutputAssembly>
+      <LinkLibraryDependencies>false</LinkLibraryDependencies>
+    </ProjectReference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(Configuration)'=='Release'">
+    <VST3VCRuntimeDependency Include="$(MONITOR_VC_RUNTIME_DIR)\msvcp140.dll" />
+    <VST3VCRuntimeDependency Include="$(MONITOR_VC_RUNTIME_DIR)\msvcp140_1.dll" />
+    <VST3VCRuntimeDependency Include="$(MONITOR_VC_RUNTIME_DIR)\vcruntime140.dll" />
+    <VST3VCRuntimeDependency Include="$(MONITOR_VC_RUNTIME_DIR)\vcruntime140_1.dll" />
+  </ItemGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <Target Name="ValidateMonitorVST3Dependencies" BeforeTargets="Link">
+    <Error Condition="!Exists('$(MONITOR_STATIC_LIB_DIR)\sndfile.lib')" Text="Monitor static libsndfile was not found under MONITOR_STATIC_LIB_DIR." />
+    <Error Condition="!Exists('$(MONITOR_STATIC_LIB_DIR)\fftw3.lib')" Text="Monitor static FFTW was not found under MONITOR_STATIC_LIB_DIR." />
+    <Error Condition="'$(Configuration)'=='Release' and !Exists('$(MONITOR_VC_RUNTIME_DIR)\msvcp140.dll')" Text="The Release Monitor VC runtime bundle was not found under MONITOR_VC_RUNTIME_DIR." />
+  </Target>
+  <Target Name="CopyVST3VCRuntimeDependencies" AfterTargets="Link" Condition="'$(Configuration)'=='Release'">
+    <Copy SourceFiles="@(VST3VCRuntimeDependency)"
+          DestinationFolder="$(OutDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+  <ImportGroup Label="ExtensionTargets" />
+</Project>

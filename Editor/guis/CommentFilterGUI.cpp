@@ -81,9 +81,24 @@ void CommentFilterGUI::storePreferences(QVariantMap& prefs)
 	child->storePreferences(prefs);
 }
 
-void CommentFilterGUI::prepareDelete()
+void CommentFilterGUI::restoreRuntimeState(const QVariantMap& state)
 {
-	child->prepareDelete();
+	child->restoreRuntimeState(state);
+}
+
+void CommentFilterGUI::takeRuntimeState(QVariantMap& state)
+{
+	child->takeRuntimeState(state);
+}
+
+bool CommentFilterGUI::prepareDelete()
+{
+	return child->prepareDelete();
+}
+
+bool CommentFilterGUI::commitDelete()
+{
+	return child->commitDelete();
 }
 
 void CommentFilterGUI::on_actionPowerOn_toggled(bool checked)

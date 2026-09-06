@@ -18,6 +18,7 @@ with this program; if not, write to the Free Software Foundation, Inc.,
 */
 
 #include "stdafx.h"
+#include <cmath>
 #include "helpers/MemoryHelper.h"
 #include "helpers/StringHelper.h"
 #include "helpers/LogHelper.h"
@@ -87,11 +88,19 @@ vector<IFilter*> CopyFilterFactory::createFilter(const wstring& configPath, wstr
 				assignments.push_back(assignment);
 		}
 
-		void* mem = MemoryHelper::alloc(sizeof(CopyFilter));
-		filter = new(mem) CopyFilter(assignments);
+		for (const Assignment& assignment : assignments)
+		{
+			for (const Assignment::Summand& summand : assignment.sourceSum)
+			{
+				if (!std::isfinite(summand.factor) ||
+					(summand.isDecibel &&
+						!std::isfinite(std::pow(10.0, summand.factor / 20.0))))
+					return vector<IFilter*>();
+			}
+		}
+
+		filter = constructFilter<CopyFilter>(assignments);
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

@@ -121,13 +121,15 @@ vector<IFilter*> VSTPluginFilterFactory::createFilter(const wstring& configPath,
 					int bitDepth = 32;
 #endif
 					if (res == AbstractLibrary::FILE_NOT_FOUND)
-						LogF(L"File %s not found", library->getLibPath());
+						LogF(L"File %s not found", library->getLibPath().c_str());
 					else if (res == AbstractLibrary::LOADING_FAILED)
-						LogF(L"Library %s could not be loaded", library->getLibPath());
+						LogF(L"Library %s could not be loaded", library->getLibPath().c_str());
 					else if (res == AbstractLibrary::FUNCTIONS_MISSING)
-						LogF(L"Library %s does not contain needed functions", library->getLibPath());
+						LogF(L"Library %s does not contain needed functions", library->getLibPath().c_str());
 					else if (res == AbstractLibrary::WRONG_ARCHITECTURE)
-						LogF(L"Library %s has wrong architecture, must be %d-bit", library->getLibPath(), bitDepth);
+						LogF(L"Library %s has wrong architecture, must be %d-bit", library->getLibPath().c_str(), bitDepth);
+					else if (res == AbstractLibrary::RECURSIVE_LOADING)
+						LogF(L"Recursive VST library load rejected for %s", library->getLibPath().c_str());
 				}
 				else
 				{
@@ -137,13 +139,11 @@ vector<IFilter*> VSTPluginFilterFactory::createFilter(const wstring& configPath,
 
 			if (create)
 			{
-				void* mem = MemoryHelper::alloc(sizeof(VSTPluginFilter));
-				filter = new(mem) VSTPluginFilter(library, chunkData, paramMap, vst3ClassIndex, midiConfig);
+				filter = constructFilter<VSTPluginFilter>(
+					library, chunkData, paramMap, vst3ClassIndex, midiConfig);
 			}
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

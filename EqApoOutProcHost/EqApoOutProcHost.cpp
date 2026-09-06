@@ -122,6 +122,7 @@ static const wchar_t* guiWindowClassName = L"EqApoOutProcVSTGuiWindow";
 static const wchar_t* guiChildWindowClassName = L"EqApoOutProcVSTGuiChild";
 static const SIZE_T guiPrivateBytesLimit = static_cast<SIZE_T>(1536) * 1024 * 1024;
 static const DWORD namedHostHandoffExitCode = 20;
+static const DWORD guiAudioThreadJoinFailureExitCode = 24;
 static VSTPluginInstance* guiEffect = nullptr;
 static HWND guiWindow = NULL;
 static HWND guiChild = NULL;
@@ -244,16 +245,29 @@ static std::wstring makeSessionPidPath(const std::wstring& sessionId)
 	return tempDirectory + L"EqApoOutProcHost-" + makeSafeSessionId(sessionId) + L".pid";
 }
 
-static void writeSessionPidFile(const std::wstring& sessionId)
+static std::uint64_t getProcessCreationTime(HANDLE process)
+{
+	FILETIME creationTime = {};
+	FILETIME exitTime = {};
+	FILETIME kernelTime = {};
+	FILETIME userTime = {};
+	if (!GetProcessTimes(process, &creationTime, &exitTime, &kernelTime, &userTime))
+		return 0;
+
+	return (static_cast<std::uint64_t>(creationTime.dwHighDateTime) << 32) |
+		creationTime.dwLowDateTime;
+}
+
+static void writeSessionPidFile(const std::wstring& sessionId, std::uint64_t processCreationTime)
 {
 	const std::wstring path = makeSessionPidPath(sessionId);
-	if (path.empty())
+	if (path.empty() || processCreationTime == 0)
 		return;
 
 	std::wofstream stream(path, std::ios::trunc);
 	if (stream)
 	{
-		stream << GetCurrentProcessId();
+		stream << GetCurrentProcessId() << L" " << processCreationTime;
 		appendDebugLog(L"wrote pid file session=" + sessionId + L" path=" + path);
 	}
 	else
@@ -265,8 +279,26 @@ static void deleteSessionPidFile(const std::wstring& sessionId)
 	const std::wstring path = makeSessionPidPath(sessionId);
 	if (!path.empty())
 	{
-		DeleteFileW(path.c_str());
-		appendDebugLog(L"deleted pid file session=" + sessionId + L" path=" + path);
+		if (DeleteFileW(path.c_str()))
+		{
+			appendDebugLog(
+				L"deleted pid file session=" + sessionId + L" path=" + path);
+		}
+		else
+		{
+			const DWORD error = GetLastError();
+			if (error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND)
+			{
+				appendDebugLog(
+					L"pid file already absent session=" + sessionId + L" path=" + path);
+			}
+			else
+			{
+				appendDebugLog(
+					L"failed to delete pid file session=" + sessionId + L" path=" +
+					path + L" error=" + std::to_wstring(error));
+			}
+		}
 	}
 }
 
@@ -649,7 +681,8 @@ static int runVstGuiHost(const std::wstring& vstConfigPath, const std::wstring& 
 
 	if (exitCode == 0)
 	{
-		writeSessionPidFile(sessionId);
+		const std::uint64_t processCreationTime = getProcessCreationTime(GetCurrentProcess());
+		writeSessionPidFile(sessionId, processCreationTime);
 		guiShowEvent = CreateEventW(NULL, FALSE, FALSE, makeSessionObjectName(sessionId, L"GuiShow").c_str());
 		guiHideEvent = CreateEventW(NULL, FALSE, FALSE, makeSessionObjectName(sessionId, L"GuiHide").c_str());
 		guiHiddenEvent = CreateEventW(NULL, FALSE, FALSE, makeSessionObjectName(sessionId, L"GuiHidden").c_str());
@@ -664,6 +697,7 @@ static int runVstGuiHost(const std::wstring& vstConfigPath, const std::wstring& 
 				info->version = OUTPROC_GUI_INFO_VERSION;
 				info->processId = GetCurrentProcessId();
 				info->reserved = 0;
+				info->processCreationTime = processCreationTime;
 				UnmapViewOfFile(info);
 			}
 		}
@@ -729,7 +763,23 @@ static int runVstGuiHost(const std::wstring& vstConfigPath, const std::wstring& 
 				SetEvent(audioContext.stopEvent);
 			if (audioThread != NULL)
 			{
-				WaitForSingleObject(audioThread, 1000);
+				const DWORD audioThreadWait = WaitForSingleObject(audioThread, 1000);
+				if (audioThreadWait != WAIT_OBJECT_0)
+				{
+					// audioContext, dspState, the effect, and named handles are all
+					// still reachable from guiAudioThreadProc. Never unwind or tear
+					// them down while a plug-in is stuck in processBlock. A non-zero
+					// process exit also prevents the Editor from treating the most
+					// recent periodic sidecar snapshot as a committed final state.
+					appendDebugLog(L"GUI audio worker did not stop; terminating host without teardown");
+					if (!TerminateProcess(
+						GetCurrentProcess(), guiAudioThreadJoinFailureExitCode))
+					{
+						ExitProcess(guiAudioThreadJoinFailureExitCode);
+					}
+					for (;;)
+						Sleep(INFINITE);
+				}
 				CloseHandle(audioThread);
 			}
 			if (audioContext.stopEvent != NULL)
@@ -745,7 +795,12 @@ static int runVstGuiHost(const std::wstring& vstConfigPath, const std::wstring& 
 					config.parameterDescriptors);
 				unlockGuiEffect();
 			}
-			OutProcWriteVSTConfig(vstConfigPath, config);
+			if (!OutProcWriteVSTConfig(vstConfigPath, config))
+			{
+				appendDebugLog(L"final GUI VST state write failed path=" + vstConfigPath);
+				if (exitCode == 0)
+					exitCode = 19;
+			}
 		}
 	}
 

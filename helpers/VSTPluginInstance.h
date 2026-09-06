@@ -84,6 +84,7 @@ public:
 	void setProcessLevel(int value);
 	int getLanguage() const;
 	void setLanguage(int value);
+	vst_time_info* getVST2TimeInfo();
 	bool canDoubleReplacing() const;
 	int getInitialDelay() const;
 
@@ -181,4 +182,5 @@ private:
 	int processLevel = 0;
 	int language = 1;
 	int vst3ClassIndex = 0;
+	vst_time_info vstTime{ 0,0,0,0,0,0,0,0,0,0,{0}, 0xFFFF };
 };

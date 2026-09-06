@@ -32,3 +32,25 @@ void FilterTableMimeData::setPrefsList(const QList<QVariantMap>& value)
 {
 	prefsList = value;
 }
+
+void FilterTableMimeData::setMoveCommitHandler(
+	const std::function<bool()>& handler)
+{
+	moveCommitHandler = handler;
+	moveCommitted = false;
+}
+
+bool FilterTableMimeData::commitMove() const
+{
+	if (moveCommitted)
+		return true;
+	if (!moveCommitHandler || !moveCommitHandler())
+		return false;
+	moveCommitted = true;
+	return true;
+}
+
+bool FilterTableMimeData::isMoveCommitted() const
+{
+	return moveCommitted;
+}

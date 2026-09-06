@@ -1,6 +1,6 @@
 ## Problem
 
-Describe the user-visible or technical problem.
+Describe the user-visible or technical problem in Hibiki EQAPO.
 
 ## Change
 

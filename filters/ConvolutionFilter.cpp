@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <algorithm>
 #include <cmath>
 #include <limits>
 #include <new>
@@ -116,7 +117,10 @@ vector<wstring> ConvolutionFilter::initialize(float sampleRate, unsigned maxFram
 
 	this->sampleRate = sampleRate;
 	this->maxFrameCount = maxFrameCount;
-	channelCount = (unsigned)channelNames.size();
+	channelCount = 0;
+	if (channelNames.size() > (std::numeric_limits<unsigned>::max)())
+		return channelNames;
+	channelCount = static_cast<unsigned>(channelNames.size());
 	if (!std::isfinite(sampleRate) || sampleRate <= 0.0f ||
 		sampleRate > static_cast<float>(std::numeric_limits<int>::max()) ||
 		maxFrameCount == 0 ||
@@ -137,6 +141,15 @@ vector<wstring> ConvolutionFilter::initialize(float sampleRate, unsigned maxFram
 			preparedImpulseResponses.empty())
 		{
 			return channelNames;
+		}
+		for (const std::vector<double>& impulse : preparedImpulseResponses)
+		{
+			if (impulse.empty() || std::any_of(
+					impulse.begin(), impulse.end(),
+					[](double sample) { return !std::isfinite(sample); }))
+			{
+				return channelNames;
+			}
 		}
 		impulseResponses.swap(preparedImpulseResponses);
 	}

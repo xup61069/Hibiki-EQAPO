@@ -396,10 +396,10 @@ void DeviceTestDialog::setItemStatus(const QString& guid, bool postMix, ItemStat
 		case ItemStatusType::success:
 			break;
 		case ItemStatusType::warning:
-			tooltip = tr("Equalizer APO works but original APO could not be initialized. Maybe unset \"Use original APO\" in troubleshooting options.");
+			tooltip = tr("Hibiki EQAPO works but original APO could not be initialized. Maybe unset \"Use original APO\" in troubleshooting options.");
 			break;
 		case ItemStatusType::error:
-			tooltip = tr("Equalizer APO did not respond on this processing stage.");
+			tooltip = tr("Hibiki EQAPO did not respond on this processing stage.");
 			break;
 		case ItemStatusType::unavailable:
 			break;

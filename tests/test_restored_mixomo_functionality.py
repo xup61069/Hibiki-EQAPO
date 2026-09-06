@@ -245,19 +245,24 @@ class RestoredMixomoFunctionalityTests(unittest.TestCase):
 
     def test_cloned_vu_meters_get_independent_shared_memory_ids(self) -> None:
         table = read("Editor/FilterTable.cpp")
-        clone = table[table.index("FilterTable::Item* FilterTable::cloneItem") :]
+        clone = table[table.index("QString cloneFilterLineWithNewInstanceIds") :]
 
-        self.assertIn('QRegularExpression vuMeterCommand("^\\\\s*(?:#\\\\s*)?VUMeter\\\\s*:")', clone)
-        self.assertIn('const QString replacement = " MeterId " + QUuid::createUuid()', clone)
-        self.assertIn('QRegularExpression meterId("(?:(?<=:)\\\\s*|\\\\s+)MeterId\\\\s+', clone)
-        self.assertIn("clonedText.remove(meterId);", clone)
-        self.assertIn("clonedText += replacement;", clone)
+        self.assertIn("tokenizeFilterParameters(parameters)", clone)
+        self.assertIn('command == QStringLiteral("VUMeter")', clone)
+        self.assertIn('clonedText.insert(separator + 1, " MeterId " +', clone)
+        self.assertIn("QUuid::createUuid()", clone)
+        self.assertIn('QStringLiteral("MeterId"), Qt::CaseInsensitive', clone)
+        self.assertIn("removeFilterParameterPairs(", clone)
+        self.assertIn("i < tokens.size(); i += 2", clone)
+        self.assertIn("return clonedText;", clone)
 
-        # Compact syntax and duplicate keys must collapse to exactly one ID.
-        compact = "VUMeter:MeterId old Channels all MeterId stale"
-        cleaned = re.sub(r"(?:(?<=:)\s*|\s+)MeterId\s+(?:\"[^\"]*\"|\S+)", "", compact)
-        cloned = cleaned + " MeterId replacement"
-        self.assertEqual(cloned.count("MeterId"), 1)
+        # The native restored-tools fixture exercises compact, duplicate,
+        # empty, and dangling MeterId tokens. Keeping the new authoritative
+        # pair first prevents a malformed trailing key from consuming it.
+        self.assertIn(
+            'clonedLines[11].startsWith(QStringLiteral("VUMeter: MeterId "))',
+            read("Editor/MainWindow.cpp"),
+        )
 
     def test_vu_meter_passes_all_endpoint_channels_while_metering_is_bounded(self) -> None:
         header = read("filters/VUMeterFilter.h")

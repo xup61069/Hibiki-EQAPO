@@ -40,7 +40,23 @@ AbstractLibrary::~AbstractLibrary()
 
 int AbstractLibrary::initialize()
 {
-	if (module == NULL)
+	std::lock_guard<std::recursive_mutex> initializationLock(initializationMutex);
+	if (initializing)
+		return RECURSIVE_LOADING;
+	if (module != NULL)
+		return 0;
+
+	initializing = true;
+	struct InitializationScope
+	{
+		bool& initializing;
+		~InitializationScope()
+		{
+			initializing = false;
+		}
+	} initializationScope{ initializing };
+
+	try
 	{
 		wstring libPath = getLoadPath();
 		if (GetFileAttributesW(libPath.c_str()) == INVALID_FILE_ATTRIBUTES)
@@ -63,21 +79,26 @@ int AbstractLibrary::initialize()
 
 		if (!loadFunctions())
 		{
-			FreeLibrary(module);
-			module = NULL;
+			unloadAfterInitializationFailure();
 			return FUNCTIONS_MISSING;
 		}
 
 		int res = customInitialize();
 		if (res < 0)
+		{
+			unloadAfterInitializationFailure();
 			return res;
+		}
 
 		TraceF(L"Loaded library %s", libPath.c_str());
 
 		return 1;
 	}
-
-	return 0;
+	catch (...)
+	{
+		unloadAfterInitializationFailure();
+		throw;
+	}
 }
 
 wstring AbstractLibrary::getLoadPath()
@@ -89,6 +110,29 @@ int AbstractLibrary::customInitialize()
 {
 	// overwrite if needed
 	return 0;
+}
+
+void AbstractLibrary::customUninitialize()
+{
+	// overwrite if needed
+}
+
+void AbstractLibrary::unloadAfterInitializationFailure() noexcept
+{
+	try
+	{
+		customUninitialize();
+	}
+	catch (...)
+	{
+		// Initialization already failed. Preserve the original result while
+		// still releasing the operating-system module reference below.
+	}
+	if (module != NULL)
+	{
+		FreeLibrary(module);
+		module = NULL;
+	}
 }
 
 unsigned short AbstractLibrary::getFileArchitecture(const wstring& filePath)

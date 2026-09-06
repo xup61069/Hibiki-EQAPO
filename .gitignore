@@ -189,10 +189,12 @@ __pycache__/
 .codex-tools/
 _deps/
 _build/
+/build/
 complementary context/
 third_party/**/.git/
 third_party/vcpkg/
 third_party/vcpkg_installed/
+third_party/monitor_vcpkg_installed/
 third_party/Qt/
 third_party/nsis-*/
 third_party/python/

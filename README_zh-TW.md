@@ -1,4 +1,4 @@
-# Equalizer APO 響度校正更新
+# Hibiki EQAPO
 
 繁體中文說明已改由根目錄的 [README.md](README.md) 維護。
 

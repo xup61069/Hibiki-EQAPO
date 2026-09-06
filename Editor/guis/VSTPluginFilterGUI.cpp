@@ -27,6 +27,7 @@
 #include <QFile>
 #include <QMessageBox>
 #include <QProcess>
+#include <QPushButton>
 #include <QSettings>
 #include <QSignalBlocker>
 #include <QStyle>
@@ -52,15 +53,43 @@
 using namespace std;
 using namespace std::placeholders;
 
-static QString makeOutProcObjectName(const QString& hostId, const wchar_t* suffix)
+static std::uint64_t getOutProcProcessCreationTime(DWORD processId);
+static QString makeOutProcPidPath(const QString& hostId);
+
+static bool isCanonicalOutProcSessionId(const QString& hostId)
+{
+	if (hostId.isEmpty() || hostId.size() > 128)
+		return false;
+	for (const QChar ch : hostId)
+	{
+		const ushort code = ch.unicode();
+		const bool ok = (code >= '0' && code <= '9') ||
+			(code >= 'a' && code <= 'z') ||
+			(code >= 'A' && code <= 'Z') || code == '-' || code == '_';
+		if (!ok)
+			return false;
+	}
+	return true;
+}
+
+static QString makeSafeOutProcSessionId(const QString& hostId)
 {
 	QString safeId = hostId;
 	for (QChar& ch : safeId)
 	{
-		const bool ok = ch.isLetterOrNumber() || ch == '-' || ch == '_';
+		const ushort code = ch.unicode();
+		const bool ok = (code >= '0' && code <= '9') ||
+			(code >= 'a' && code <= 'z') ||
+			(code >= 'A' && code <= 'Z') || code == '-' || code == '_';
 		if (!ok)
 			ch = '_';
 	}
+	return safeId;
+}
+
+static QString makeOutProcObjectName(const QString& hostId, const wchar_t* suffix)
+{
+	const QString safeId = makeSafeOutProcSessionId(hostId);
 	return "Global\\EqApoOutProcVST_" + safeId + "_" + QString::fromWCharArray(suffix);
 }
 
@@ -133,6 +162,11 @@ static std::vector<OutProcVSTParameterDescriptor> convertOutProcParameterDescrip
 VSTPluginFilterGUI::VSTPluginFilterGUI(std::shared_ptr<VSTPluginLibrary> library, const std::wstring& chunkData, const std::unordered_map<std::wstring, float>& paramMap, bool outProcMode, const QString& hostId, int vst3ClassIndex, const std::wstring& midiConfig)
 	: ui(new Ui::VSTPluginFilterGUI), library(library), chunkData(chunkData), paramMap(paramMap), midiConfig(midiConfig), outProcMode(outProcMode), hostId(hostId), vst3ClassIndex(vst3ClassIndex)
 {
+	const bool canonicalizeHostId = outProcMode &&
+		!isCanonicalOutProcSessionId(this->hostId);
+	if (canonicalizeHostId)
+		this->hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
+
 	ui->setupUi(this);
 	ui->selectButton->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::OpenFolder));
 	ui->label->setBuddy(ui->pathLineEdit);
@@ -149,8 +183,6 @@ VSTPluginFilterGUI::VSTPluginFilterGUI(std::shared_ptr<VSTPluginLibrary> library
 	ui->warningTextEdit->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 	ui->warningTextEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	ui->warningTextEdit->setMinimumWidth(0);
-	if (outProcMode && this->hostId.isEmpty())
-		this->hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	ui->frame->setVisible(false);
 	updatePermissionWarning();
 
@@ -168,11 +200,65 @@ VSTPluginFilterGUI::VSTPluginFilterGUI(std::shared_ptr<VSTPluginLibrary> library
 	// status. The plug-in editor owns its own high-frequency idle timer.
 	idleTimer.setTimerType(Qt::CoarseTimer);
 	idleTimer.setInterval(100);
+	if (canonicalizeHostId)
+	{
+		// FilterTableRow connects updateModel after construction. Queue the
+		// canonical serialization so hand-written/legacy unsafe IDs become
+		// distinct persisted UUIDs before the user can open either panel.
+		QTimer::singleShot(0, this, [this]() { emit updateModel(); });
+	}
+}
+
+static bool canRemoveExistingFile(const QString& path)
+{
+	if (path.isEmpty())
+		return true;
+	const DWORD attributes = GetFileAttributesW(
+		reinterpret_cast<LPCWSTR>(path.utf16()));
+	if (attributes == INVALID_FILE_ATTRIBUTES)
+	{
+		const DWORD error = GetLastError();
+		return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
+	}
+	if ((attributes & FILE_ATTRIBUTE_DIRECTORY) != 0)
+		return false;
+
+	HANDLE file = CreateFileW(
+		reinterpret_cast<LPCWSTR>(path.utf16()),
+		DELETE | FILE_READ_ATTRIBUTES,
+		FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+		NULL,
+		OPEN_EXISTING,
+		FILE_ATTRIBUTE_NORMAL,
+		NULL);
+	if (file == INVALID_HANDLE_VALUE)
+		return false;
+	CloseHandle(file);
+	return true;
+}
+
+static bool removeExistingFileChecked(const QString& path)
+{
+	if (path.isEmpty())
+		return true;
+	if (QFile::remove(path))
+		return true;
+
+	// QFile::exists() also returns false when the existence probe itself fails
+	// (for example because access is denied). Only a verified Win32 "not found"
+	// result is safe to treat as successful cleanup.
+	const DWORD attributes = GetFileAttributesW(
+		reinterpret_cast<LPCWSTR>(path.utf16()));
+	if (attributes != INVALID_FILE_ATTRIBUTES)
+		return false;
+	const DWORD error = GetLastError();
+	return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
 }
 
 VSTPluginFilterGUI::~VSTPluginFilterGUI()
 {
-	closeOutProcPanel();
+	if (!outProcRuntimeStateTransferred)
+		closeOutProcPanel();
 	releasePluginInstance();
 
 	delete ui;
@@ -247,11 +333,86 @@ void VSTPluginFilterGUI::storePreferences(QVariantMap& prefs)
 	prefs.insert("autoApplyDialog", autoApplyDialog);
 }
 
-void VSTPluginFilterGUI::prepareDelete()
+void VSTPluginFilterGUI::restoreRuntimeState(const QVariantMap& state)
 {
-	appendOutProcDebugLog("prepareDelete outProc=" + QString(outProcMode ? "true" : "false") + " hostId=" + hostId);
-	if (outProcMode)
-		terminateOutProcPanel();
+	if (!outProcMode ||
+		state.value("outProcHostId").toString() != hostId)
+	{
+		return;
+	}
+
+	bool pidOk = false;
+	bool creationTimeOk = false;
+	const qint64 restoredPid = state.value("outProcPid").toString().toLongLong(&pidOk);
+	const qulonglong restoredCreationTime = state.value(
+		"outProcProcessCreationTime").toString().toULongLong(&creationTimeOk);
+	if (!pidOk || restoredPid < 0 ||
+		static_cast<quint64>(restoredPid) > MAXDWORD ||
+		!creationTimeOk)
+	{
+		appendOutProcDebugLog("invalid transferred runtime state ignored hostId=" + hostId);
+		return;
+	}
+
+	outProcGuiConfigPath = state.value("outProcConfigPath").toString();
+	outProcGuiPid = restoredPid;
+	outProcGuiProcessCreationTime =
+		static_cast<std::uint64_t>(restoredCreationTime);
+	outProcGuiRunning = state.value("outProcRunning").toBool();
+	outProcGuiHidden = state.value("outProcHidden").toBool();
+	outProcFinalStateCommitted = state.value(
+		"outProcFinalStateCommitted").toBool();
+	outProcRuntimeStateTransferred = false;
+	if (outProcGuiRunning)
+	{
+		ui->openPanelButton->setText(outProcGuiHidden
+			? tr("Show panel") : tr("Hide panel"));
+		ui->statusLabel->setText(tr("Out-of-process VST panel is open"));
+		idleTimer.start();
+	}
+	else if (!outProcGuiConfigPath.isEmpty())
+	{
+		ui->openPanelButton->setText(tr("Open panel"));
+		ui->statusLabel->setText(tr("Out-of-process VST state recovery is pending"));
+		ui->statusLabel->setProperty("statusLevel", "warning");
+	}
+}
+
+void VSTPluginFilterGUI::takeRuntimeState(QVariantMap& state)
+{
+	if (!outProcMode)
+		return;
+
+	// Runtime ownership is transferred before the old widget is queued for
+	// deferred deletion. Stop its poller immediately so only the replacement
+	// GUI can read or update the shared sidecar from this point on.
+	idleTimer.stop();
+	state.insert("outProcHostId", hostId);
+	state.insert("outProcConfigPath", outProcGuiConfigPath);
+	state.insert("outProcPid", QString::number(outProcGuiPid));
+	state.insert("outProcProcessCreationTime",
+		QString::number(outProcGuiProcessCreationTime));
+	state.insert("outProcRunning", outProcGuiRunning);
+	state.insert("outProcHidden", outProcGuiHidden);
+	state.insert("outProcFinalStateCommitted", outProcFinalStateCommitted);
+	// The replacement GUI now owns the external session. Do not let this
+	// soon-to-be-deleted widget hide that session from its successor.
+	outProcRuntimeStateTransferred = true;
+}
+
+bool VSTPluginFilterGUI::prepareDelete()
+{
+	if (!outProcMode)
+		return true;
+	// Do not stop the host, read its mutable state, or remove either tracking
+	// file here. Callers may still cancel a close or drag after this preflight.
+	return canRemoveExistingFile(outProcGuiConfigPath) &&
+		canRemoveExistingFile(makeOutProcPidPath(hostId));
+}
+
+bool VSTPluginFilterGUI::commitDelete()
+{
+	return !outProcMode || ensureOutProcPanelStopped(true);
 }
 
 void VSTPluginFilterGUI::on_openPanelButton_clicked()
@@ -292,7 +453,8 @@ void VSTPluginFilterGUI::on_reloadButton_clicked()
 	if (outProcMode)
 	{
 		appendOutProcDebugLog("reload requested hostId=" + hostId);
-		terminateOutProcPanel();
+		if (!ensureOutProcPanelStopped(false))
+			return;
 		hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 		ui->openPanelButton->setText(tr("Open panel"));
 		ui->statusLabel->setText(tr("Out-of-process VST reload requested"));
@@ -310,8 +472,11 @@ void VSTPluginFilterGUI::on_midiButton_clicked()
 {
 	if (!outProcMode)
 		initPlugin();
-	if (outProcMode && outProcGuiRunning && !midiConfig.empty())
-		terminateOutProcPanel();
+	if (outProcMode && !midiConfig.empty())
+	{
+		if (!ensureOutProcPanelStopped(true))
+			return;
+	}
 	const std::vector<VSTParameterDescriptor> parameters =
 		availableMidiParameters();
 	if (parameters.empty())
@@ -407,7 +572,12 @@ void VSTPluginFilterGUI::on_vst3ClassComboBox_currentIndexChanged(int index)
 
 	if (outProcMode)
 	{
-		terminateOutProcPanel();
+		if (!ensureOutProcPanelStopped(false))
+		{
+			QSignalBlocker blocker(ui->vst3ClassComboBox);
+			ui->vst3ClassComboBox->setCurrentIndex(vst3ClassIndex);
+			return;
+		}
 		hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 	}
 	else
@@ -433,7 +603,8 @@ void VSTPluginFilterGUI::openOutProcPanel()
 		{
 			if (!signalOutProcPanel(L"GuiShow"))
 			{
-				terminateOutProcPanel();
+				if (!ensureOutProcPanelStopped(true))
+					return;
 			}
 			else
 			{
@@ -446,7 +617,8 @@ void VSTPluginFilterGUI::openOutProcPanel()
 		{
 			if (!signalOutProcPanel(L"GuiHide"))
 			{
-				terminateOutProcPanel();
+				if (!ensureOutProcPanelStopped(true))
+					return;
 			}
 			else
 			{
@@ -457,7 +629,11 @@ void VSTPluginFilterGUI::openOutProcPanel()
 		}
 	}
 
-	if (signalOutProcPanel(L"GuiShow"))
+	// A stopped host with no final-write acknowledgement leaves its sidecar
+	// attached to this row. Do not reconnect to some other same-HostId process
+	// while that recovery state is pending.
+	const bool recoveringPreservedState = !outProcGuiConfigPath.isEmpty();
+	if (!recoveringPreservedState && signalOutProcPanel(L"GuiShow"))
 	{
 		outProcGuiRunning = true;
 		outProcGuiHidden = false;
@@ -478,20 +654,54 @@ void VSTPluginFilterGUI::openOutProcPanel()
 		return;
 	}
 
-	outProcGuiConfigPath = QDir::temp().absoluteFilePath("EqApoVSTGui-" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".opvs");
-	OutProcVSTConfig config;
-	config.libraryPath = library->getLibPath();
-	config.vst3ClassIndex = vst3ClassIndex;
-	config.chunkData = chunkData;
-	config.paramMap = paramMap;
-	config.midiConfig = midiConfig;
-	config.parameterDescriptors =
-		convertOutProcParameterDescriptors(outProcParameterDescriptors);
-	if (!OutProcWriteVSTConfig(outProcGuiConfigPath.toStdWString(), config))
+	bool launchPreservedState = recoveringPreservedState;
+	if (launchPreservedState)
 	{
-		QMessageBox::warning(this, tr("VST plugin"), tr("Could not create temporary VST host configuration."));
-		outProcGuiConfigPath.clear();
-		return;
+		OutProcVSTConfig preservedConfig;
+		if (!OutProcReadVSTConfig(
+			outProcGuiConfigPath.toStdWString(), preservedConfig))
+		{
+			const QMessageBox::StandardButton answer = QMessageBox::question(
+				this,
+				tr("VST plugin"),
+				tr("The preserved temporary VST state cannot be read. Discard it and reopen the panel from the state currently stored in this row?"),
+				QMessageBox::Yes | QMessageBox::Cancel,
+				QMessageBox::Cancel);
+			if (answer != QMessageBox::Yes)
+				return;
+			if (!removeExistingFileChecked(outProcGuiConfigPath))
+			{
+				QMessageBox::warning(
+					this,
+					tr("VST plugin"),
+					tr("The unreadable temporary VST state could not be removed. It was left unchanged."));
+				return;
+			}
+			outProcGuiConfigPath.clear();
+			launchPreservedState = false;
+		}
+	}
+
+	if (!launchPreservedState)
+	{
+		outProcGuiConfigPath = QDir::temp().absoluteFilePath("EqApoVSTGui-" + QUuid::createUuid().toString(QUuid::WithoutBraces) + ".opvs");
+		OutProcVSTConfig config;
+		config.libraryPath = library->getLibPath();
+		config.vst3ClassIndex = vst3ClassIndex;
+		config.chunkData = chunkData;
+		config.paramMap = paramMap;
+		config.midiConfig = midiConfig;
+		config.parameterDescriptors =
+			convertOutProcParameterDescriptors(outProcParameterDescriptors);
+		if (!OutProcWriteVSTConfig(outProcGuiConfigPath.toStdWString(), config))
+		{
+			QMessageBox::warning(this, tr("VST plugin"), tr("Could not create temporary VST host configuration."));
+			if (removeExistingFileChecked(outProcGuiConfigPath))
+			{
+				outProcGuiConfigPath.clear();
+			}
+			return;
+		}
 	}
 
 	QStringList arguments;
@@ -505,32 +715,76 @@ void VSTPluginFilterGUI::openOutProcPanel()
 	if (!QProcess::startDetached(hostPath, arguments, QCoreApplication::applicationDirPath(), &pid))
 	{
 		QMessageBox::warning(this, tr("VST plugin"), tr("Could not start the out-of-process VST host."));
-		QFile::remove(outProcGuiConfigPath);
-		outProcGuiConfigPath.clear();
+		if (!launchPreservedState)
+		{
+			if (removeExistingFileChecked(outProcGuiConfigPath))
+			{
+				outProcGuiConfigPath.clear();
+			}
+			else
+			{
+				QMessageBox::warning(
+					this, tr("VST plugin"),
+					tr("The temporary VST state could not be removed. It was left unchanged."));
+			}
+		}
 		return;
 	}
 
 	outProcGuiRunning = true;
 	outProcGuiPid = pid;
+	outProcGuiProcessCreationTime = pid > 0 && static_cast<quint64>(pid) <= MAXDWORD
+		? getOutProcProcessCreationTime(static_cast<DWORD>(pid)) : 0;
 	outProcGuiHidden = false;
+	outProcFinalStateCommitted = false;
 	ui->openPanelButton->setText(tr("Hide panel"));
 	ui->statusLabel->setText(tr("Out-of-process VST panel is open"));
 	idleTimer.start();
 }
 
-bool VSTPluginFilterGUI::signalOutProcPanel(const wchar_t* suffix)
+bool VSTPluginFilterGUI::signalOutProcPanel(
+	const wchar_t* suffix,
+	std::uint32_t* error)
 {
+	if (error != nullptr)
+		*error = ERROR_SUCCESS;
 	QString objectName = makeOutProcObjectName(hostId, suffix);
 	HANDLE eventHandle = OpenEventW(EVENT_MODIFY_STATE, FALSE, reinterpret_cast<LPCWSTR>(objectName.utf16()));
 	if (eventHandle == NULL)
 	{
-		appendOutProcDebugLog("signal " + QString::fromWCharArray(suffix) + " hostId=" + hostId + " open failed gle=" + QString::number(GetLastError()));
+		const DWORD openError = GetLastError();
+		if (error != nullptr)
+			*error = openError;
+		appendOutProcDebugLog("signal " + QString::fromWCharArray(suffix) + " hostId=" + hostId + " open failed gle=" + QString::number(openError));
 		return false;
 	}
 	const BOOL ok = SetEvent(eventHandle);
+	const DWORD signalError = ok ? ERROR_SUCCESS : GetLastError();
 	CloseHandle(eventHandle);
-	appendOutProcDebugLog("signal " + QString::fromWCharArray(suffix) + " hostId=" + hostId + " ok=" + QString(ok ? "true" : "false") + " gle=" + QString::number(GetLastError()));
+	if (error != nullptr)
+		*error = signalError;
+	appendOutProcDebugLog("signal " + QString::fromWCharArray(suffix) + " hostId=" + hostId + " ok=" + QString(ok ? "true" : "false") + " gle=" + QString::number(signalError));
 	return ok == TRUE;
+}
+
+static bool outProcPanelEventExists(
+	const QString& hostId,
+	const wchar_t* suffix,
+	std::uint32_t* error)
+{
+	if (error != nullptr)
+		*error = ERROR_SUCCESS;
+	const QString objectName = makeOutProcObjectName(hostId, suffix);
+	HANDLE eventHandle = OpenEventW(
+		SYNCHRONIZE, FALSE, reinterpret_cast<LPCWSTR>(objectName.utf16()));
+	if (eventHandle == NULL)
+	{
+		if (error != nullptr)
+			*error = GetLastError();
+		return false;
+	}
+	CloseHandle(eventHandle);
+	return true;
 }
 
 bool VSTPluginFilterGUI::consumeOutProcPanelSignal(const wchar_t* suffix)
@@ -544,111 +798,521 @@ bool VSTPluginFilterGUI::consumeOutProcPanelSignal(const wchar_t* suffix)
 	return waitResult == WAIT_OBJECT_0;
 }
 
-static bool terminateOutProcPidForHostId(const QString& hostId)
+struct OutProcProcessIdentity
 {
-	QString objectName = makeOutProcObjectName(hostId, L"GuiInfo");
-	HANDLE mapping = OpenFileMappingW(FILE_MAP_READ, FALSE, reinterpret_cast<LPCWSTR>(objectName.utf16()));
-	if (mapping == NULL)
-	{
-		appendOutProcDebugLog("pid mapping open failed hostId=" + hostId + " gle=" + QString::number(GetLastError()));
-		return false;
-	}
+	DWORD processId = 0;
+	std::uint64_t processCreationTime = 0;
+};
 
-	OutProcGuiInfo* info = static_cast<OutProcGuiInfo*>(MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, sizeof(OutProcGuiInfo)));
-	if (info == nullptr)
-	{
-		CloseHandle(mapping);
-		appendOutProcDebugLog("pid mapping view failed hostId=" + hostId + " gle=" + QString::number(GetLastError()));
-		return false;
-	}
+static constexpr DWORD outProcGuiExitGraceMs = 2000;
+static constexpr DWORD outProcGuiForceExitWaitMs = 1000;
 
-	const DWORD pid = (info->magic == OUTPROC_GUI_INFO_MAGIC && info->version == OUTPROC_GUI_INFO_VERSION) ? info->processId : 0;
-	UnmapViewOfFile(info);
-	CloseHandle(mapping);
+static std::uint64_t queryOutProcProcessCreationTime(HANDLE process)
+{
+	FILETIME creationTime = {};
+	FILETIME exitTime = {};
+	FILETIME kernelTime = {};
+	FILETIME userTime = {};
+	if (!GetProcessTimes(process, &creationTime, &exitTime, &kernelTime, &userTime))
+		return 0;
 
-	if (pid == 0 || pid == GetCurrentProcessId())
-	{
-		appendOutProcDebugLog("pid mapping invalid hostId=" + hostId + " pid=" + QString::number(pid));
-		return false;
-	}
+	return (static_cast<std::uint64_t>(creationTime.dwHighDateTime) << 32) |
+		creationTime.dwLowDateTime;
+}
 
-	HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pid);
+static std::uint64_t getOutProcProcessCreationTime(DWORD processId)
+{
+	HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, processId);
 	if (process == NULL)
-	{
-		appendOutProcDebugLog("pid mapping open process failed hostId=" + hostId + " pid=" + QString::number(pid) + " gle=" + QString::number(GetLastError()));
-		return false;
-	}
+		return 0;
 
-	TerminateProcess(process, 0);
-	WaitForSingleObject(process, 1000);
+	const std::uint64_t creationTime = queryOutProcProcessCreationTime(process);
 	CloseHandle(process);
-	appendOutProcDebugLog("pid mapping terminated hostId=" + hostId + " pid=" + QString::number(pid));
-	return true;
+	return creationTime;
 }
 
 static QString makeOutProcPidPath(const QString& hostId)
 {
-	QString safeId = hostId;
-	for (QChar& ch : safeId)
-	{
-		const bool ok = ch.isLetterOrNumber() || ch == '-' || ch == '_';
-		if (!ok)
-			ch = '_';
-	}
+	const QString safeId = makeSafeOutProcSessionId(hostId);
 	return QDir::temp().absoluteFilePath("EqApoOutProcHost-" + safeId + ".pid");
 }
 
-static bool terminateOutProcPidFileForHostId(const QString& hostId)
+static OutProcProcessIdentity readOutProcProcessIdentityMapping(
+	const QString& hostId,
+	bool& lookupFailed)
 {
+	lookupFailed = false;
+	OutProcProcessIdentity identity;
+	const QString objectName = makeOutProcObjectName(hostId, L"GuiInfo");
+	HANDLE mapping = OpenFileMappingW(
+		FILE_MAP_READ, FALSE, reinterpret_cast<LPCWSTR>(objectName.utf16()));
+	if (mapping == NULL)
+	{
+		const DWORD error = GetLastError();
+		lookupFailed = error != ERROR_FILE_NOT_FOUND;
+		appendOutProcDebugLog("pid mapping open failed hostId=" + hostId +
+			" gle=" + QString::number(error));
+		return identity;
+	}
+
+	const SIZE_T prefixSize = offsetof(OutProcGuiInfo, processCreationTime);
+	const OutProcGuiInfo* prefix = static_cast<const OutProcGuiInfo*>(
+		MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, prefixSize));
+	if (prefix != nullptr)
+	{
+		const std::uint32_t magic = prefix->magic;
+		const std::uint32_t version = prefix->version;
+		const DWORD processId = prefix->processId;
+		UnmapViewOfFile(prefix);
+
+		if (magic == OUTPROC_GUI_INFO_MAGIC && version == 1)
+		{
+			// Version 1 did not carry a creation-time token. It is safe to wait
+			// on its live mapping PID, but never to force-terminate it.
+			identity.processId = processId;
+		}
+		else if (magic == OUTPROC_GUI_INFO_MAGIC && version == OUTPROC_GUI_INFO_VERSION)
+		{
+			const OutProcGuiInfo* info = static_cast<const OutProcGuiInfo*>(
+				MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, sizeof(OutProcGuiInfo)));
+			if (info != nullptr)
+			{
+				if (info->magic == OUTPROC_GUI_INFO_MAGIC &&
+					info->version == OUTPROC_GUI_INFO_VERSION &&
+					info->processId == processId)
+				{
+					identity.processId = processId;
+					identity.processCreationTime = info->processCreationTime;
+				}
+				else
+					lookupFailed = true;
+				UnmapViewOfFile(info);
+			}
+			else
+				lookupFailed = true;
+		}
+		else
+			lookupFailed = true;
+	}
+	else
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("pid mapping view failed hostId=" + hostId +
+			" gle=" + QString::number(GetLastError()));
+	}
+	CloseHandle(mapping);
+
+	if (identity.processId == 0 || identity.processId == GetCurrentProcessId())
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("pid mapping invalid hostId=" + hostId +
+			" pid=" + QString::number(identity.processId));
+		return OutProcProcessIdentity();
+	}
+	return identity;
+}
+
+static OutProcProcessIdentity readOutProcProcessIdentityPidFile(
+	const QString& hostId,
+	bool& lookupFailed)
+{
+	lookupFailed = false;
+	OutProcProcessIdentity identity;
 	const QString path = makeOutProcPidPath(hostId);
 	QFile file(path);
 	if (!file.open(QIODevice::ReadOnly | QIODevice::Text))
 	{
-		appendOutProcDebugLog("pid file open failed hostId=" + hostId + " path=" + path);
-		return false;
+		// Absence is the only benign failure: an existing but unreadable
+		// identity file means a host may still be alive and must fail closed.
+		const DWORD attributes = GetFileAttributesW(
+			reinterpret_cast<LPCWSTR>(path.utf16()));
+		const DWORD attributeError = attributes == INVALID_FILE_ATTRIBUTES
+			? GetLastError() : ERROR_SUCCESS;
+		lookupFailed = attributes != INVALID_FILE_ATTRIBUTES ||
+			(attributeError != ERROR_FILE_NOT_FOUND &&
+				attributeError != ERROR_PATH_NOT_FOUND);
+		if (lookupFailed)
+			appendOutProcDebugLog("pid file could not be opened hostId=" + hostId +
+				" path=" + path);
+		return identity;
 	}
-
-	bool ok = false;
-	const DWORD pid = file.readAll().trimmed().toULong(&ok);
-	file.close();
-	if (!ok || pid == 0 || pid == GetCurrentProcessId())
+	if (file.size() <= 0 || file.size() > 128)
 	{
-		appendOutProcDebugLog("pid file invalid hostId=" + hostId + " path=" + path + " pid=" + QString::number(pid));
-		return false;
+		lookupFailed = true;
+		appendOutProcDebugLog("pid file size invalid hostId=" + hostId +
+			" path=" + path);
+		return identity;
 	}
 
-	HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, pid);
-	if (process == NULL)
+	const QByteArray contents = file.readAll();
+	if (file.error() != QFileDevice::NoError)
 	{
-		appendOutProcDebugLog("pid file open process failed hostId=" + hostId + " pid=" + QString::number(pid) + " gle=" + QString::number(GetLastError()));
-		return false;
+		lookupFailed = true;
+		appendOutProcDebugLog("pid file read failed hostId=" + hostId +
+			" path=" + path);
+		return identity;
+	}
+	const QStringList tokens = QString::fromLatin1(contents)
+		.simplified().split(' ', Qt::SkipEmptyParts);
+	if (tokens.size() != 2)
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("unverified legacy or malformed pid file ignored hostId=" +
+			hostId + " path=" + path);
+		return identity;
 	}
 
-	TerminateProcess(process, 0);
-	WaitForSingleObject(process, 1000);
-	CloseHandle(process);
-	QFile::remove(path);
-	appendOutProcDebugLog("pid file terminated hostId=" + hostId + " pid=" + QString::number(pid) + " path=" + path);
-	return true;
+	bool processIdOk = false;
+	bool creationTimeOk = false;
+	const qulonglong processId = tokens[0].toULongLong(&processIdOk);
+	const qulonglong creationTime = tokens[1].toULongLong(&creationTimeOk);
+	if (!processIdOk || !creationTimeOk || processId == 0 ||
+		processId > MAXDWORD || creationTime == 0 ||
+		static_cast<DWORD>(processId) == GetCurrentProcessId())
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("pid file identity invalid hostId=" + hostId +
+			" path=" + path);
+		return identity;
+	}
+
+	identity.processId = static_cast<DWORD>(processId);
+	identity.processCreationTime = static_cast<std::uint64_t>(creationTime);
+	return identity;
 }
 
-static bool terminateOutProcPid(qint64 pid, const QString& hostId)
+static QString canonicalExecutablePath(const QString& path)
 {
-	if (pid <= 0 || static_cast<DWORD>(pid) == GetCurrentProcessId())
-		return false;
+	QFileInfo info(path);
+	QString canonical = info.canonicalFilePath();
+	if (canonical.isEmpty())
+		canonical = info.absoluteFilePath();
+	return QDir::cleanPath(canonical);
+}
 
-	HANDLE process = OpenProcess(PROCESS_TERMINATE | SYNCHRONIZE, FALSE, static_cast<DWORD>(pid));
-	if (process == NULL)
+static bool isExpectedOutProcHostProcess(
+	HANDLE process,
+	bool* queryFailed = nullptr)
+{
+	if (queryFailed != nullptr)
+		*queryFailed = false;
+	wchar_t imagePath[32768] = {};
+	DWORD imagePathLength = static_cast<DWORD>(sizeof(imagePath) / sizeof(imagePath[0]));
+	if (!QueryFullProcessImageNameW(process, 0, imagePath, &imagePathLength))
 	{
-		appendOutProcDebugLog("detached pid open process failed hostId=" + hostId + " pid=" + QString::number(pid) + " gle=" + QString::number(GetLastError()));
+		if (queryFailed != nullptr)
+			*queryFailed = true;
 		return false;
 	}
 
-	TerminateProcess(process, 0);
-	WaitForSingleObject(process, 1000);
+	const QString actualPath = canonicalExecutablePath(
+		QString::fromWCharArray(imagePath, static_cast<int>(imagePathLength)));
+	const QString expectedPath = canonicalExecutablePath(
+		QDir(QCoreApplication::applicationDirPath()).absoluteFilePath("EqApoOutProcHost.exe"));
+	return QString::compare(actualPath, expectedPath, Qt::CaseInsensitive) == 0;
+}
+
+enum class OutProcProcessIdentityStatus
+{
+	Live,
+	Stale,
+	Unverifiable
+};
+
+static OutProcProcessIdentityStatus probeOutProcProcessIdentity(
+	const OutProcProcessIdentity& identity,
+	const QString& hostId,
+	const char* source)
+{
+	if (identity.processId == 0 ||
+		identity.processId == GetCurrentProcessId() ||
+		identity.processCreationTime == 0)
+	{
+		appendOutProcDebugLog(QString::fromLatin1(source) +
+			" identity is incomplete hostId=" + hostId);
+		return OutProcProcessIdentityStatus::Unverifiable;
+	}
+
+	HANDLE process = OpenProcess(
+		SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION,
+		FALSE,
+		identity.processId);
+	if (process == NULL)
+	{
+		const DWORD error = GetLastError();
+		appendOutProcDebugLog(QString::fromLatin1(source) +
+			" identity process open result hostId=" + hostId +
+			" pid=" + QString::number(identity.processId) +
+			" gle=" + QString::number(error));
+		return error == ERROR_INVALID_PARAMETER
+			? OutProcProcessIdentityStatus::Stale
+			: OutProcProcessIdentityStatus::Unverifiable;
+	}
+
+	const DWORD waitResult = WaitForSingleObject(process, 0);
+	if (waitResult == WAIT_OBJECT_0)
+	{
+		CloseHandle(process);
+		return OutProcProcessIdentityStatus::Stale;
+	}
+	if (waitResult != WAIT_TIMEOUT)
+	{
+		CloseHandle(process);
+		return OutProcProcessIdentityStatus::Unverifiable;
+	}
+
+	const std::uint64_t actualCreationTime =
+		queryOutProcProcessCreationTime(process);
+	if (actualCreationTime == 0)
+	{
+		CloseHandle(process);
+		return OutProcProcessIdentityStatus::Unverifiable;
+	}
+	if (actualCreationTime != identity.processCreationTime)
+	{
+		CloseHandle(process);
+		return OutProcProcessIdentityStatus::Stale;
+	}
+
+	bool imageQueryFailed = false;
+	const bool expectedImage = isExpectedOutProcHostProcess(
+		process, &imageQueryFailed);
 	CloseHandle(process);
-	appendOutProcDebugLog("detached pid terminated hostId=" + hostId + " pid=" + QString::number(pid));
-	return true;
+	if (imageQueryFailed)
+		return OutProcProcessIdentityStatus::Unverifiable;
+	return expectedImage
+		? OutProcProcessIdentityStatus::Live
+		: OutProcProcessIdentityStatus::Stale;
+}
+
+static OutProcProcessIdentity readLiveOutProcProcessIdentityPidFile(
+	const QString& hostId,
+	bool& lookupFailed)
+{
+	OutProcProcessIdentity identity = readOutProcProcessIdentityPidFile(
+		hostId, lookupFailed);
+	if (lookupFailed || identity.processId == 0)
+		return identity;
+
+	const OutProcProcessIdentityStatus status = probeOutProcProcessIdentity(
+		identity, hostId, "pid file");
+	if (status == OutProcProcessIdentityStatus::Unverifiable)
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("pid file live identity unverifiable hostId=" + hostId);
+		return OutProcProcessIdentity();
+	}
+	if (status == OutProcProcessIdentityStatus::Stale)
+	{
+		appendOutProcDebugLog(
+			"stale pid file ignored; reused or exited pid file retained for commit cleanup hostId=" +
+			hostId);
+		return OutProcProcessIdentity();
+	}
+	return identity;
+}
+
+static bool stopOutProcProcess(
+	const OutProcProcessIdentity& identity,
+	const QString& hostId,
+	bool& finalStateCommitted)
+{
+	finalStateCommitted = false;
+	if (identity.processId == 0 || identity.processId == GetCurrentProcessId())
+		return false;
+
+	const bool forceTerminationAllowed = identity.processCreationTime != 0;
+	DWORD access = SYNCHRONIZE | PROCESS_QUERY_LIMITED_INFORMATION;
+	if (forceTerminationAllowed)
+		access |= PROCESS_TERMINATE;
+	HANDLE process = OpenProcess(access, FALSE, identity.processId);
+	if (process == NULL)
+	{
+		const DWORD error = GetLastError();
+		appendOutProcDebugLog("host process open failed hostId=" + hostId +
+			" pid=" + QString::number(identity.processId) +
+			" gle=" + QString::number(error));
+		return error == ERROR_INVALID_PARAMETER;
+	}
+
+	if (forceTerminationAllowed &&
+		(queryOutProcProcessCreationTime(process) != identity.processCreationTime ||
+			!isExpectedOutProcHostProcess(process)))
+	{
+		appendOutProcDebugLog("host process identity mismatch; refusing termination hostId=" +
+			hostId + " pid=" + QString::number(identity.processId));
+		CloseHandle(process);
+		return false;
+	}
+
+	bool forcedTermination = false;
+	DWORD waitResult = WaitForSingleObject(process, outProcGuiExitGraceMs);
+	if (waitResult == WAIT_TIMEOUT && forceTerminationAllowed)
+	{
+		appendOutProcDebugLog("host graceful exit timed out; forcing termination hostId=" +
+			hostId + " pid=" + QString::number(identity.processId));
+		if (TerminateProcess(process, 23))
+		{
+			forcedTermination = true;
+			waitResult = WaitForSingleObject(process, outProcGuiForceExitWaitMs);
+		}
+		else if (WaitForSingleObject(process, 0) == WAIT_OBJECT_0)
+			waitResult = WAIT_OBJECT_0;
+	}
+	else if (waitResult == WAIT_TIMEOUT)
+	{
+		appendOutProcDebugLog("legacy host did not exit during grace period; "
+			"refusing unverified force termination hostId=" + hostId +
+			" pid=" + QString::number(identity.processId));
+	}
+	const bool stopped = waitResult == WAIT_OBJECT_0;
+	if (stopped && !forcedTermination)
+	{
+		DWORD processExitCode = STILL_ACTIVE;
+		const BOOL exitCodeRead = GetExitCodeProcess(process, &processExitCode);
+		const DWORD exitCodeReadError = exitCodeRead
+			? ERROR_SUCCESS
+			: GetLastError();
+		if (exitCodeRead &&
+			processExitCode == ERROR_SUCCESS)
+		{
+			finalStateCommitted = true;
+		}
+		else
+		{
+			appendOutProcDebugLog("host final state was not acknowledged hostId=" +
+				hostId + " exitCode=" + QString::number(processExitCode) +
+				" gle=" + QString::number(exitCodeReadError));
+		}
+	}
+	CloseHandle(process);
+	return stopped;
+}
+
+static OutProcProcessIdentity resolveOutProcProcessIdentity(
+	const QString& hostId,
+	qint64 launchedProcessId,
+	std::uint64_t launchedProcessCreationTime,
+	bool& lookupFailed,
+	bool& launchedIdentityStale)
+{
+	lookupFailed = false;
+	launchedIdentityStale = false;
+	OutProcProcessIdentity launched;
+	if (launchedProcessId > 0 && static_cast<quint64>(launchedProcessId) <= MAXDWORD)
+	{
+		launched.processId = static_cast<DWORD>(launchedProcessId);
+		launched.processCreationTime = launchedProcessCreationTime;
+	}
+
+	bool mappingLookupFailed = false;
+	OutProcProcessIdentity mapped = readOutProcProcessIdentityMapping(
+		hostId, mappingLookupFailed);
+	if (mappingLookupFailed)
+	{
+		lookupFailed = true;
+		return OutProcProcessIdentity();
+	}
+
+	auto identitiesConflict = [](const OutProcProcessIdentity& first,
+		const OutProcProcessIdentity& second)
+	{
+		return first.processId != 0 && second.processId != 0 &&
+			(first.processId != second.processId ||
+				(first.processCreationTime != 0 &&
+					second.processCreationTime != 0 &&
+					first.processCreationTime != second.processCreationTime));
+	};
+	auto failIdentityConflict = [&]()
+	{
+		lookupFailed = true;
+		appendOutProcDebugLog("conflicting host identities; refusing termination hostId=" +
+			hostId + " launchedPid=" + QString::number(launched.processId) +
+			" mappedPid=" + QString::number(mapped.processId));
+		return OutProcProcessIdentity();
+	};
+
+	// A PID and creation token recorded from this QProcess launch are the
+	// authoritative identity. A named mapping may confirm them, but must never
+	// redirect termination to another same-session host.
+	if (launched.processId != 0)
+	{
+		if (launched.processCreationTime != 0)
+		{
+			const OutProcProcessIdentityStatus launchedStatus =
+				probeOutProcProcessIdentity(launched, hostId, "launched");
+			if (launchedStatus == OutProcProcessIdentityStatus::Unverifiable)
+			{
+				lookupFailed = true;
+				appendOutProcDebugLog(
+					"launched host identity is unverifiable; refusing termination hostId=" +
+					hostId);
+				return OutProcProcessIdentity();
+			}
+			if (launchedStatus == OutProcProcessIdentityStatus::Stale)
+			{
+				launchedIdentityStale = true;
+				// A different named mapping must not redirect a stale launch
+				// record to some other process. Fail closed while such a mapping
+				// exists; otherwise the caller can preserve the sidecar and clear
+				// the obsolete in-memory PID.
+				if (mapped.processId != 0)
+					return failIdentityConflict();
+				appendOutProcDebugLog(
+					"launched host identity is stale hostId=" + hostId +
+					" pid=" + QString::number(launched.processId));
+				return OutProcProcessIdentity();
+			}
+		}
+		if (identitiesConflict(launched, mapped))
+			return failIdentityConflict();
+		if (launched.processCreationTime != 0)
+			return launched;
+		if (mapped.processId == launched.processId &&
+			mapped.processCreationTime != 0)
+			return mapped;
+
+		bool pidLookupFailed = false;
+		const OutProcProcessIdentity pidFile =
+			readLiveOutProcProcessIdentityPidFile(hostId, pidLookupFailed);
+		if (pidLookupFailed)
+		{
+			lookupFailed = true;
+			return OutProcProcessIdentity();
+		}
+		if (pidFile.processId == 0)
+			return launched;
+		if (identitiesConflict(launched, pidFile))
+			return failIdentityConflict();
+		return pidFile;
+	}
+
+	if (mapped.processId != 0)
+	{
+		if (mapped.processCreationTime != 0)
+			return mapped;
+
+		bool pidLookupFailed = false;
+		const OutProcProcessIdentity pidFile =
+			readLiveOutProcProcessIdentityPidFile(hostId, pidLookupFailed);
+		if (pidLookupFailed)
+		{
+			lookupFailed = true;
+			return OutProcProcessIdentity();
+		}
+		if (pidFile.processId == 0)
+			return mapped;
+		if (identitiesConflict(mapped, pidFile))
+			return failIdentityConflict();
+		mapped.processCreationTime = pidFile.processCreationTime;
+		return mapped;
+	}
+
+	bool pidLookupFailed = false;
+	const OutProcProcessIdentity pidFile =
+		readLiveOutProcProcessIdentityPidFile(hostId, pidLookupFailed);
+	lookupFailed = pidLookupFailed;
+	return pidFile;
 }
 
 void VSTPluginFilterGUI::closeOutProcPanel()
@@ -666,31 +1330,255 @@ void VSTPluginFilterGUI::closeOutProcPanel()
 	}
 }
 
-void VSTPluginFilterGUI::terminateOutProcPanel()
+bool VSTPluginFilterGUI::terminateOutProcPanel(
+	bool* stateChanged,
+	QString* failureMessage,
+	bool* failureReported)
 {
+	if (stateChanged != nullptr)
+		*stateChanged = false;
+	if (failureMessage != nullptr)
+		failureMessage->clear();
+	if (failureReported != nullptr)
+		*failureReported = false;
 	idleTimer.stop();
 	appendOutProcDebugLog("terminate panel hostId=" + hostId + " running=" + QString(outProcGuiRunning ? "true" : "false") + " pid=" + QString::number(outProcGuiPid));
-	signalOutProcPanel(L"GuiExit");
-	terminateOutProcPidForHostId(hostId);
-	terminateOutProcPidFileForHostId(hostId);
-	terminateOutProcPid(outProcGuiPid, hostId);
+	bool identityLookupFailed = false;
+	bool launchedIdentityStale = false;
+	const OutProcProcessIdentity processIdentity = resolveOutProcProcessIdentity(
+		hostId, outProcGuiPid, outProcGuiProcessCreationTime,
+		identityLookupFailed, launchedIdentityStale);
+	std::uint32_t exitEventLookupError = ERROR_SUCCESS;
+	const bool exitEventExists = outProcPanelEventExists(
+		hostId, L"GuiExit", &exitEventLookupError);
+	const bool exitEventLookupFailed = !exitEventExists &&
+		exitEventLookupError != ERROR_FILE_NOT_FOUND;
+	auto resolveUnconfirmedState = [&](const QString& canceledMessage)
+	{
+		OutProcVSTConfig snapshot;
+		const bool snapshotReadable = !outProcGuiConfigPath.isEmpty() &&
+			OutProcReadVSTConfig(outProcGuiConfigPath.toStdWString(), snapshot);
+		QMessageBox recoveryBox(
+			QMessageBox::Warning,
+			tr("VST plugin"),
+			tr("The out-of-process VST host stopped without confirming its final state. Its last readable snapshot may be incomplete. Choose whether to use that snapshot, discard the temporary state, or leave this row unchanged."),
+			QMessageBox::NoButton,
+			this);
+		QPushButton* useSnapshotButton = snapshotReadable
+			? recoveryBox.addButton(
+				tr("Use last readable snapshot"), QMessageBox::AcceptRole)
+			: nullptr;
+		QPushButton* discardButton = recoveryBox.addButton(QMessageBox::Discard);
+		QPushButton* cancelButton = recoveryBox.addButton(QMessageBox::Cancel);
+		recoveryBox.setDefaultButton(cancelButton);
+		recoveryBox.setEscapeButton(cancelButton);
+		recoveryBox.exec();
+		if (failureReported != nullptr)
+			*failureReported = true;
 
+		const bool useSnapshot = useSnapshotButton != nullptr &&
+			recoveryBox.clickedButton() == useSnapshotButton;
+		if (!useSnapshot && recoveryBox.clickedButton() != discardButton)
+		{
+			if (failureMessage != nullptr)
+				*failureMessage = canceledMessage;
+			return false;
+		}
+
+		const QString preservedPath = outProcGuiConfigPath;
+		if (!removeExistingFileChecked(preservedPath))
+		{
+			appendOutProcDebugLog(
+				"confirmed recovery choice could not remove sidecar hostId=" +
+				hostId + " path=" + preservedPath);
+			if (failureMessage != nullptr)
+			{
+				*failureMessage = tr("The temporary VST state could not be removed. It was left unchanged.");
+			}
+			QMessageBox::warning(
+				this, tr("VST plugin"),
+				failureMessage != nullptr ? *failureMessage :
+					tr("The temporary VST state could not be removed. It was left unchanged."));
+			return false;
+		}
+
+		outProcGuiConfigPath.clear();
+		outProcFinalStateCommitted = false;
+		bool recoveredStateChanged = false;
+		if (useSnapshot)
+		{
+			recoveredStateChanged = chunkData != snapshot.chunkData ||
+				paramMap != snapshot.paramMap;
+			chunkData = snapshot.chunkData;
+			paramMap = snapshot.paramMap;
+			outProcParameterDescriptors = convertOutProcParameterDescriptors(
+				snapshot.parameterDescriptors);
+		}
+		if (stateChanged != nullptr)
+			*stateChanged = recoveredStateChanged;
+		return true;
+	};
+	if (identityLookupFailed || exitEventLookupFailed ||
+		(outProcGuiConfigPath.isEmpty() && outProcGuiPid <= 0 &&
+			(processIdentity.processId != 0 || exitEventExists)))
+	{
+		appendOutProcDebugLog("host identity or state sidecar is not verifiable; preserving row hostId=" +
+			hostId);
+		if (failureMessage != nullptr)
+		{
+			*failureMessage = tr("The existing out-of-process VST host or its state file could not be verified. This row was left unchanged. Close the host and reload the profile before trying again.");
+		}
+		if (outProcGuiRunning)
+			idleTimer.start();
+		return false;
+	}
+	bool finalStateCommitted = outProcFinalStateCommitted;
+	bool processStopped = launchedIdentityStale && !exitEventExists;
+	if (!processStopped && processIdentity.processId == 0 &&
+		!exitEventExists && !exitEventLookupFailed && outProcGuiPid <= 0)
+	{
+		processStopped = true;
+	}
+	if (!processStopped &&
+		(processIdentity.processId != 0 || exitEventExists))
+		signalOutProcPanel(L"GuiExit");
+	if (!processStopped && processIdentity.processId != 0)
+	{
+		bool stopAcknowledged = false;
+		processStopped = stopOutProcProcess(
+			processIdentity, hostId, stopAcknowledged);
+		finalStateCommitted = finalStateCommitted || stopAcknowledged;
+	}
+	if (!processStopped)
+	{
+		appendOutProcDebugLog("host termination not confirmed; preserving state hostId=" +
+			hostId);
+		if (failureMessage != nullptr)
+		{
+			*failureMessage = tr("The out-of-process VST host could not be stopped. This row was left unchanged. Close the host and try again.");
+		}
+		if (outProcGuiRunning)
+			idleTimer.start();
+		return false;
+	}
+	outProcFinalStateCommitted = finalStateCommitted;
+	if (!outProcGuiConfigPath.isEmpty() && !finalStateCommitted)
+	{
+		appendOutProcDebugLog("host stopped without a final state acknowledgement; preserving sidecar hostId=" +
+			hostId + " path=" + outProcGuiConfigPath);
+		if (failureMessage != nullptr)
+		{
+			*failureMessage = tr("The out-of-process VST host stopped, but did not confirm that its final state was saved. This row and its temporary state file were left unchanged. Open the panel again to recover from the last readable snapshot.");
+		}
+		if (!markOutProcPanelStoppedPreservingState(failureMessage))
+			return false;
+		return resolveUnconfirmedState(
+			failureMessage != nullptr ? *failureMessage : QString());
+	}
+
+	bool recoveredStateChanged = false;
+	OutProcVSTConfig updatedConfig;
+	bool hasUpdatedConfig = false;
 	if (!outProcGuiConfigPath.isEmpty())
 	{
-		OutProcVSTConfig updatedConfig;
-		if (OutProcReadVSTConfig(outProcGuiConfigPath.toStdWString(), updatedConfig))
+		if (!OutProcReadVSTConfig(outProcGuiConfigPath.toStdWString(), updatedConfig))
 		{
-			chunkData = updatedConfig.chunkData;
-			paramMap = updatedConfig.paramMap;
-			outProcParameterDescriptors = convertOutProcParameterDescriptors(
-				updatedConfig.parameterDescriptors);
+			appendOutProcDebugLog("host stopped but state recovery failed; preserving sidecar hostId=" +
+				hostId + " path=" + outProcGuiConfigPath);
+			if (failureMessage != nullptr)
+			{
+				*failureMessage = tr("The out-of-process VST host stopped, but its latest state could not be recovered. This row and its temporary state file were left unchanged. Try again before removing the row.");
+			}
+			if (!markOutProcPanelStoppedPreservingState(failureMessage))
+				return false;
+			return false;
 		}
-		QFile::remove(outProcGuiConfigPath);
+		recoveredStateChanged = chunkData != updatedConfig.chunkData ||
+			paramMap != updatedConfig.paramMap;
+		hasUpdatedConfig = true;
+	}
+
+	if (!markOutProcPanelStoppedPreservingState(failureMessage))
+		return false;
+	if (!removeExistingFileChecked(outProcGuiConfigPath))
+	{
+		appendOutProcDebugLog(
+			"recovered state sidecar cleanup failed; retaining retry state hostId=" +
+			hostId + " path=" + outProcGuiConfigPath);
+		if (failureMessage != nullptr)
+		{
+			*failureMessage = tr("The temporary VST state could not be removed. It was left unchanged.");
+		}
+		return false;
+	}
+	if (hasUpdatedConfig)
+	{
+		chunkData = updatedConfig.chunkData;
+		paramMap = updatedConfig.paramMap;
+		outProcParameterDescriptors = convertOutProcParameterDescriptors(
+			updatedConfig.parameterDescriptors);
 	}
 	outProcGuiConfigPath.clear();
+	outProcFinalStateCommitted = false;
+	if (stateChanged != nullptr)
+		*stateChanged = recoveredStateChanged;
+	return true;
+}
+
+bool VSTPluginFilterGUI::markOutProcPanelStoppedPreservingState(
+	QString* failureMessage)
+{
+	idleTimer.stop();
+	const QString pidPath = makeOutProcPidPath(hostId);
+	const bool pidRemoved = removeExistingFileChecked(pidPath);
+	if (!pidRemoved)
+	{
+		appendOutProcDebugLog(
+			"stopped host pid file could not be removed; retaining retry state hostId=" +
+			hostId + " path=" + pidPath);
+		if (failureMessage != nullptr)
+		{
+			*failureMessage = tr("The temporary VST state could not be removed. It was left unchanged.");
+		}
+		return false;
+	}
 	outProcGuiRunning = false;
 	outProcGuiPid = 0;
+	outProcGuiProcessCreationTime = 0;
 	outProcGuiHidden = false;
+	ui->openPanelButton->setText(tr("Open panel"));
+	return true;
+}
+
+bool VSTPluginFilterGUI::ensureOutProcPanelStopped(
+	bool synchronizeRecoveredState)
+{
+	bool stateChanged = false;
+	QString failureMessage;
+	bool failureReported = false;
+	if (!terminateOutProcPanel(
+		&stateChanged, &failureMessage, &failureReported))
+	{
+		ui->statusLabel->setText(failureMessage);
+		ui->statusLabel->setProperty("statusLevel", "danger");
+		ui->statusLabel->style()->unpolish(ui->statusLabel);
+		ui->statusLabel->style()->polish(ui->statusLabel);
+		if (!failureReported)
+			QMessageBox::warning(this, tr("VST plugin"), failureMessage);
+		return false;
+	}
+
+	// The row can remain visible after a successful commit (for example, when
+	// a later row vetoes a batch commit).
+	// Reflect the stopped host instead of leaving stale "panel is open" UI.
+	ui->openPanelButton->setText(tr("Open panel"));
+	ui->statusLabel->setText(tr("Out-of-process VST host"));
+	ui->statusLabel->setProperty("statusLevel", "info");
+	ui->statusLabel->style()->unpolish(ui->statusLabel);
+	ui->statusLabel->style()->polish(ui->statusLabel);
+	if (synchronizeRecoveredState && stateChanged)
+		emit updateModel();
+	return true;
 }
 
 void VSTPluginFilterGUI::applyDialog()
@@ -813,7 +1701,17 @@ void VSTPluginFilterGUI::on_pathLineEdit_editingFinished()
 		int oldId = 0;
 		if (outProcMode)
 		{
-			terminateOutProcPanel();
+			if (!ensureOutProcPanelStopped(false))
+			{
+				QDir pluginsDir(QString::fromStdWString(
+					VSTPluginLibrary::getDefaultPluginPath()));
+				QString displayPath = QDir::toNativeSeparators(
+					pluginsDir.relativeFilePath(currentPath));
+				if (displayPath.startsWith(QDir::toNativeSeparators("../../")))
+					displayPath = currentPath;
+				ui->pathLineEdit->setText(displayPath);
+				return;
+			}
 			hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 		}
 		if (effect != NULL)

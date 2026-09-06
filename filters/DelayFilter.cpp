@@ -19,6 +19,7 @@
 
 #include "stdafx.h"
 #include <cmath>
+#include <limits>
 
 #include "helpers/MemoryHelper.h"
 #include "DelayFilter.h"
@@ -26,9 +27,13 @@
 using namespace std;
 
 DelayFilter::DelayFilter(double delay, bool isMs)
-	: delay(delay), isMs(isMs)
+	: delay(delay),
+	  isMs(isMs),
+	  bufferLength(0),
+	  channelCount(0),
+	  buffers(NULL),
+	  bufferOffset(0)
 {
-	buffers = NULL;
 }
 
 DelayFilter::~DelayFilter()
@@ -40,18 +45,41 @@ vector<wstring> DelayFilter::initialize(float sampleRate, unsigned maxFrameCount
 {
 	cleanup();
 
-	channelCount = (unsigned)channelNames.size();
+	if (channelNames.size() > (std::numeric_limits<unsigned>::max)())
+	{
+		channelCount = 0;
+		return channelNames;
+	}
+	channelCount = static_cast<unsigned>(channelNames.size());
 
-	if (isMs)
-		bufferLength = (unsigned)(sampleRate * delay / 1000.0 + 0.5);
-	else
-		bufferLength = (unsigned)(delay + 0.5);
+	const double roundedLength = isMs ?
+		static_cast<double>(sampleRate) * delay / 1000.0 + 0.5 : delay + 0.5;
+	if (!std::isfinite(roundedLength) || roundedLength < 0.0 ||
+		roundedLength > (std::numeric_limits<unsigned>::max)())
+		return channelNames;
+	bufferLength = static_cast<unsigned>(roundedLength);
+	if (bufferLength == 0)
+		return channelNames;
 
-	buffers = (double**)MemoryHelper::alloc(sizeof(double*) * channelCount);
+	buffers = static_cast<double**>(MemoryHelper::allocArray(
+		channelCount, sizeof(double*)));
+	if (buffers == NULL)
+	{
+		bufferLength = 0;
+		return channelNames;
+	}
+	memset(buffers, 0, channelCount * sizeof(double*));
 
 	for (unsigned i = 0; i < channelCount; i++)
 	{
-		buffers[i] = (double*)MemoryHelper::alloc(sizeof(double) * bufferLength);
+		buffers[i] = static_cast<double*>(MemoryHelper::allocArray(
+			bufferLength, sizeof(double)));
+		if (buffers[i] == NULL)
+		{
+			cleanup();
+			bufferLength = 0;
+			return channelNames;
+		}
 		memset(buffers[i], 0, sizeof(double) * bufferLength);
 	}
 
@@ -118,6 +146,8 @@ void DelayFilter::cleanup()
 		MemoryHelper::free(buffers);
 		buffers = NULL;
 	}
+	bufferLength = 0;
+	bufferOffset = 0;
 }
 
 bool DelayFilter::getIsMs() const

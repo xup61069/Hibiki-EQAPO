@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <limits>
 #include "helpers/MemoryHelper.h"
 #include "IIRFilter.h"
 
@@ -25,20 +26,123 @@ using namespace std;
 
 #define IS_DENORMAL(d) (abs(d) < DBL_MIN)
 
-IIRFilter::IIRFilter(const vector<double>& coefficients)
+bool IIRFilter::coefficientsAreStable(const vector<double>& coefficients)
 {
-	order = (unsigned)coefficients.size() / 2 - 1;
-	a = (double*)MemoryHelper::alloc(order * sizeof(double));
-	b = (double*)MemoryHelper::alloc(order * sizeof(double));
-	x = NULL;
-	y = NULL;
+	if (coefficients.size() < 4 || coefficients.size() % 2 != 0)
+		return false;
+	const size_t filterOrder = coefficients.size() / 2 - 1;
+	if (filterOrder == 0 || filterOrder > (std::numeric_limits<unsigned>::max)())
+		return false;
+	const double a0 = coefficients[filterOrder + 1];
+	if (!std::isfinite(a0) || a0 == 0.0)
+		return false;
+
+	// Schur recursion for A(z) = a0*z^N + ... + aN. Every reflection
+	// coefficient must be strictly inside the unit circle. Normalize each
+	// reduction to avoid underflow for higher-order, otherwise valid filters.
+	vector<double> denominator(filterOrder + 1);
+	vector<double> reduced(filterOrder + 1);
+	for (size_t i = 0; i <= filterOrder; ++i)
+	{
+		denominator[i] = coefficients[filterOrder + 1 + i] / a0;
+		if (!std::isfinite(denominator[i]))
+			return false;
+	}
+	for (size_t degree = filterOrder; degree > 0; --degree)
+	{
+		const double leading = denominator[0];
+		const double reflection = denominator[degree] / leading;
+		if (!std::isfinite(reflection) || abs(reflection) >= 1.0)
+			return false;
+		for (size_t i = 0; i < degree; ++i)
+		{
+			reduced[i] = denominator[i] -
+				reflection * denominator[degree - i];
+			if (!std::isfinite(reduced[i]))
+				return false;
+		}
+		const double scale = reduced[0];
+		if (!std::isfinite(scale) || scale == 0.0)
+			return false;
+		for (size_t i = 0; i < degree; ++i)
+		{
+			denominator[i] = reduced[i] / scale;
+			if (!std::isfinite(denominator[i]))
+				return false;
+		}
+	}
+	return true;
+}
+
+IIRFilter::IIRFilter(const vector<double>& coefficients)
+	: order(coefficients.size() >= 4 &&
+		coefficients.size() / 2 - 1 <= (std::numeric_limits<unsigned>::max)() ?
+		static_cast<unsigned>(coefficients.size() / 2 - 1) : 0),
+	  b0(1.0),
+	  a(NULL),
+	  b(NULL),
+	  channelCount(0),
+	  x(NULL),
+	  y(NULL),
+	  allocationFailed(false),
+	  stateReady(false)
+{
+	if (order == 0 || coefficients.size() != (static_cast<size_t>(order) + 1) * 2 ||
+		!coefficientsAreStable(coefficients))
+	{
+		allocationFailed = true;
+		return;
+	}
+	for (double coefficient : coefficients)
+	{
+		if (!std::isfinite(coefficient))
+		{
+			allocationFailed = true;
+			return;
+		}
+	}
+	if (coefficients[order + 1] == 0.0)
+	{
+		allocationFailed = true;
+		return;
+	}
+
+	a = static_cast<double*>(MemoryHelper::allocArray(order, sizeof(double)));
+	b = static_cast<double*>(MemoryHelper::allocArray(order, sizeof(double)));
+	if (a == NULL || b == NULL)
+	{
+		MemoryHelper::free(a);
+		MemoryHelper::free(b);
+		a = NULL;
+		b = NULL;
+		allocationFailed = true;
+		return;
+	}
 
 	double a0 = coefficients[order + 1];
 	b0 = coefficients[0] / a0;
+	if (!std::isfinite(b0))
+	{
+		MemoryHelper::free(a);
+		MemoryHelper::free(b);
+		a = NULL;
+		b = NULL;
+		allocationFailed = true;
+		return;
+	}
 	for (unsigned i = 0; i < order; i++)
 	{
 		b[i] = coefficients[i + 1] / a0;
 		a[i] = -coefficients[i + order + 2] / a0;
+		if (!std::isfinite(a[i]) || !std::isfinite(b[i]))
+		{
+			MemoryHelper::free(a);
+			MemoryHelper::free(b);
+			a = NULL;
+			b = NULL;
+			allocationFailed = true;
+			return;
+		}
 	}
 }
 
@@ -55,17 +159,43 @@ IIRFilter::~IIRFilter()
 
 vector<wstring> IIRFilter::initialize(float sampleRate, unsigned maxFrameCount, vector<wstring> channelNames)
 {
-	channelCount = (unsigned)channelNames.size();
-
+	stateReady = false;
 	if (x != NULL)
+	{
 		MemoryHelper::free(x);
+		x = NULL;
+	}
 	if (y != NULL)
+	{
 		MemoryHelper::free(y);
+		y = NULL;
+	}
+	channelCount = 0;
+	if (channelNames.size() > (std::numeric_limits<unsigned>::max)())
+		return channelNames;
+	channelCount = static_cast<unsigned>(channelNames.size());
+	if (allocationFailed || channelCount == 0)
+		return channelNames;
 
-	x = (double*)MemoryHelper::alloc(order * channelCount * sizeof(double));
-	y = (double*)MemoryHelper::alloc(order * channelCount * sizeof(double));
-	memset(x, 0, order * channelCount * sizeof(double));
-	memset(y, 0, order * channelCount * sizeof(double));
+	if (channelCount != 0 &&
+		order > (std::numeric_limits<size_t>::max)() / channelCount)
+	{
+		return channelNames;
+	}
+	const size_t stateCount = static_cast<size_t>(order) * channelCount;
+	x = static_cast<double*>(MemoryHelper::allocArray(stateCount, sizeof(double)));
+	y = static_cast<double*>(MemoryHelper::allocArray(stateCount, sizeof(double)));
+	if (x == NULL || y == NULL)
+	{
+		MemoryHelper::free(x);
+		MemoryHelper::free(y);
+		x = NULL;
+		y = NULL;
+		return channelNames;
+	}
+	memset(x, 0, stateCount * sizeof(double));
+	memset(y, 0, stateCount * sizeof(double));
+	stateReady = true;
 
 	return channelNames;
 }
@@ -73,12 +203,22 @@ vector<wstring> IIRFilter::initialize(float sampleRate, unsigned maxFrameCount, 
 #pragma AVRT_CODE_BEGIN
 void IIRFilter::process(double** output, double** input, unsigned frameCount)
 {
+	if (allocationFailed || !stateReady)
+	{
+		for (unsigned channel = 0; channel < channelCount; ++channel)
+		{
+			if (output[channel] != input[channel])
+				memcpy(output[channel], input[channel], frameCount * sizeof(double));
+		}
+		return;
+	}
+
 	for (unsigned i = 0; i < channelCount; i++)
 	{
 		double* inputChannel = input[i];
 		double* outputChannel = output[i];
 
-		unsigned channelOffset = i * order;
+		size_t channelOffset = static_cast<size_t>(i) * order;
 		double* xo = x + channelOffset;
 		double* yo = y + channelOffset;
 		for (unsigned j = 0; j < frameCount; j++)
@@ -101,6 +241,24 @@ void IIRFilter::process(double** output, double** input, unsigned frameCount)
 			}
 
 			sum += a[0] * yo[0];
+			if (!std::isfinite(sum))
+			{
+				const size_t stateCount = static_cast<size_t>(channelCount) * order;
+				memset(x, 0, stateCount * sizeof(double));
+				memset(y, 0, stateCount * sizeof(double));
+				stateReady = false;
+				for (unsigned dryChannel = i; dryChannel < channelCount; ++dryChannel)
+				{
+					const unsigned firstFrame = dryChannel == i ? j : 0;
+					for (unsigned dryFrame = firstFrame; dryFrame < frameCount; ++dryFrame)
+					{
+						const double drySample = input[dryChannel][dryFrame];
+						output[dryChannel][dryFrame] = std::isfinite(drySample) ?
+							drySample : 0.0;
+					}
+				}
+				return;
+			}
 
 			xo[0] = sample;
 			yo[0] = sum;
@@ -109,7 +267,8 @@ void IIRFilter::process(double** output, double** input, unsigned frameCount)
 		}
 	}
 
-	for (unsigned i = 0; i < channelCount * order; i++)
+	const size_t stateCount = static_cast<size_t>(channelCount) * order;
+	for (size_t i = 0; i < stateCount; i++)
 	{
 		if (IS_DENORMAL(x[i]))
 			x[i] = 0.0;
