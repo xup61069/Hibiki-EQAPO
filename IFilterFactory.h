@@ -21,6 +21,8 @@
 
 #include <string>
 #include <vector>
+#include <new>
+#include <utility>
 
 #include "helpers/MemoryHelper.h"
 #include "IFilter.h"
@@ -32,6 +34,40 @@ class IFilterFactory
 {
 public:
 	virtual ~IFilterFactory() {}
+
+	template<typename FilterType, typename... Arguments>
+	static FilterType* constructFilter(Arguments&&... arguments)
+	{
+		void* memory = MemoryHelper::alloc(sizeof(FilterType));
+		if (memory == NULL)
+			return NULL;
+		try
+		{
+			return new(memory) FilterType(
+				std::forward<Arguments>(arguments)...);
+		}
+		catch (...)
+		{
+			MemoryHelper::free(memory);
+			throw;
+		}
+	}
+
+	static std::vector<IFilter*> adoptFilter(IFilter* filter)
+	{
+		if (filter == NULL)
+			return std::vector<IFilter*>();
+		try
+		{
+			return std::vector<IFilter*>(1, filter);
+		}
+		catch (...)
+		{
+			filter->~IFilter();
+			MemoryHelper::free(filter);
+			throw;
+		}
+	}
 
 	virtual void initialize(FilterEngine* engine) {}
 	virtual std::vector<IFilter*> startOfConfiguration() {return std::vector<IFilter*>();}

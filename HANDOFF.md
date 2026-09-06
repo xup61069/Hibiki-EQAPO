@@ -1,58 +1,91 @@
-# AI 交接快照：目前基線與剩餘限制
+# AI 交接快照：Hibiki EQAPO／透明 ASIO proxy
 
-最後更新：2026-09-05（Asia/Taipei）
+最後更新：2026-09-07（Asia/Taipei）
 
-## 狀態
+## 當前結論
 
-目前沒有待接手的程式碼 WIP。專案有兩個完全獨立的響度校正元件：`LoudnessCorrection:` 是公式版，`LoudnessCorrectionOriginal:` 是 Mixomo 原始雙棚架版；兩者的 command、parser、runtime DSP、GUI、校準流程與狀態皆分離。公式版具備選用的 APO 寬頻音量跟隨、三種曲線、10 ms 平滑轉換與端點失效安全；原版則固定追蹤 Windows 預設 Multimedia 播放端點，且已修掉中性差值分支造成的啟動降音量。IR 卷積的 UI 名稱已縮短為「IR 卷積」，載入與即時 block-size 交接也已改成有界、失敗時直通的流程。
+- 工作位於 `codex/full-audit-fixes`；`HEAD` 與 `origin/main` 都是 `4471881500f8d60abb2768cff6818daf65589c83`。核心變更已於 commit 4471881 提交；本檔與驗證報告記錄其最終狀態。
+- x64 **Hibiki EQAPO** ASIO proxy 已接入 source、local build、installer staging／registration／rollback／uninstall 與 binary gates。使用者在安裝時選底層原廠 driver，再於每套 DAW 的全域 Audio Device 選一次 Hibiki EQAPO；不需要在每個專案掛 VST。
+- [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 仍為 **Proposed**。Fake-vendor 與自動化驗證已完成，但真實 vendor ASIO driver＋DAW matrix 尚未完成；因此 proxy 是 experimental，不得宣稱普遍相容或正式 release-ready。
+- `HibikiEQAPOMonitor.vst3` 只保留為特殊 monitor-only 工作流的進階 fallback；主 NSIS 不部署、更新或移除它。
+- 本輪已在使用者明確授權下，將 unsigned experimental x64 installer 實機安裝至既有相容路徑，底層 driver 為 `Universal Audio Volt`、TargetCLSID `{7FA0A3EC-EBB7-4249-9CDC-F5474EE19B74}`。ASIO／COM registration、driver 檔案、音訊服務與 recovery journal 均驗證通過；尚未啟動 DAW 或進行 playback。沒有安裝 fallback VST3，也沒有 commit、push、tag、PR 或 release。
 
-本檔只保存有時效的交接摘要，不是 branch 定位器，也不是 release note。開始工作先讀 `AGENTS.md`，再執行：
+接手時先讀 `AGENTS.md`，再執行：
 
 ```powershell
 .\scripts\agent-status.ps1 -Fetch
 ```
 
-若 Git、GitHub 或測試結果與本檔不同，以即時結果為準。版本變更請看 `CHANGELOG.md`；公式引擎、音量跟隨、獨立原版元件、VST MIDI 與 IR 卷積的架構理由分別見 [ADR-0001](docs/decisions/0001-loudness-engine-modes.md)、[ADR-0002](docs/decisions/0002-apo-volume-follow.md)、[ADR-0003](docs/decisions/0003-separate-original-loudness-component.md)、[ADR-0004](docs/decisions/0004-vst-midi-parameter-control.md) 與 [ADR-0005](docs/decisions/0005-ir-convolution-runtime.md)。
+若 Git、build、artifact 或測試與本檔不同，以即時結果為準。ASIO 完整工程報告見 [docs/2026-09-06_hibiki-eqapo-asio-proxy-report.md](docs/2026-09-06_hibiki-eqapo-asio-proxy-report.md)。
 
-## 已確立的行為
+## 不可破壞的 ASIO 契約
 
-- 不得把原版做成公式版的模式或共享參數；原版格式固定為 `Schema 1 Model MixomoShelfV1 State … ReferenceLevel … ReferenceOffset … Attenuation …`，公式版維持 `FormulaLoudnessV1`。
-- 兩個校準對話框在接受、取消或關閉前都先停止循環粉紅噪音；temporary-audio 復原若保留外部修改，本次量測必須丟棄，不能再觸發即時儲存覆蓋該檔案。
-- 原版保存 Mixomo 的 75 Hz/Q 0.52、10 kHz/Q 0.9 與 preamp 公式；`State 0` 必須 bit-transparent，端點不可用時直通，更新使用預配置雙 bank、25 ms warmup 與 10 ms crossfade。
-- Full 是預設且較準確的引擎；Fast 是必須明確選用、最多兩段的實驗近似，不能宣稱和 Full 數值等價。
-- `VolumeFollow` 缺省／`Off` 保持舊行為；`Linear` 使用 scalar、`Logarithmic` 使用 `scalar²`、`Windows` 使用 dB 的 `10^(dB/20)`。自動模式讀取端點 dB／scalar／mute，手動模式則由 `Volume` 推導 dB 與 scalar；兩者都不寫回 Windows 音量。
-- 跟隨增益在校正與 common-A 合成後才套用；`Attenuation 0` 只關閉音色補償，仍保留跟隨，`State 0` 才 bit-transparent 地旁路兩者。
-- 自動模式冷啟動沒有有效快照時保持靜音；成功讀取過一次後，短暫失敗會保留最後有效跟隨增益。端點靜音是精確零增益，恢復與變更使用所有聲道共用的 10 ms ramp。
-- 只改變端點 scalar／mute 不會重新擬合響度輪廓；只有真正影響音色校正的 dB 變更才進入 bank warmup／crossfade 流程。
-- VST MIDI 設定由每列的 `MidiConfig` 保存；支援 CC、Note、Pitch Bend，VST3 使用 ParamID 且只提供可見、非唯讀、可自動化參數，VST2 使用 index+name 防護。已有 mapping 的目前列進入 learn 前會以 durable temporary-audio journal 暫時移除自身 `MidiConfig`，對話框釋放 WinMM handle 後才還原，還原失敗或保留外部修改時不套用新 mapping。WinMM callback 與 VST audio callback 必須維持固定容量、有界工作、零 I/O／零阻塞／零動態配置。
-- `Convolution:` 是不可改名的設定檔指令；「IR 卷積」只是較短的 UI 名稱。相對路徑以目前設定檔目錄為基準，IR 必須與裝置取樣率完全相同，上限為 1,048,576 frames／8,388,608 samples；每聲道的 HybridConv bank 另限制為 4,096 partitions，超限時保持乾聲。
-- IR 的檔案讀取、驗證、反交錯與 HybridConv／FFTW bank 建立只能在非即時路徑進行。callback 遇到實際 frame count 與 bank 不符時只發布 lock-free 請求並輸出乾聲；背景 worker 建好吻合 bank 後，以 10 ms dry-to-wet 淡入接手。
-- Editor 的「重建相符 FIR」是使用者明確觸發的同步、正規化 minimum-phase 幅度重建，不是一般 resampler，也不保留原始 phase、delay、spatial 或 HRIR 資訊。
+- DAW output descriptors 固定指向 proxy-owned double buffers；vendor buffers 只由序列化 vendor callback 寫入，host callback／worker 不碰 DMA buffer。
+- 每次 vendor callback 先提交上一個完成 stage（或在 ownership 可證時送 silence），再送可選 vendor `outputReady()` hint，最後通知 host。Host `outputReady()` 是 completion，絕不可 1:1 轉送給 vendor。
+- `directProcess=true` 在 callback return 後 stage；`directProcess=false` 使用預配置 FIFO token。Async completion 必須 exactly-once、FIFO；callback／worker 不配置、不等待、不取得鎖、不寫 log／registry／檔案。
+- Output 固定增加一個 DAW-selected ASIO block；input-only 不增加。`Delay:`、`Convolution:` 等 filter 本身 latency／tail 仍未加入 host compensation。
+- 只宣告並接受原廠前 1–2 個 outputs，作為 main-monitor mono／stereo pair。支援 18 種 little／big-endian PCM formats；DSD、三聲道以上與模糊 mapping 拒絕。
+- 同一 process 只允許一個 prepared owner；第一版只支援 serialized、non-reentrant vendor callbacks。Deadline miss、queue overflow、無 token completion、generation 過期或可觀測重入會進入 terminal fail-safe。
+- Ownership 仍可證時才清除 vendor half；真正同時重入或 failed stop 後 ownership 不可證時完全不碰 buffer／ready，硬體輸出由原廠 driver 決定。
+- Stop／dispose／destructor 先 close-and-drain。Stop 成功但舊 async producer 未退出時，完整 arena／instance／module quarantine 到 process exit，必須重開 DAW；failed stop 只有成功 retry 建立新邊界後才可恢復。
+- ASIO-safe config 拒絕 active VST、outproc、VU meter 與原版響度；公式響度僅允許固定手動 `Volume`。初次 unsafe config 保持 dry，unsafe reload 保留上一份完整安全 config。
 
-## 最近驗證證據
+## 品牌與相容識別
 
-- Release installer 已完整建置；本機產物為 `Setup\EqualizerAPO-x64-3.0.7.exe`，SHA-256 `43f6990582bb6c2fa7ed85b08c03d7083e81adc72807158952481d2e26093c65`。產物不提交 Git，也不代表已發布 release。
-- 原生 transition／runtime loudness 測試通過，涵蓋三種曲線、mute、冷啟動與恢復、Full／Fast、立體聲、in-place／out-of-place 及接近中性輸出。Full／Fast 接近中性誤差分別為約 −0.000541／−0.000543 dB；三組轉換安全音訊的最大絕對輸出不超過約 1.000000009。
-- 原生 IR／GraphicEQ 動態 block 測試通過，涵蓋 out-of-place／in-place、初始乾聲、背景交接、最終 wet 增益、FFTW planner 被其他執行緒持有，以及 4,096 partitions 成功／4,097 立即拒絕的邊界；受阻時首次 callback 為 0.002 ms，超限拒絕為 0.000 ms。舊 `Dual`／`Tripple` 包裝器與 `getProcTime` 的初始化失敗回報、完整回滾及重複 close 也已由原生 self-test 覆蓋。
-- Python 共 213 項：212 通過；`test_built_host_cold_starts_and_hands_off` 因目前環境無法建立 global mapping（Win32 error 5）跳過 1 項，不能交接成「全部通過」。
-- 這台機器的 Release microbenchmark（48 kHz、2 聲道、主要 batch 256）：Full 初始化 5.914 ms、更新 5.965 ms、處理 89.190 ns/sample；Fast 為 0.114 ms、0.096 ms、48.632 ns/sample；Full scalar fallback 151.588 ns/sample。額外 Full block／scalar 結果為 batch 16：61.527／165.439、batch 64：71.932／154.596、batch 1024：94.683／156.718 ns/sample。這是相對回歸資料，不能直接換算成真實裝置 CPU 百分比。
-- UI regression 腳本的 90 張 theme／DPI 矩陣已成功產生；英文與簡中 dense 100% 淺色，以及繁中 dense 100% 淺色、200% 深色和 restored-tools 代表畫面已人工檢查，未見標題截斷、控制項重疊或錯誤狀態。未自動捲到的公式版跟隨控制、IR／VST 列、MIDI 對話框與校準視窗仍以編譯、翻譯及靜態 UI 契約覆蓋，不能宣稱已逐張完整視覺驗證。
+- 現行產品／UI／HTTP／installer／ASIO list 名稱使用 **Hibiki EQAPO**。COM friendly names 與 Update Checker User-Agent 也已更新；branding contracts 覆蓋這些表面。
+- `EqualizerAPO.dll`、既有 APO CLSID、`Software\EqualizerAPO`、預設安裝路徑、設定語法、scheduled-task／named-object 技術 ID 與舊捷徑遷移字串是相容識別，不能為了改名任意更換。
+- `Wiki/` 是 archived upstream Equalizer APO 文件快照，已用 `Wiki/README.md` 標示；目前使用方式以根目錄 README 為準。
 
-## 仍存在的限制
+## 本輪實機 installer 修正
 
-- 尚無 VB-Audio Matrix 真實路由的長時間聆聽、dropout、端點切換與休眠喚醒驗證；首次使用應以安全音量確認 `Binding` 與曲線。
-- 尚無實體 MIDI 控制器的 CC／Note／Pitch Bend、拔插重連與同名裝置驗證；目前證據是 codec、WinMM broker、VST2／VST3 佇列及目前列暫時釋放／復原契約的自動化與原生測試。其他 APO 列或其他程式仍可能占用只允許單一 client 的 MIDI driver。
-- 本次新增與縮短的繁中介面字串已完成；德文、法文與簡中字串仍有未完成項目，Qt 會回退顯示英文，因此這些語系目前可能中英混排。
-- 一般會自行套用 Windows 或硬體衰減的路徑若再啟用 `VolumeFollow`，會形成雙重衰減；不確定時維持 `Off`。
-- Windows 若拒絕解除 endpoint notification callback，callback 本身可安全存活且不再指向 controller，但其 COM 註冊資源可能延後到端點釋放才回收。
-- 合法但很長的 IR 在手動重建時仍可能暫時凍結 Editor；持續變動的 callback frame count 會安全直通並重建 bank，但不保存跨尺寸的卷積尾音。每個有效 IR filter 目前另有一個每 10 ms 輪詢的低頻背景 worker。
-- factory 已移除固定 `MAX_PATH` 緩衝區造成的靜默截斷，但 Windows 設定、libsndfile 與實際安裝環境能否完整支援超過 260 字元的路徑，尚未以端到端案例證明。
-- Fast 曲線品質未達一般模式門檻；行程外 VST host 仍是實驗功能，不是安全沙箱。
-- 安裝程式目前未簽章；除非使用者明確要求 release，不得建立或推送 `v*` tag。
+- NSIS `EnumRegKey` 在 registry 列舉 EOF 可能回空字串卻不保留 `${Errors}`，造成只檢查 error flag 的 discovery 迴圈無限執行。五個 ASIO 列舉點均已加入完整 empty-name guard；deterministic 兩-driver、process-local HKLM discovery runtime 2／2 與 16 項 ASIO installer contract 通過。
+- `RunEmbeddedProcessStopper` 的 PowerShell command 位於 NSIS 單引號參數內，原本內嵌的 `-eq '1'` 會破壞已有安裝版本的升級解析。現改為 `if([int]$env:EQAPO_PROCESS_PROTECT_INTERACTIVE -eq 1)`；production command 的 NSIS → nsExec → PowerShell runtime gate 2／2，以及其餘 40 項 installer contract 通過。
+- 修正後 installer 已成功在實機完成升級式安裝。`Hibiki EQAPO` ASIO key、proxy CLSID／`InprocServer32`、Volt target、Windows Audio／Audio Endpoint Builder running 狀態與無殘留 installer recovery journal 均已確認；這只證明部署與註冊，不證明 DAW 音訊相容性。
 
-## 接手建議
+## 最終驗證證據
 
-1. 先用 `agent-status.ps1 -Fetch` 確認 repository、remote、branch、ahead/behind、dirty files 與 worktree。
-2. 修改跟隨語意前完整閱讀 ADR-0002，並保留 `AGENTS.md` 指定的 parser、即時 callback、失敗恢復與 UI 測試矩陣。
-3. DSP／parser 修改先跑 Python 契約，再跑 Release installer、runtime loudness／IR native self-test 與 `--loudness-performance`；UI 變更另跑並人工檢查 regression snapshots。
-4. README 只描述目前行為；版本歷史只更新 `CHANGELOG.md`，不要把 release log 複製回 README。
+| Gate | 結果 |
+| --- | --- |
+| Full Python suite | 387 run；386 pass；0 fail／error；1 expected skip（`Global\` mapping，Win32 error 5） |
+| Final installer rebuild | Full native／Qt／staging gates 通過；最後一次 orchestration 因舊 installer process 鎖住輸出而停於 NSIS，清除那些精確 PID 後 production `makensis` rerun 成功。新增 test-only gates 後未覆寫 final installer |
+| ASIO native tests | Core PASS；fake-vendor 41 named main tests＋isolated modes PASS |
+| ASIO installer discovery | Deterministic two-driver runtime 2／2 PASS；16／16 ASIO installer contracts PASS |
+| Process-stopper／general installer | Production NSIS quote-boundary runtime 2／2 PASS；general installer contracts 40／40 PASS |
+| 實機 installer smoke test | PASS；Volt target、installed driver hash、ASIO／COM、音訊服務與 recovery journal 均驗證通過；未做 DAW playback |
+| Runtime DSP | HybridConv、數值安全、FilterEngine reload／handoff、響度 runtime PASS |
+| ASIO binary | AMD64 PE；4 exports；22 normal imports；0 delay imports |
+| Monitor binary | AMD64 PE；3 exports；22 normal imports；0 delay imports |
+| VST self-load guard | direct path PASS；hardlink PASS |
+| Official VST3 validator | 537 passed；0 failed |
+| UI regression | 90/90 snapshots、0 missing；繁中 light 100%、dark 200%、high-contrast large-text 抽查無亂碼／缺字／互疊。1024×768＋150% text 的 dense 編輯區需垂直捲動，截圖無法證明鍵盤／捲動可達性 |
+| Whitespace | `git diff --check` exit 0；只有 Windows LF→CRLF notices |
+
+唯一 Python skip 是 `test_outproc_vst_lifecycle.OutProcVSTLifecycleTests.test_built_host_cold_starts_and_hands_off`；目前執行身分不能建立 `Global\` named mapping，Win32 error 5。其餘測試不能取代該權限情境的實跑。
+
+## Final artifacts
+
+| 產物 | Bytes | SHA-256 | 簽章 |
+| --- | ---: | --- | --- |
+| `Setup\Hibiki-EQAPO-x64-3.0.7.exe` | 16,105,896 | `3AE378D8995C8533A10FF07AFE6C756361C5013D39FE52707B993693416BB594` | NotSigned |
+| `x64\Release\HibikiEQAPODriver.dll` | 5,179,392 | `6DD6672B390966728A547F0F352F5F116912F45B1049DEB10F739881A9E4C79F` | NotSigned |
+| `build\VST3\Release\HibikiEQAPO\HibikiEQAPOMonitor.vst3\Contents\x86_64-win\HibikiEQAPOMonitor.vst3` | 5,146,112 | `492676b1fc914f69ea73c660566942b6880b71085ede4ad73598d5675f1a4d95` | NotSigned |
+
+Driver source／stage 的 length 與 SHA-256 完全一致；Monitor source／stage 的五檔 payload 亦由 staging gate 驗證一致。Ignored tree 仍可能保留早期舊名 build artifacts；release workflow 只取 `Hibiki-EQAPO-*` 與目前 Hibiki staging，不得把舊快照當成 final artifact。
+
+## Release blockers 與限制
+
+- 至少一組真實 x64 vendor ASIO driver＋DAW 尚未完成播放、start／stop／failure、sample-rate／reset、buffer sizes、offline bounce、real-time export、record／overdub alignment、裝置拔插／restart 與 multi-client matrix。
+- 固定增加一個 ASIO block；FilterEngine 額外 delay／tail 未完整回報；只支援第一個 mono／stereo output pair；DSD／multichannel 不支援。
+- ASIO `outputReady()` 沒有 buffer index／generation，無法識別精準延遲到下一 token 後的舊 duplicate；此 host 行為不在支援契約。
+- Hardware direct monitor、介面 mixer／DSP、實體旋鈕與類比輸出不經 proxy；手動 `Volume` 必須對應實際監聽 SPL。
+- Offline bounce 是否繞過 proxy、real-time export 是否送到 hardware 仍由各 DAW routing 決定，必須真機驗證。
+- Installer、driver 與 fallback VST3 都未簽章；正式散布前仍需完成 ASIO SDK／靜態連結第三方元件的 notices、corresponding source／relink materials 審核。
+- 工作樹含大量相互依賴的既有修改；不得用 destructive reset／checkout 清掉，也不要把 ignored build、installer 或 `work/` evidence 誤加進 Git。
+
+## 接手順序
+
+1. 重新確認 branch、HEAD、dirty files、實機安裝狀態與 final hashes；不要引用 ignored 的舊名 binary。
+2. 若 source／project／Setup 有變動，重跑完整 Release installer、runtime、ASIO／Monitor PE、自載、官方 VST validator 與當下完整 Python suite，並保留 live ASIO discovery harness 與 installer contracts。
+3. 在低音量、可復原測試環境完成真實 vendor＋DAW matrix，將具體 driver／DAW version、buffer／rate 與結果寫入新 evidence。
+4. 只有真機 gate 全過後才能把 ADR-0007 改成 Accepted；否則正式 installer 必須停用／排除 proxy。
+5. 使用者明確授權後，才可分批 stage／commit、push、tag 或 release；本快照不構成該授權。

@@ -80,6 +80,7 @@ vector<IFilter*> OutProcBiquadFilterFactory::createFilter(const wstring& configP
 				bool isBandwidthOrS = false;
 				bool isCornerFreq = false;
 				bool error = false;
+				bool invalidShapeParameter = false;
 
 				if (regex_search(parameters, match, regexFreq))
 					freq = getFreq(match.str(1));
@@ -101,13 +102,19 @@ vector<IFilter*> OutProcBiquadFilterFactory::createFilter(const wstring& configP
 				}
 
 				if (regex_search(parameters, match, regexQ))
+				{
 					bandwidthOrQOrS = wcstod(match.str(1).c_str(), NULL);
+					invalidShapeParameter = !std::isfinite(bandwidthOrQOrS) ||
+						bandwidthOrQOrS <= 0.0;
+				}
 
 				if (regex_search(parameters, match, regexBW))
 				{
 					if (!(type == BiQuad::LOW_SHELF || type == BiQuad::HIGH_SHELF))
 					{
 						bandwidthOrQOrS = wcstod(match.str(1).c_str(), NULL);
+						invalidShapeParameter = invalidShapeParameter ||
+							!std::isfinite(bandwidthOrQOrS) || bandwidthOrQOrS <= 0.0;
 						isBandwidthOrS = true;
 					}
 				}
@@ -117,6 +124,8 @@ vector<IFilter*> OutProcBiquadFilterFactory::createFilter(const wstring& configP
 					if (type == BiQuad::LOW_SHELF || type == BiQuad::HIGH_SHELF)
 					{
 						bandwidthOrQOrS = wcstod(match.str(1).c_str(), NULL);
+						invalidShapeParameter = invalidShapeParameter ||
+							!std::isfinite(bandwidthOrQOrS) || bandwidthOrQOrS <= 0.0;
 						isBandwidthOrS = true;
 					}
 				}
@@ -146,13 +155,19 @@ vector<IFilter*> OutProcBiquadFilterFactory::createFilter(const wstring& configP
 						isCornerFreq = true;
 				}
 
+				if (invalidShapeParameter || !BiQuad::isConfigurationValid(
+					type, gain, freq, bandwidthOrQOrS,
+					isBandwidthOrS, isCornerFreq))
+					error = true;
+
 				if (!error)
 				{
 					TraceF(L"OutProcBiquad: adding %s filter with frequency %g Hz, gain %g dB and parameter %g",
 						typeDescription.c_str(), freq, gain, bandwidthOrQOrS);
 
-					void* mem = MemoryHelper::alloc(sizeof(OutProcBiquadFilter));
-					filter = new(mem) OutProcBiquadFilter(type, gain, freq, bandwidthOrQOrS, isBandwidthOrS, isCornerFreq);
+					filter = constructFilter<OutProcBiquadFilter>(
+						type, gain, freq, bandwidthOrQOrS,
+						isBandwidthOrS, isCornerFreq);
 				}
 			}
 			else if (typeString != L"None")
@@ -160,9 +175,7 @@ vector<IFilter*> OutProcBiquadFilterFactory::createFilter(const wstring& configP
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }
 
 double OutProcBiquadFilterFactory::getFreq(const wstring& freqString)

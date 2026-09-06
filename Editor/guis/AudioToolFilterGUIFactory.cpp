@@ -993,9 +993,10 @@ AudioToolFilterGUI::~AudioToolFilterGUI()
 	destroyMeterDialog();
 }
 
-void AudioToolFilterGUI::prepareDelete()
+bool AudioToolFilterGUI::commitDelete()
 {
 	destroyMeterDialog();
+	return true;
 }
 
 void AudioToolFilterGUI::destroyMeterDialog()

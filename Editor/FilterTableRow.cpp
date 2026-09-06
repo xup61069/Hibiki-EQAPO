@@ -317,8 +317,8 @@ void FilterTableRow::on_actionCloneBelow_triggered()
 void FilterTableRow::on_actionRemove_triggered()
 {
 	appendFilterRowDebugLog("remove clicked itemText=" + item->text + " gui=" + QString(gui != NULL ? "true" : "false"));
-	table->removeItem(item);
-	table->updateGuis();
+	if (table->removeItem(item))
+		table->updateGuis();
 }
 
 void FilterTableRow::on_actionEditText_triggered(bool checked)
@@ -327,6 +327,14 @@ void FilterTableRow::on_actionEditText_triggered(bool checked)
 	{
 		if (!lastEditTime.isValid() || lastEditTime.msecsTo(QDateTime::currentDateTimeUtc()) > 100)
 		{
+			// Recover state before copying the serialized row into the editor.
+			// Otherwise a successful late preflight could be overwritten by text
+			// that was captured while the external VST panel was still changing.
+			if (!table->prepareItemReplacement(item))
+			{
+				ui->actionEditText->setChecked(false);
+				return;
+			}
 			ui->lineEdit->setText(item->text);
 			ui->stackedWidget->setCurrentIndex(0);
 			ui->lineEdit->setFocus();
@@ -345,11 +353,23 @@ void FilterTableRow::on_lineEdit_editingFinished()
 		if (ui->lineEdit->text() != item->text)
 		{
 			editingDone = true;
-			item->text = ui->lineEdit->text();
-			table->updateModel();
-			// set focus to table so that enter key does not cause scrolling down
-			table->setFocus();
-			table->updateGuis();
+			if (table->replaceItemText(item, ui->lineEdit->text()))
+			{
+				table->updateModel();
+				// set focus to table so that enter key does not cause scrolling down
+				table->setFocus();
+				table->updateGuis();
+			}
+			else
+			{
+				// The row owns external state that could not be stopped. Restore
+				// the committed text and leave the existing GUI/list state intact.
+				ui->lineEdit->setText(item->text);
+				ui->stackedWidget->setCurrentIndex(1);
+				ui->actionEditText->setChecked(false);
+				table->setFocus();
+				editingDone = false;
+			}
 		}
 		else
 		{

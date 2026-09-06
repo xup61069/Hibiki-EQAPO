@@ -1530,6 +1530,10 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 #pragma AVRT_CODE_BEGIN
 void LoudnessCorrectionFilter::installPendingVolumeFollow()
 {
+	// Manual volume is immutable for this filter instance; initialization has
+	// already installed its fixed gain and no publisher thread exists.
+	if (_parameters.useManualVolume)
+		return;
 	if (!_volumeFollowUpdated.load(std::memory_order_acquire) ||
 		!TryEnterCriticalSection(&_parameterUpdateSection))
 	{
@@ -1670,11 +1674,15 @@ void LoudnessCorrectionFilter::process(double** output, double** input, unsigned
 		!_bypassFadeActive &&
 		_recoveryPending.load(std::memory_order_acquire);
 
-	if ((!runtimeBypass || recoveryReady) &&
+	const bool pendingCoefficientsReady =
+		(!runtimeBypass || recoveryReady) &&
 		!_crossoverPrewarmActive && !_crossoverHandoffActive &&
 		!_warmupActive && !_crossfadeActive && !_bypassFadeActive &&
-		_coeffsUpdated.load(std::memory_order_acquire) &&
-		TryEnterCriticalSection(&_parameterUpdateSection))
+		_coeffsUpdated.load(std::memory_order_acquire);
+	const bool pendingCoefficientsLocked = pendingCoefficientsReady &&
+		(_parameters.useManualVolume ||
+		 TryEnterCriticalSection(&_parameterUpdateSection));
+	if (pendingCoefficientsLocked)
 	{
 		bool requiresTransition =
 			!(_pendingIdentity && _bankIdentity[_activeBankIndex]);
@@ -1754,7 +1762,8 @@ void LoudnessCorrectionFilter::process(double** output, double** input, unsigned
 				_transitionFromBypass = false;
 			}
 		}
-		LeaveCriticalSection(&_parameterUpdateSection);
+		if (!_parameters.useManualVolume)
+			LeaveCriticalSection(&_parameterUpdateSection);
 	}
 
 	// The common case has no coefficient transition in flight. Process each

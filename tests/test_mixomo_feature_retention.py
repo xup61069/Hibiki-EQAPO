@@ -32,10 +32,13 @@ class MixomoFeatureRetentionTests(unittest.TestCase):
 
     def test_runtime_factories_remain_registered(self) -> None:
         source = read("FilterEngine.cpp")
+        self.assertIn("std::unique_ptr<IFilterFactory> owner(factory);", source)
+        self.assertIn("owner.release();", source)
         for feature in self.RUNTIME_FEATURES:
             self.assertIn(f'#include "filters/{feature}FilterFactory.h"', source)
-            self.assertIn(
-                f"factories.push_back(new {feature}FilterFactory());", source
+            self.assertRegex(
+                source,
+                rf"addFactory\(new {feature}FilterFactory\(\)(?:, false)?\);",
             )
 
     def test_feature_sources_and_editor_factories_remain_present(self) -> None:
@@ -76,7 +79,7 @@ class MixomoFeatureRetentionTests(unittest.TestCase):
     def test_visual_studio_and_qt_projects_keep_feature_wiring(self) -> None:
         common_project = read("Common.vcxproj")
         editor_project = read("Editor/Editor.pro")
-        solution = read("EqualizerAPO.sln")
+        solution = read("HibikiEQAPO.sln")
 
         for feature in self.RUNTIME_FEATURES:
             self.assertIn(f"filters\\{feature}FilterFactory.cpp", common_project)
@@ -133,8 +136,8 @@ class MixomoFeatureRetentionTests(unittest.TestCase):
 
     def test_readme_identifies_feature_complete_line_and_requested_title(self) -> None:
         expected_titles = {
-            "README.md": "# Equalizer APO 響度校正更新",
-            "README.en.md": "# Loudness Correction for Equalizer APO",
+            "README.md": "# Hibiki EQAPO",
+            "README.en.md": "# Hibiki EQAPO",
         }
         for relative_path, title in expected_titles.items():
             content = read(relative_path)

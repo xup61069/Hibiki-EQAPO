@@ -19,6 +19,7 @@
 
 #pragma once
 
+#include <mutex>
 #include <string>
 
 class AbstractLibrary
@@ -28,6 +29,7 @@ public:
 	static const int LOADING_FAILED = -2;
 	static const int FUNCTIONS_MISSING = -3;
 	static const int WRONG_ARCHITECTURE = -4;
+	static const int RECURSIVE_LOADING = -5;
 
 	virtual ~AbstractLibrary();
 
@@ -38,9 +40,13 @@ protected:
 	virtual std::wstring getLoadPath();
 	virtual bool loadFunctions() = 0;
 	virtual int customInitialize();
+	virtual void customUninitialize();
 
 	HMODULE module = NULL;
 
 private:
+	void unloadAfterInitializationFailure() noexcept;
 	unsigned short getFileArchitecture(const std::wstring& filePath);
+	std::recursive_mutex initializationMutex;
+	bool initializing = false;
 };

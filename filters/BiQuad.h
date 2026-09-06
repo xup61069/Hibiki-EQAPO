@@ -40,10 +40,18 @@ public:
 		  x1(0.0),
 		  x2(0.0),
 		  y1(0.0),
-		  y2(0.0)
+		  y2(0.0),
+		  valid(true)
 	{
 	}
 	BiQuad(Type type, double dbGain, double freq, double srate, double bandwidthOrQOrS, bool isBandwidthOrS);
+	static bool isConfigurationValid(
+		Type type,
+		double dbGain,
+		double freq,
+		double bandwidthOrQOrS,
+		bool isBandwidthOrS,
+		bool isCornerFreq) noexcept;
 
 	__forceinline
 	void removeDenormals()
@@ -124,6 +132,7 @@ public:
 
 	double gainAt(double freq, double srate);
 	void getCoefficients(double(&out_coeffs)[4], double& out_a0) const;
+	bool isValid() const noexcept { return valid; }
 
 private:
 	__declspec(align(16)) double a[4];
@@ -131,4 +140,5 @@ private:
 
 	double x1, x2;
 	double y1, y2;
+	bool valid;
 };

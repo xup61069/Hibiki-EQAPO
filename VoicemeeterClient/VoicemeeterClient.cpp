@@ -34,7 +34,8 @@
 #else
 #define voicemeeterRemoteFileName L"VoicemeeterRemote.dll"
 #endif
-#define IDM_RESTART 200
+#define IDM_START 200
+#define IDM_RESTART 201
 
 using namespace std;
 
@@ -63,7 +64,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 	catch (InitError e)
 	{
-		MessageBoxW(NULL, e.getMessage().c_str(), L"Equalizer APO Voicemeeter Client Initialization Error", MB_APPLMODAL | MB_OK | MB_ICONERROR);
+		MessageBoxW(NULL, e.getMessage().c_str(), L"Hibiki EQAPO Voicemeeter Client Initialization Error", MB_APPLMODAL | MB_OK | MB_ICONERROR);
 		return -1;
 	}
 }
@@ -118,10 +119,13 @@ VoicemeeterClient::~VoicemeeterClient()
 void VoicemeeterClient::run()
 {
 	wTimer = SetTimer(NULL, 0, 500, NULL);
-	PostThreadMessage(mainThreadId, WM_COMMAND, IDM_RESTART, 0);
+	if (wTimer == 0)
+		throw InitError(L"Failed to create Voicemeeter status timer");
+	handleCommand(IDM_START, 0);
 
 	MSG msg;
-	while (GetMessage(&msg, NULL, 0, 0))
+	BOOL getMessageResult;
+	while ((getMessageResult = GetMessage(&msg, NULL, 0, 0)) > 0)
 	{
 		switch (msg.message)
 		{
@@ -146,6 +150,8 @@ void VoicemeeterClient::run()
 			break;
 		}
 	}
+	if (getMessageResult == -1)
+		throw InitError(L"Failed to read the Voicemeeter client message queue");
 }
 
 void VoicemeeterClient::handle(long nCommand, void* lpData, long nnn)
@@ -225,7 +231,7 @@ void VoicemeeterClient::initSoftware()
 	while (loop)
 	{
 		loop = false;
-		char clientName[64] = "Equalizer APO";
+		char clientName[64] = "Hibiki EQAPO";
 		rep = vmr.VBVMR_AudioCallbackRegister(VBVMR_AUDIOCALLBACK_OUT, callback, this, clientName);
 		if (rep == 1)
 		{
@@ -300,10 +306,12 @@ void VoicemeeterClient::detectVoicemeeterType()
 
 void VoicemeeterClient::endSoftware()
 {
-	if (vmr.VBVMR_Logout != NULL)
-		vmr.VBVMR_Logout();
+	if (vmr.VBVMR_AudioCallbackStop != NULL)
+		vmr.VBVMR_AudioCallbackStop();
 	if (vmr.VBVMR_AudioCallbackUnregister != NULL)
 		vmr.VBVMR_AudioCallbackUnregister();
+	if (vmr.VBVMR_Logout != NULL)
+		vmr.VBVMR_Logout();
 }
 
 void VoicemeeterClient::handleCommand(WPARAM wparam, LPARAM lparam)
@@ -311,9 +319,19 @@ void VoicemeeterClient::handleCommand(WPARAM wparam, LPARAM lparam)
 	switch (LOWORD(wparam))
 	{
 	case IDM_RESTART:
+		if (vmr.VBVMR_AudioCallbackStop != NULL)
+			vmr.VBVMR_AudioCallbackStop();
+		[[fallthrough]];
+	case IDM_START:
+	{
 		Sleep(50);
 		if (vmr.VBVMR_AudioCallbackStart != NULL)
-			vmr.VBVMR_AudioCallbackStart();
+		{
+			long result = vmr.VBVMR_AudioCallbackStart();
+			if (result != 0)
+				throw InitError(L"Failed to start the Voicemeeter output insert");
+		}
+	}
 		break;
 	}
 }

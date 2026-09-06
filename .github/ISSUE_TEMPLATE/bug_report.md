@@ -1,6 +1,6 @@
 ---
-name: Bug report
-about: Create a report to help us improve
+name: Hibiki EQAPO bug report
+about: Report a Hibiki EQAPO problem
 title: ''
 labels: ''
 assignees: ''
@@ -20,7 +20,7 @@ A clear description of what happened and whether audio stopped, was distorted, o
 **To Reproduce**
 Steps to reproduce the behavior:
 1. Include the exact active `LoudnessCorrection:` line and relevant `Include:` lines.
-2. State whether Device Selector shows Equalizer APO installed on the active device.
+2. State whether Hibiki EQAPO Device Selector shows the APO installed on the active device.
 3. List the smallest sequence that reproduces the behavior.
 
 **Expected behavior**

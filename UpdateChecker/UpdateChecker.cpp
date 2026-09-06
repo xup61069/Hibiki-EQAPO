@@ -29,7 +29,7 @@ UpdateChecker::UpdateChecker(QWidget* parent, const QString& installedVersion)
 	ui.installedVersionLabel->setText(installedVersion);
 	ui.statusProgressBar->setRange(0, 0);
 	ui.statusProgressBar->setTextVisible(false);
-	ui.sectionLabel->setText(QStringLiteral("Loudness Correction for Equalizer APO"));
+	ui.sectionLabel->setText(QStringLiteral("Hibiki EQAPO"));
 	ui.installedCaptionLabel->setText(tr("Installed version"));
 	ui.availableCaptionLabel->setText(tr("Available version"));
 	ui.releaseNotesLabel->setText(tr("What's new"));
@@ -152,7 +152,7 @@ void UpdateChecker::applyState(State newState)
 
 	if (isChecking)
 	{
-		setWindowTitle(tr("Checking for updates"));
+		setWindowTitle(QStringLiteral("Hibiki EQAPO — ") + tr("Checking for updates"));
 		ui.titleLabel->setText(tr("Checking for updates"));
 		ui.summaryLabel->setText(tr("Connecting securely to GitHub Releases."));
 		ui.availableVersionLabel->setText(tr("Checking…"));
@@ -163,7 +163,7 @@ void UpdateChecker::applyState(State newState)
 	}
 	else if (isUpToDate)
 	{
-		setWindowTitle(tr("No update available"));
+		setWindowTitle(QStringLiteral("Hibiki EQAPO — ") + tr("No update available"));
 		ui.titleLabel->setText(tr("You're up to date"));
 		ui.summaryLabel->setText(tr("Version %1 is the latest available release.").arg(newestVersion));
 		ui.availableVersionLabel->setText(newestVersion);
@@ -176,7 +176,7 @@ void UpdateChecker::applyState(State newState)
 	}
 	else if (isAvailable)
 	{
-		setWindowTitle(tr("Update available"));
+		setWindowTitle(QStringLiteral("Hibiki EQAPO — ") + tr("Update available"));
 		ui.titleLabel->setText(tr("Version %1 is available").arg(newestVersion));
 		ui.summaryLabel->setText(tr("Review what changed, then open the secure download page."));
 		ui.availableVersionLabel->setText(newestVersion);
@@ -189,7 +189,7 @@ void UpdateChecker::applyState(State newState)
 	}
 	else
 	{
-		setWindowTitle(tr("Update check failed"));
+		setWindowTitle(QStringLiteral("Hibiki EQAPO — ") + tr("Update check failed"));
 		ui.titleLabel->setText(tr("We couldn't check for updates"));
 		ui.summaryLabel->setText(tr("Check your internet connection, then try again."));
 		ui.availableVersionLabel->setText(tr("Unavailable"));

@@ -33,11 +33,6 @@ std::vector<IFilter*> OriginalLoudnessCorrectionFilterFactory::createFilter(
 		return filters;
 
 	TraceF(L"Adding original loudness correction filter");
-	void* memory = MemoryHelper::alloc(
-		sizeof(OriginalLoudnessCorrectionFilter));
-	if (memory == NULL)
-		return filters;
-	filters.push_back(new(memory) OriginalLoudnessCorrectionFilter(
+	return adoptFilter(constructFilter<OriginalLoudnessCorrectionFilter>(
 		filterParameters));
-	return filters;
 }

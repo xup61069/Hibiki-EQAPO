@@ -22,8 +22,84 @@
 
 using namespace std;
 
-BiQuad::BiQuad(Type type, double dbGain, double freq, double srate, double bandwidthOrQOrS, bool isBandwidthOrS)
+bool BiQuad::isConfigurationValid(
+	Type type,
+	double dbGain,
+	double freq,
+	double bandwidthOrQOrS,
+	bool isBandwidthOrS,
+	bool isCornerFreq) noexcept
 {
+	if (type < LOW_PASS || type > HIGH_SHELF ||
+		!std::isfinite(dbGain) || !std::isfinite(freq) || freq <= 0.0 ||
+		!std::isfinite(bandwidthOrQOrS) || bandwidthOrQOrS <= 0.0)
+	{
+		return false;
+	}
+
+	const bool gainUsesAmplitude =
+		type == PEAKING || type == LOW_SHELF || type == HIGH_SHELF;
+	const double amplitude = pow(10.0, dbGain / (gainUsesAmplitude ? 40.0 : 20.0));
+	if (!std::isfinite(amplitude) || amplitude <= 0.0)
+		return false;
+
+	if (type == LOW_SHELF || type == HIGH_SHELF)
+	{
+		const double amplitudeTerm = amplitude + 1.0 / amplitude;
+		if (!std::isfinite(amplitudeTerm))
+			return false;
+
+		if (isBandwidthOrS)
+		{
+			const double radicand = amplitudeTerm *
+				(1.0 / bandwidthOrQOrS - 1.0) + 2.0;
+			if (!std::isfinite(radicand) || radicand < 0.0)
+				return false;
+		}
+
+		if (isCornerFreq)
+		{
+			double slope = bandwidthOrQOrS;
+			if (!isBandwidthOrS)
+			{
+				const double inverseQ = 1.0 / bandwidthOrQOrS;
+				const double denominator =
+					(inverseQ * inverseQ - 2.0) / amplitudeTerm + 1.0;
+				if (!std::isfinite(denominator) || denominator == 0.0)
+					return false;
+				slope = 1.0 / denominator;
+			}
+			if (!std::isfinite(slope) || slope <= 0.0)
+				return false;
+
+			const double exponent = abs(dbGain) / 80.0 / slope;
+			const double centerFreqFactor = pow(10.0, exponent);
+			if (!std::isfinite(exponent) || !std::isfinite(centerFreqFactor) ||
+				centerFreqFactor <= 0.0)
+			{
+				return false;
+			}
+			const double centerFrequency = type == LOW_SHELF ?
+				freq * centerFreqFactor : freq / centerFreqFactor;
+			if (!std::isfinite(centerFrequency) || centerFrequency <= 0.0)
+				return false;
+		}
+	}
+
+	return true;
+}
+
+BiQuad::BiQuad(Type type, double dbGain, double freq, double srate, double bandwidthOrQOrS, bool isBandwidthOrS)
+	: BiQuad()
+{
+	valid = false;
+	if (!isConfigurationValid(
+			type, dbGain, freq, bandwidthOrQOrS, isBandwidthOrS, false) ||
+		!std::isfinite(srate) || srate <= 0.0 || freq >= srate * 0.5)
+	{
+		return;
+	}
+
 	double A;
 	if (type == PEAKING || type == LOW_SHELF || type == HIGH_SHELF)
 		A = pow(10, dbGain / 40);
@@ -120,16 +196,27 @@ BiQuad::BiQuad(Type type, double dbGain, double freq, double srate, double bandw
 		break;
 	}
 
-	this->a0 = b0 / a0;
-	this->a[0] = b1 / a0;
-	this->a[1] = b2 / a0;
-	this->a[2] = a1 / a0;
-	this->a[3] = a2 / a0;
-
-	x1 = 0;
-	x2 = 0;
-	y1 = 0;
-	y2 = 0;
+	const double normalizedA0 = b0 / a0;
+	const double normalizedA1 = b1 / a0;
+	const double normalizedA2 = b2 / a0;
+	const double normalizedB1 = a1 / a0;
+	const double normalizedB2 = a2 / a0;
+	const double stabilityMargin = 1.0e-12;
+	const bool stable =
+		1.0 + normalizedB1 + normalizedB2 > stabilityMargin &&
+		1.0 - normalizedB1 + normalizedB2 > stabilityMargin &&
+		1.0 - normalizedB2 > stabilityMargin;
+	if (std::isfinite(normalizedA0) && std::isfinite(normalizedA1) &&
+		std::isfinite(normalizedA2) && std::isfinite(normalizedB1) &&
+		std::isfinite(normalizedB2) && stable)
+	{
+		this->a0 = normalizedA0;
+		this->a[0] = normalizedA1;
+		this->a[1] = normalizedA2;
+		this->a[2] = normalizedB1;
+		this->a[3] = normalizedB2;
+		valid = true;
+	}
 }
 
 double BiQuad::gainAt(double freq, double srate)

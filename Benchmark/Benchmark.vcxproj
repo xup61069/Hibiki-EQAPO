@@ -102,6 +102,7 @@
     <MUPARSERX_INCLUDE Condition="'$(MUPARSERX_INCLUDE)'==''">$(SolutionDir)third_party\muparserx\parser</MUPARSERX_INCLUDE>
     <MUPARSERX_LIB Condition="'$(MUPARSERX_LIB)'==''">$(SolutionDir)third_party\build\muparserx-$(Platform)-windows\$(Configuration)</MUPARSERX_LIB>
     <TCLAP_ROOT Condition="'$(TCLAP_ROOT)'==''">$(SolutionDir)third_party\tclap</TCLAP_ROOT>
+    <VST3_SDK_ROOT Condition="'$(VST3_SDK_ROOT)'==''">$(SolutionDir)third_party\vst3sdk</VST3_SDK_ROOT>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
@@ -299,6 +300,9 @@
     <None Include="..\EqualizerAPO.licenseheader" />
   </ItemGroup>
   <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(VST3_SDK_ROOT);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
     <Link>
       <AdditionalDependencies>winmm.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>

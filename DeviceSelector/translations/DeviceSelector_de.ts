@@ -28,12 +28,11 @@
         <translation>Info</translation>
     </message>
     <message>
-        <location line="-324"/>
         <source>A registry value that is required for the operation of Equalizer APO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
-        <translation>Ein Registrywert, der für den Betrieb von Equalizer APO erforderlich ist, war nicht korrekt gesetzt. Dies könnte durch eine Treiberinstallation oder -deinstallation ausgelöst worden sein. Der Wert ist nun korrigiert. Ein Neustart kann erforderlich sein, damit die Änderungen wirksam werden.</translation>
+        <translation type="vanished">Ein Registrywert, der für den Betrieb von Equalizer APO erforderlich ist, war nicht korrekt gesetzt. Dies könnte durch eine Treiberinstallation oder -deinstallation ausgelöst worden sein. Der Wert ist nun korrigiert. Ein Neustart kann erforderlich sein, damit die Änderungen wirksam werden.</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="-309"/>
         <source>Audio devices</source>
         <translation>Audiogeräte</translation>
     </message>
@@ -85,12 +84,11 @@
         <translation>Keine ausstehenden Änderungen.</translation>
     </message>
     <message>
-        <location line="+2"/>
         <source>Select at least one device to enable Equalizer APO.</source>
-        <translation>Wählen Sie mindestens ein Gerät aus, um Equalizer APO zu aktivieren.</translation>
+        <translation type="vanished">Wählen Sie mindestens ein Gerät aus, um Equalizer APO zu aktivieren.</translation>
     </message>
     <message>
-        <location line="+161"/>
+        <location line="+163"/>
         <source>APO will be uninstalled</source>
         <translation>APO wird deinstalliert</translation>
     </message>
@@ -150,7 +148,12 @@
         <translation>Aktualisierungen verfügbar</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="-303"/>
+        <source>A registry value that is required for the operation of Hibiki EQAPO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
+        <translation>Ein Registrywert, der für den Betrieb von Hibiki EQAPO erforderlich ist, war nicht korrekt gesetzt. Dies könnte durch eine Treiberinstallation oder -deinstallation ausgelöst worden sein. Der Wert ist nun korrigiert. Ein Neustart kann erforderlich sein, damit die Änderungen wirksam werden.</translation>
+    </message>
+    <message>
+        <location line="+303"/>
         <source>The APO installation of some devices should be upgraded. Do you really want to cancel?</source>
         <translation>Die APO-Installation einiger Geräte sollte aktualisiert werden. Möchten Sie wirklich abbrechen?</translation>
     </message>
@@ -165,7 +168,12 @@
         <translation>Um die Änderungen anzuwenden, sollte Windows neugestartet werden. Jetzt neustarten?</translation>
     </message>
     <message>
-        <location line="+303"/>
+        <location line="+144"/>
+        <source>Select at least one device to enable Hibiki EQAPO.</source>
+        <translation>Wählen Sie mindestens ein Gerät aus, um Hibiki EQAPO zu aktivieren.</translation>
+    </message>
+    <message>
+        <location line="+159"/>
         <source>APO will be installed</source>
         <translation>APO wird installiert</translation>
     </message>
@@ -246,7 +254,12 @@
         <translation>Installationsmodus automatisch anpassen, wenn Probleme mit dem aktuellen Modus erkannt werden</translation>
     </message>
     <message>
-        <location line="-65"/>
+        <location line="-92"/>
+        <source>Please select the devices for which Hibiki EQAPO is to be installed:</source>
+        <translation>Bitte die Geräte auswählen, für die Hibiki EQAPO installiert werden soll:</translation>
+    </message>
+    <message>
+        <location line="+27"/>
         <source>Loading audio devices...</source>
         <translation>Audiogeräte werden geladen...</translation>
     </message>
@@ -295,12 +308,11 @@ ACHTUNG: Einige Soundkartentreiber erzeugen unerwünschte Geräusche, wenn diese
         <translation>Strg+C</translation>
     </message>
     <message>
-        <location line="-124"/>
         <source>Please select the devices for which Equalizer APO is to be installed:</source>
-        <translation>Bitte die Geräte auswählen, für die Equalizer APO installiert werden soll:</translation>
+        <translation type="vanished">Bitte die Geräte auswählen, für die Equalizer APO installiert werden soll:</translation>
     </message>
     <message>
-        <location line="+83"/>
+        <location line="-41"/>
         <source>Please select exactly one activated device by clicking on its name</source>
         <translation>Bitte genau ein aktiviertes Gerät durch Klick auf den Namen wählen</translation>
     </message>
@@ -401,13 +413,21 @@ ACHTUNG: Einige Soundkartentreiber erzeugen unerwünschte Geräusche, wenn diese
     </message>
     <message>
         <location line="-50"/>
-        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
-        <translation>Equalizer APO funktioniert, aber das Original-APO konnte nicht initialisiert werden. Eventuell &quot;Original-APO verwenden&quot; in den Problemlösungsoptionen deaktivieren.</translation>
+        <source>Hibiki EQAPO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation>Hibiki EQAPO funktioniert, aber das Original-APO konnte nicht initialisiert werden. Eventuell „Original-APO verwenden“ in den Problemlösungsoptionen deaktivieren.</translation>
     </message>
     <message>
         <location line="+3"/>
+        <source>Hibiki EQAPO did not respond on this processing stage.</source>
+        <translation>Hibiki EQAPO hat in dieser Verarbeitungsstufe nicht reagiert.</translation>
+    </message>
+    <message>
+        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation type="vanished">Equalizer APO funktioniert, aber das Original-APO konnte nicht initialisiert werden. Eventuell &quot;Original-APO verwenden&quot; in den Problemlösungsoptionen deaktivieren.</translation>
+    </message>
+    <message>
         <source>Equalizer APO did not respond on this processing stage.</source>
-        <translation>Equalizer APO hat in dieser Verarbeitungsstufe nicht reagiert.</translation>
+        <translation type="vanished">Equalizer APO hat in dieser Verarbeitungsstufe nicht reagiert.</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -424,9 +444,13 @@ ACHTUNG: Einige Soundkartentreiber erzeugen unerwünschte Geräusche, wenn diese
     <name>DeviceTestDialogClass</name>
     <message>
         <location filename="../DeviceTestDialog.ui" line="+7"/>
+        <source>Hibiki EQAPO — Testing APO installation on devices...</source>
+        <translation>Hibiki EQAPO — APO-Installation auf Geräten wird getestet...</translation>
+    </message>
+    <message>
         <location line="+13"/>
         <source>Testing APO installation on devices...</source>
-        <translation>Teste APO-Installation auf Geräten...</translation>
+        <translation>APO-Installation auf Geräten wird getestet...</translation>
     </message>
     <message>
         <location line="+22"/>

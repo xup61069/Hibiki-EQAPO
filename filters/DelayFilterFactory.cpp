@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <cmath>
 #include <sstream>
 
 #include "helpers/MemoryHelper.h"
@@ -42,24 +43,20 @@ vector<IFilter*> DelayFilterFactory::createFilter(const wstring& configPath, wst
 		wstringstream stream(value);
 		stream >> delay >> unit;
 
-		if (delay >= 0)
+		if (std::isfinite(delay) && delay >= 0)
 		{
 			if (StringHelper::toLowerCase(unit) == L"ms")
 			{
 				TraceF(L"Delaying by %g ms", delay);
-				void* mem = MemoryHelper::alloc(sizeof(DelayFilter));
-				filter = new(mem) DelayFilter(delay, true);
+				filter = constructFilter<DelayFilter>(delay, true);
 			}
 			else if (StringHelper::toLowerCase(unit) == L"samples")
 			{
 				TraceF(L"Delaying by %g samples", delay);
-				void* mem = MemoryHelper::alloc(sizeof(DelayFilter));
-				filter = new(mem) DelayFilter(delay, false);
+				filter = constructFilter<DelayFilter>(delay, false);
 			}
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

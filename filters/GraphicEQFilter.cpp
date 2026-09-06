@@ -123,6 +123,17 @@ std::vector<double> GraphicEQFilter::createImpulseResponse(const std::vector<Fil
 bool GraphicEQFilter::prepareImpulseResponse(
 	std::vector<std::vector<double>>& impulseResponses)
 {
+	double previousFrequency = 0.0;
+	for (const FilterNode& node : nodes)
+	{
+		if (!std::isfinite(node.freq) || node.freq <= 0.0 ||
+			!std::isfinite(node.dbGain) || node.freq <= previousFrequency)
+		{
+			return false;
+		}
+		previousFrequency = node.freq;
+	}
+
 	std::vector<double> impulse = createImpulseResponse(nodes, filterLength, sampleRate);
 	if (impulse.empty())
 		return false;

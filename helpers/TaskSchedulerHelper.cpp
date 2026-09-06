@@ -30,6 +30,14 @@
 #include "ScopeGuard.h"
 #include "TaskSchedulerHelper.h"
 
+namespace
+{
+	bool isMissingTaskError(HRESULT hr)
+	{
+		return hr == HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
+	}
+}
+
 void TaskSchedulerHelper::scheduleAtLogon(const std::wstring& taskName, const std::wstring& programPath, const std::wstring& programArgs, const std::wstring& workingDir)
 {
 	HRESULT hr = CoInitializeSecurity(NULL, -1, NULL, NULL, RPC_C_AUTHN_LEVEL_PKT_PRIVACY, RPC_C_IMP_LEVEL_IMPERSONATE, NULL, 0, NULL);
@@ -53,7 +61,9 @@ void TaskSchedulerHelper::scheduleAtLogon(const std::wstring& taskName, const st
 	SCOPE_EXIT{pRootFolder->Release(); };
 
 	// possibly delete existing task
-	pRootFolder->DeleteTask(_bstr_t(taskName.c_str()), 0);
+	hr = pRootFolder->DeleteTask(_bstr_t(taskName.c_str()), 0);
+	if (FAILED(hr) && !isMissingTaskError(hr))
+		fail(L"ITaskFolder::DeleteTask", hr);
 
 	ITaskDefinition* pTask = NULL;
 	hr = pService->NewTask(0, &pTask);
@@ -214,7 +224,9 @@ void TaskSchedulerHelper::unschedule(const std::wstring& taskName)
 	SCOPE_EXIT{pRootFolder->Release(); };
 
 	// possibly delete existing task
-	pRootFolder->DeleteTask(_bstr_t(taskName.c_str()), 0);
+	hr = pRootFolder->DeleteTask(_bstr_t(taskName.c_str()), 0);
+	if (FAILED(hr) && !isMissingTaskError(hr))
+		fail(L"ITaskFolder::DeleteTask", hr);
 }
 
 void TaskSchedulerHelper::fail(const std::wstring& functionName, unsigned long error)

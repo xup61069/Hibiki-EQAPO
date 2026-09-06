@@ -8,7 +8,18 @@ $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 
 & (Join-Path $root "scripts\bootstrap-third-party.ps1") -Configuration $Configuration -WithQt -WithNsis
-& (Join-Path $root "build-local-x64.ps1") -Configuration $Configuration -VisualStudioEdition $VisualStudioEdition
+& python -B (Join-Path $root "tests\test_asio_installer_discovery_runtime.py") -v
+if ($LASTEXITCODE -ne 0) {
+	throw "ASIO installer discovery regression failed with exit code $LASTEXITCODE"
+}
+& python -B (Join-Path $root "tests\test_installer_process_stopper_nsis_runtime.py") -v
+if ($LASTEXITCODE -ne 0) {
+	throw "process-stopper NSIS quote-boundary regression failed with exit code $LASTEXITCODE"
+}
+& (Join-Path $root "build-local-x64.ps1") `
+	-Configuration $Configuration `
+	-VisualStudioEdition $VisualStudioEdition `
+	-Rebuild
 if ($LASTEXITCODE -ne 0) {
 	throw "native build failed with exit code $LASTEXITCODE"
 }
@@ -66,7 +77,7 @@ finally {
 }
 
 $version = & (Join-Path $root "scripts\get-project-version.ps1")
-$installer = Join-Path $root "Setup\EqualizerAPO-x64-$version.exe"
+$installer = Join-Path $root "Setup\Hibiki-EQAPO-x64-$version.exe"
 if (!(Test-Path -LiteralPath $installer)) {
 	throw "Expected installer was not produced: $installer"
 }

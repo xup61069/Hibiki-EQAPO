@@ -10,6 +10,14 @@ using namespace std;
 ToneGeneratorFilter::ToneGeneratorFilter(bool state, Type type, double frequency, double startFrequency, double endFrequency, double durationSeconds, double levelDb, wstring channelSelector, Mode mode)
 	: state(state), type(type), mode(mode), frequency(frequency), startFrequency(startFrequency), endFrequency(endFrequency), durationSeconds(max(0.01, durationSeconds)), gain(AudioTools::dbToGain(levelDb)), channelSelector(channelSelector)
 {
+	const double twoPi = 6.28318530717958647692;
+	if (!std::isfinite(frequency) || !std::isfinite(startFrequency) ||
+		!std::isfinite(endFrequency) || !std::isfinite(this->durationSeconds) ||
+		!std::isfinite(frequency * twoPi) ||
+		!std::isfinite(startFrequency * twoPi) ||
+		!std::isfinite(endFrequency * twoPi) ||
+		!std::isfinite(gain * 1.5))
+		this->state = false;
 }
 
 vector<wstring> ToneGeneratorFilter::initialize(float sampleRate, unsigned maxFrameCount, vector<wstring> channelNames)
@@ -65,8 +73,16 @@ double ToneGeneratorFilter::nextSample()
 		sweepTime += 1.0 / sampleRate;
 	}
 
+	const double phaseIncrement = 2.0 * M_PI * freq / sampleRate;
+	const double nextPhase = phase + phaseIncrement;
+	if (!std::isfinite(freq) || !std::isfinite(phaseIncrement) ||
+		!std::isfinite(nextPhase))
+	{
+		state = false;
+		return 0.0;
+	}
 	const double sample = sin(phase) * gain;
-	phase += 2.0 * M_PI * freq / sampleRate;
+	phase = nextPhase;
 	if (phase >= 2.0 * M_PI)
 		phase = fmod(phase, 2.0 * M_PI);
 	return sample;
@@ -85,6 +101,8 @@ void ToneGeneratorFilter::process(double** output, double** input, unsigned fram
 	for (unsigned frame = 0; frame < frameCount; frame++)
 	{
 		const double sample = nextSample();
+		if (!state)
+			break;
 		for (unsigned channel : channels)
 		{
 			if (channel >= channelCount)

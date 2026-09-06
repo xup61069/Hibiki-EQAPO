@@ -55,11 +55,8 @@ vector<IFilter*> ChannelFilterFactory::createFilter(const wstring& configPath, w
 			}
 		}
 
-		void* mem = MemoryHelper::alloc(sizeof(ChannelFilter));
-		filter = new(mem) ChannelFilter(words);
+		filter = constructFilter<ChannelFilter>(words);
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

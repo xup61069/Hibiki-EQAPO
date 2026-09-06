@@ -1,16 +1,23 @@
 function Get-VsWherePath {
+	$programFilesX86 = [Environment]::GetFolderPath(
+		[Environment+SpecialFolder]::ProgramFilesX86
+	)
+	$programFiles = [Environment]::GetFolderPath(
+		[Environment+SpecialFolder]::ProgramFiles
+	)
+	if ([string]::IsNullOrWhiteSpace($programFilesX86) -or
+		[string]::IsNullOrWhiteSpace($programFiles)) {
+		throw "The trusted Program Files directories could not be resolved."
+	}
+
 	$candidates = @(
-		(Join-Path ${env:ProgramFiles(x86)} "Microsoft Visual Studio\Installer\vswhere.exe"),
-		(Join-Path ${env:ProgramFiles} "Microsoft Visual Studio\Installer\vswhere.exe")
+		(Join-Path $programFilesX86 "Microsoft Visual Studio\Installer\vswhere.exe"),
+		(Join-Path $programFiles "Microsoft Visual Studio\Installer\vswhere.exe")
 	)
 	foreach ($candidate in $candidates) {
-		if (Test-Path -LiteralPath $candidate) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
 			return $candidate
 		}
-	}
-	$command = Get-Command vswhere.exe -ErrorAction SilentlyContinue
-	if ($null -ne $command) {
-		return $command.Source
 	}
 	throw "vswhere.exe was not found. Install Visual Studio Installer or Visual Studio Build Tools."
 }
@@ -85,4 +92,24 @@ function Get-VisualStudioRedistDirectory {
 	throw "A complete Visual C++ x64 runtime directory was not found under $redistRoot."
 }
 
-Export-ModuleMember -Function Get-VisualStudioInstallation, Get-VisualStudioDevCmd, Get-VisualStudioRedistDirectory
+function Get-VisualStudioDumpbin {
+	param([string]$Edition = "")
+
+	$installation = Get-VisualStudioInstallation -Edition $Edition
+	$toolsRoot = Join-Path $installation "VC\Tools\MSVC"
+	$candidates = Get-ChildItem -LiteralPath $toolsRoot -Directory -ErrorAction SilentlyContinue |
+		Sort-Object Name -Descending |
+		ForEach-Object { Join-Path $_.FullName "bin\Hostx64\x64\dumpbin.exe" }
+	foreach ($candidate in $candidates) {
+		if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+			$item = Get-Item -LiteralPath $candidate -Force
+			if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) {
+				return $item.FullName
+			}
+		}
+	}
+
+	throw "The x64 dumpbin.exe tool was not found under $toolsRoot."
+}
+
+Export-ModuleMember -Function Get-VisualStudioInstallation, Get-VisualStudioDevCmd, Get-VisualStudioRedistDirectory, Get-VisualStudioDumpbin

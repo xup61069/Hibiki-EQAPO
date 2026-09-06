@@ -37,7 +37,10 @@ public:
 
 	void loadPreferences(const QVariantMap& prefs) override;
 	void storePreferences(QVariantMap& prefs) override;
-	void prepareDelete() override;
+	void restoreRuntimeState(const QVariantMap& state) override;
+	void takeRuntimeState(QVariantMap& state) override;
+	bool prepareDelete() override;
+	bool commitDelete() override;
 
 private slots:
 	void on_actionPowerOn_toggled(bool checked);

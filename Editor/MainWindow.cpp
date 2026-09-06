@@ -26,11 +26,13 @@
 #include <QAccessible>
 #include <QAccessibleWidget>
 #include <QCryptographicHash>
+#include <QCoreApplication>
 #include <QDateTime>
 #include <QDebug>
 #include <QDockWidget>
 #include <QDrag>
 #include <QElapsedTimer>
+#include <QEvent>
 #include <QFile>
 #include <QFileSystemWatcher>
 #include <QLabel>
@@ -420,6 +422,18 @@ static ConditionalWriteResult conditionallyWriteConfiguration(
 	return result;
 }
 
+static bool rollbackConditionalConfigurationWrite(
+	const QString& path,
+	const QByteArray& temporaryContent,
+	const QByteArray& originalContent)
+{
+	const ConditionalWriteResult rollback = conditionallyWriteConfiguration(
+		path, temporaryContent, originalContent);
+	return rollback.status == ConditionalWriteStatus::written ||
+		(rollback.status == ConditionalWriteStatus::conflict &&
+			rollback.currentContent == originalContent);
+}
+
 static quint64 processCreationToken(HANDLE process)
 {
 	FILETIME created;
@@ -791,11 +805,11 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	QString version = QString("%1.%2").arg(MAJOR).arg(MINOR);
 	if (REVISION != 0)
 		version += QString(".%1").arg(REVISION);
-	setWindowTitle(tr("Equalizer APO %1 Configuration Editor").arg(version));
+	setWindowTitle(tr("Hibiki EQAPO %1 Configuration Editor").arg(version));
 
 	QLabel* workspaceBrand = new QLabel(QStringLiteral("EQ"));
 	workspaceBrand->setObjectName(QStringLiteral("workspaceBrand"));
-	workspaceBrand->setToolTip(QStringLiteral("Equalizer APO"));
+	workspaceBrand->setToolTip(QStringLiteral("Hibiki EQAPO"));
 	workspaceBrand->setAlignment(Qt::AlignCenter);
 	ui->mainToolBar->insertWidget(ui->actionNew, workspaceBrand);
 	ui->mainToolBar->insertSeparator(ui->actionNew);
@@ -975,7 +989,7 @@ void MainWindow::setupWorkspaceTools()
 	profileComboBox->setMinimumContentsLength(18);
 	profileComboBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
 	profileComboBox->setAccessibleName(tr("Configuration profile"));
-	profileComboBox->setToolTip(tr("Open a configuration profile from the Equalizer APO config folder"));
+	profileComboBox->setToolTip(tr("Open a configuration profile from the Hibiki EQAPO config folder"));
 	connect(profileComboBox, SIGNAL(activated(int)), this, SLOT(profileSelected(int)));
 	workspaceToolBar->addWidget(profileComboBox);
 
@@ -1136,7 +1150,7 @@ void MainWindow::setupTrayIcon()
 	trayIcon->setIcon(windowIcon().isNull()
 		? GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::Profile, true)
 		: windowIcon());
-	trayIcon->setToolTip(tr("Equalizer APO Configuration Editor"));
+	trayIcon->setToolTip(tr("Hibiki EQAPO Configuration Editor"));
 
 	QMenu* trayMenu = new QMenu(this);
 	QAction* showAction = trayMenu->addAction(tr("Show Configuration Editor"));
@@ -1227,7 +1241,7 @@ void MainWindow::showWorkspaceStatus(const QString& text, const char* level, int
 	setStatusLevel(workspaceStatusLabel, level);
 	workspaceStatusLabel->setToolTip(text);
 	if (trayIcon != NULL)
-		trayIcon->setToolTip(tr("Equalizer APO · %1").arg(text));
+		trayIcon->setToolTip(tr("Hibiki EQAPO · %1").arg(text));
 
 	if (timeoutMs > 0)
 	{
@@ -1458,7 +1472,7 @@ void MainWindow::renameCurrentProfile()
 	}
 	if (QFileInfo(oldPath).absolutePath().compare(configDir.absolutePath(), Qt::CaseInsensitive) != 0)
 	{
-		showWorkspaceStatus(tr("Only profiles in the Equalizer APO config folder can be renamed"), "warning");
+		showWorkspaceStatus(tr("Only profiles in the Hibiki EQAPO config folder can be renamed"), "warning");
 		return;
 	}
 	if (QFileInfo(oldPath).fileName().compare(QStringLiteral("config.txt"), Qt::CaseInsensitive) == 0)
@@ -1556,7 +1570,7 @@ void MainWindow::importProfile()
 	if (!QFile::copy(sourcePath, destinationPath))
 	{
 		QMessageBox::critical(this, tr("Import failed"),
-			tr("The profile could not be copied into the Equalizer APO config folder."));
+			tr("The profile could not be copied into the Hibiki EQAPO config folder."));
 		return;
 	}
 	refreshProfiles();
@@ -1715,9 +1729,11 @@ bool MainWindow::prepareTemporaryContents(
 		if (externalConflict != NULL)
 			*externalConflict = true;
 		QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
-		filterTable->setLines(path, deserializeConfigurationLines(observedContent));
-		filterTable->updateAnalysis();
-		refreshProfiles();
+		if (filterTable->setLines(path, deserializeConfigurationLines(observedContent)))
+		{
+			filterTable->updateAnalysis();
+			refreshProfiles();
+		}
 		return false;
 	}
 
@@ -1746,8 +1762,19 @@ bool MainWindow::beginTemporaryFilterConfiguration(
 	}
 
 	FilterTable* filterTable = currentFilterTable();
-	if (filterTable == NULL || filterTable->getConfigPath().isEmpty()
-		|| isFilterTableDirty(filterTable))
+	if (filterTable == NULL || filterTable->getConfigPath().isEmpty())
+	{
+		showWorkspaceStatus(
+			midiLearning
+				? tr("Save the profile before configuring MIDI")
+				: tr("Save the profile before starting calibration"),
+			"warning");
+		return false;
+	}
+	// This first phase is read-only. The external rows are committed only after
+	// the temporary file write has succeeded, so a write failure cannot close a
+	// panel while leaving the requested operation canceled.
+	if (!filterTable->prepareDeleteAllItems() || isFilterTableDirty(filterTable))
 	{
 		showWorkspaceStatus(
 			midiLearning
@@ -1835,6 +1862,31 @@ bool MainWindow::beginTemporaryFilterConfiguration(
 				tr("Audio processing was not restored"),
 				tr("A temporary audio state could not be recovered automatically"));
 		}
+		return false;
+	}
+
+	bool deleteCommitted = false;
+	{
+		// A successful commit may publish recovered plug-in state. Let the tab
+		// become dirty, but keep Instant mode from overwriting the temporary
+		// file before this transaction completes or rolls back.
+		QScopedValueRollback<bool> instantSaveGuard(suppressInstantSave, true);
+		deleteCommitted = filterTable->commitDeleteAllItems();
+	}
+	const bool recoveredStateChanged = filterTable->getLines() != originalLines;
+	if (!deleteCommitted || recoveredStateChanged)
+	{
+		const bool rollbackVerified = rollbackConditionalConfigurationWrite(
+			filterTable->getConfigPath(), temporaryContent, originalContent);
+		if (rollbackVerified)
+			clearTemporaryRecoveryJournal();
+		showWorkspaceStatus(
+			recoveredStateChanged
+				? (midiLearning
+					? tr("Save the profile before configuring MIDI")
+					: tr("Save the profile before starting calibration"))
+				: tr("A temporary audio state could not be activated"),
+			rollbackVerified ? "warning" : "danger", 0);
 		return false;
 	}
 
@@ -1926,9 +1978,11 @@ bool MainWindow::restoreTemporaryFilterConfiguration(bool* keptExternal)
 			if (filterTable.isNull())
 				return;
 			QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
-			filterTable->setLines(path, deserializeConfigurationLines(externalContent));
-			filterTable->updateAnalysis();
-			refreshProfiles();
+			if (filterTable->setLines(path, deserializeConfigurationLines(externalContent)))
+			{
+				filterTable->updateAnalysis();
+				refreshProfiles();
+			}
 		});
 	}
 	if (keptExternal != NULL)
@@ -1948,23 +2002,53 @@ bool MainWindow::setTemporaryLines(
 	if (filterTable == NULL || filterTable->getConfigPath().isEmpty())
 		return false;
 	const QString path = filterTable->getConfigPath();
+	// Do not write a temporary profile that the editor cannot safely mirror.
+	// Preflight is deliberately side-effect free; lifecycle cleanup is
+	// committed only after the conditional write succeeds.
+	if (!filterTable->prepareDeleteAllItems())
+		return false;
+	const QList<QString> linesBeforeDeleteCommit = filterTable->getLines();
 	const ConditionalWriteResult result = conditionallyWriteConfiguration(
 		path, expectedContent, temporaryContent);
 	if (result.status == ConditionalWriteStatus::failed)
 		return false;
 
-	QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
 	if (result.status == ConditionalWriteStatus::conflict)
 	{
 		if (externalConflict != NULL)
 			*externalConflict = true;
-		filterTable->setLines(path, deserializeConfigurationLines(result.currentContent));
-		filterTable->updateAnalysis();
-		refreshProfiles();
+		QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
+		if (filterTable->setLines(path, deserializeConfigurationLines(result.currentContent)))
+		{
+			filterTable->updateAnalysis();
+			refreshProfiles();
+		}
 		return false;
 	}
 
-	filterTable->setLines(path, lines);
+	bool deleteCommitted = false;
+	{
+		// State recovered while committing must remain visibly dirty, but an
+		// Instant-mode save here would destroy the conditional-write contract.
+		QScopedValueRollback<bool> instantSaveGuard(suppressInstantSave, true);
+		deleteCommitted = filterTable->commitDeleteAllItems();
+	}
+	const bool recoveredStateChanged =
+		filterTable->getLines() != linesBeforeDeleteCommit;
+	if (!deleteCommitted || recoveredStateChanged)
+	{
+		const bool rollbackVerified = rollbackConditionalConfigurationWrite(
+			path, temporaryContent, expectedContent);
+		if (externalConflict != NULL && recoveredStateChanged && rollbackVerified)
+			*externalConflict = true;
+		return false;
+	}
+	{
+		QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
+		filterTable->setLinesAfterDeleteCommit(path, lines);
+		if (filterTable->getLines() != lines)
+			return false;
+	}
 	filterTable->updateAnalysis();
 	refreshProfiles();
 	return true;
@@ -1981,13 +2065,20 @@ bool MainWindow::restoreTemporaryLines(
 
 	const QString path = filterTable->getConfigPath();
 	QByteArray expectedContent = expectedTemporaryContent;
+	if (filterTable->getLines() != originalLines &&
+		!filterTable->prepareDeleteAllItems())
+		return false;
 
 	auto updateTable = [this, filterTable, &path](const QList<QString>& lines)
 	{
+		if (filterTable->getLines() == lines)
+			return true;
 		QScopedValueRollback<bool> restoringGuard(restoringTemporaryState, true);
-		filterTable->setLines(path, lines);
+		if (!filterTable->setLines(path, lines))
+			return false;
 		filterTable->updateAnalysis();
 		refreshProfiles();
+		return true;
 	};
 
 	for (int attempt = 0; attempt < 4; ++attempt)
@@ -1996,8 +2087,7 @@ bool MainWindow::restoreTemporaryLines(
 			path, expectedContent, originalContent);
 		if (result.status == ConditionalWriteStatus::written)
 		{
-			updateTable(originalLines);
-			return true;
+			return updateTable(originalLines);
 		}
 		if (result.status == ConditionalWriteStatus::failed)
 		{
@@ -2009,8 +2099,7 @@ bool MainWindow::restoreTemporaryLines(
 
 		if (result.currentContent == originalContent)
 		{
-			updateTable(originalLines);
-			return true;
+			return updateTable(originalLines);
 		}
 
 		QMessageBox conflictBox(
@@ -2028,7 +2117,8 @@ bool MainWindow::restoreTemporaryLines(
 		conflictBox.exec();
 		if (conflictBox.clickedButton() != restoreButton)
 		{
-			updateTable(deserializeConfigurationLines(result.currentContent));
+			if (!updateTable(deserializeConfigurationLines(result.currentContent)))
+				return false;
 			showWorkspaceStatus(tr("Kept external profile changes"), "warning");
 			return true;
 		}
@@ -2427,8 +2517,14 @@ void MainWindow::recoverInterruptedTemporaryProcessingState()
 void MainWindow::captureComparisonA()
 {
 	FilterTable* filterTable = currentFilterTable();
-	if (filterTable == NULL || filterTable->getConfigPath().isEmpty()
-		|| isFilterTableDirty(filterTable))
+	if (filterTable == NULL || filterTable->getConfigPath().isEmpty())
+	{
+		showWorkspaceStatus(tr("Save the profile before starting an audible A/B comparison"), "warning");
+		return;
+	}
+	// Validate every external row before taking the snapshot. Lifecycle state is
+	// committed only if a later temporary-file swap actually succeeds.
+	if (!filterTable->prepareDeleteAllItems() || isFilterTableDirty(filterTable))
 	{
 		showWorkspaceStatus(tr("Save the profile before starting an audible A/B comparison"), "warning");
 		return;
@@ -2486,7 +2582,10 @@ void MainWindow::comparisonToggled(bool showA)
 
 	if (showA)
 	{
-		if (isFilterTableDirty(filterTable))
+		// Validate external rows before taking B or creating recovery bytes.
+		// setTemporaryLines commits them only after its conditional write.
+		if (!filterTable->prepareDeleteAllItems() ||
+			isFilterTableDirty(filterTable))
 		{
 			QSignalBlocker blocker(comparisonAction);
 			comparisonAction->setChecked(false);
@@ -2633,8 +2732,18 @@ void MainWindow::bypassToggled(bool enabled)
 	FilterTable* filterTable = currentFilterTable();
 	if (enabled)
 	{
-		if (filterTable == NULL || filterTable->getConfigPath().isEmpty()
-			|| isFilterTableDirty(filterTable))
+		if (filterTable == NULL || filterTable->getConfigPath().isEmpty())
+		{
+			QSignalBlocker blocker(bypassAction);
+			bypassAction->setChecked(false);
+			showWorkspaceStatus(tr("Save the profile before using audible bypass"), "warning");
+			return;
+		}
+		// Validate external rows before deriving the original/bypass lines and
+		// their recovery journal. setTemporaryLines commits them only after its
+		// conditional write.
+		if (!filterTable->prepareDeleteAllItems() ||
+			isFilterTableDirty(filterTable))
 		{
 			QSignalBlocker blocker(bypassAction);
 			bypassAction->setChecked(false);
@@ -2748,7 +2857,7 @@ void MainWindow::bypassToggled(bool enabled)
 		showWorkspaceStatus(tr("Current profile is temporarily bypassed"), "danger", 0);
 		if (trayIcon != NULL)
 			trayIcon->showMessage(
-				tr("Equalizer APO bypassed"),
+				tr("Hibiki EQAPO bypassed"),
 				tr("Choose Restore audio to re-enable the current profile."),
 				QSystemTrayIcon::Warning, 3500);
 	}
@@ -2945,7 +3054,7 @@ void MainWindow::doChecks()
 {
 	if (!DeviceAPOInfo::checkProtectedAudioDG(false) || !DeviceAPOInfo::checkAPORegistration(false))
 	{
-		if (QMessageBox::warning(this, tr("Registry problem"), tr("A registry value that is required for the operation of Equalizer APO is not set correctly.\nDo you want to run the Device Selector application to fix the problem?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+		if (QMessageBox::warning(this, tr("Registry problem"), tr("A registry value that is required for the operation of Hibiki EQAPO is not set correctly.\nDo you want to run the Device Selector application to fix the problem?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
 		{
 			runDeviceSelector();
 			return;
@@ -2954,7 +3063,7 @@ void MainWindow::doChecks()
 
 	if (!hasInstalledDevice(outputDevices) && !hasInstalledDevice(inputDevices))
 	{
-		if (QMessageBox::warning(this, tr("APO not installed to device"), tr("Equalizer APO has not been installed to the selected device.\nDo you want to run the Device Selector application to fix the problem?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
+		if (QMessageBox::warning(this, tr("APO not installed to device"), tr("Hibiki EQAPO has not been installed to the selected device.\nDo you want to run the Device Selector application to fix the problem?"), QMessageBox::Yes, QMessageBox::No) == QMessageBox::Yes)
 		{
 			runDeviceSelector();
 			return;
@@ -3149,25 +3258,55 @@ void MainWindow::closeEvent(QCloseEvent* event)
 		hide();
 		event->ignore();
 		trayIcon->showMessage(
-			tr("Equalizer APO is still running"),
+			tr("Hibiki EQAPO is still running"),
 			tr("Use the notification-area icon to reopen profiles or restore bypassed audio."),
 			QSystemTrayIcon::Information, 3000);
 		return;
 	}
 
-	if (!restoreTemporaryProcessingState())
-	{
-		event->ignore();
-		restart = false;
-		return;
-	}
 	bool canceled = false;
-	for (int i = 0; i < ui->tabWidget->count(); i++)
+	for (int i = 0; i < ui->tabWidget->count(); ++i)
 	{
-		if (!askForClose(i))
+		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(
+			ui->tabWidget->widget(i));
+		FilterTable* filterTable = scrollArea == NULL
+			? NULL : qobject_cast<FilterTable*>(scrollArea->widget());
+		if (filterTable != NULL && !filterTable->prepareDeleteAllItems())
 		{
+			ui->tabWidget->setCurrentIndex(i);
 			canceled = true;
 			break;
+		}
+	}
+	if (!canceled)
+	{
+		for (int i = 0; i < ui->tabWidget->count(); i++)
+		{
+			if (!askForClose(i))
+			{
+				canceled = true;
+				break;
+			}
+		}
+	}
+	// A close prompt can still be canceled, so keep temporary audio and every
+	// external host untouched until all tabs have accepted the close.
+	if (!canceled && !restoreTemporaryProcessingState())
+		canceled = true;
+	if (!canceled)
+	{
+		for (int i = 0; i < ui->tabWidget->count(); ++i)
+		{
+			QScrollArea* scrollArea = qobject_cast<QScrollArea*>(
+				ui->tabWidget->widget(i));
+			FilterTable* filterTable = scrollArea == NULL
+				? NULL : qobject_cast<FilterTable*>(scrollArea->widget());
+			if (filterTable != NULL && !filterTable->commitDeleteAllItems())
+			{
+				ui->tabWidget->setCurrentIndex(i);
+				canceled = true;
+				break;
+			}
 		}
 	}
 
@@ -3297,7 +3436,8 @@ void MainWindow::linesChanged()
 		return;
 	bool savedInstantly = false;
 
-	if (instantModeCheckBox->isChecked() && !applyingAutoPreampAdjustment)
+	if (instantModeCheckBox->isChecked() && !suppressInstantSave &&
+		!applyingAutoPreampAdjustment)
 	{
 		QString configPath = filterTable->getConfigPath();
 		if (configPath.length() > 0)
@@ -3335,39 +3475,51 @@ bool MainWindow::on_tabWidget_tabCloseRequested(int index)
 	QScrollArea* closingScrollArea = qobject_cast<QScrollArea*>(ui->tabWidget->widget(index));
 	FilterTable* closingFilterTable = closingScrollArea == NULL
 		? NULL : qobject_cast<FilterTable*>(closingScrollArea->widget());
-	if (closingFilterTable == comparisonTable || closingFilterTable == bypassTable)
+	if (closingFilterTable != NULL &&
+		!closingFilterTable->prepareDeleteAllItems())
+		return false;
+
+	if (!askForClose(index))
+		return false;
+	// The user has now accepted the close. Restoring temporary processing may
+	// commit external row cleanup, so it must not run before the Cancel point.
+	if ((closingFilterTable == comparisonTable ||
+		closingFilterTable == bypassTable) &&
+		!restoreTemporaryProcessingState())
 	{
-		if (!restoreTemporaryProcessingState())
-			return false;
+		return false;
+	}
+	if (closingFilterTable != NULL &&
+		!closingFilterTable->commitDeleteAllItems())
+		return false;
+
+	if (closingFilterTable != NULL)
+	{
+		QString path = closingFilterTable->getConfigPath();
+		recentFiles.removeAll(path);
+		recentFiles.prepend(path);
+		if (recentFiles.size() > 10)
+			recentFiles.removeLast();
+		updateRecentFiles();
 	}
 
-	if (askForClose(index))
+	ui->tabWidget->removeTab(index);
+	if (closingFilterTable == comparisonTable)
 	{
-		QScrollArea* scrollArea = qobject_cast<QScrollArea*>(ui->tabWidget->widget(index));
-		if (scrollArea != NULL)
-		{
-			FilterTable* filterTable = qobject_cast<FilterTable*>(scrollArea->widget());
-			QString path = filterTable->getConfigPath();
-			recentFiles.removeAll(path);
-			recentFiles.prepend(path);
-			if (recentFiles.size() > 10)
-				recentFiles.removeLast();
-			updateRecentFiles();
-		}
-
-		ui->tabWidget->removeTab(index);
-		if (closingFilterTable == comparisonTable)
-		{
-			comparisonTable.clear();
-			comparisonALines.clear();
-			comparisonBLines.clear();
-			comparisonOriginalContent.clear();
-			comparisonTemporaryContent.clear();
-		}
-		refreshProfiles();
-		syncProfileSelection();
-		refreshWorkspaceActionState();
+		comparisonTable.clear();
+		comparisonALines.clear();
+		comparisonBLines.clear();
+		comparisonOriginalContent.clear();
+		comparisonTemporaryContent.clear();
 	}
+	refreshProfiles();
+	syncProfileSelection();
+	refreshWorkspaceActionState();
+	// QTabWidget::removeTab() only detaches the page. Release the scroll
+	// area (and its FilterTable) after every pointer/state consumer above
+	// has finished; a veto or canceled close never reaches this point.
+	if (closingScrollArea != NULL)
+		closingScrollArea->deleteLater();
 	return true;
 }
 
@@ -4096,6 +4248,124 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			{
 				return false;
 			}
+		}
+	}
+	else
+	{
+		// Exercise an actual Qt row-widget teardown/recreation. Stateful VST
+		// process tracking must move through FilterTable::Item rather than the
+		// persisted row preferences; otherwise any structural edit strands the
+		// live host and its random state sidecar in the deleted widget.
+		IFilterGUI* oldVstGui = findChild<IFilterGUI*>(
+			QStringLiteral("VSTPluginFilterGUI"));
+		QVariantMap expectedRuntimeState;
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcHostId"),
+			QStringLiteral("snapshot-outproc"));
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcConfigPath"),
+			QStringLiteral("C:/snapshot/retained-vst-state.opvs"));
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcPid"), QStringLiteral("424242"));
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcProcessCreationTime"),
+			QStringLiteral("133713371337"));
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcRunning"), true);
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcHidden"), false);
+		expectedRuntimeState.insert(
+			QStringLiteral("outProcFinalStateCommitted"), false);
+		if (oldVstGui == NULL)
+			return false;
+		oldVstGui->restoreRuntimeState(expectedRuntimeState);
+		filterTable->updateGuis();
+		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		IFilterGUI* rebuiltVstGui = findChild<IFilterGUI*>(
+			QStringLiteral("VSTPluginFilterGUI"));
+		QVariantMap actualRuntimeState;
+		if (rebuiltVstGui == NULL || rebuiltVstGui == oldVstGui)
+			return false;
+		rebuiltVstGui->takeRuntimeState(actualRuntimeState);
+		if (actualRuntimeState != expectedRuntimeState)
+			return false;
+
+		FilterTable cloneProbe(this);
+		FilterTable::Item* outProcProbe = cloneProbe.addLine(QStringLiteral(
+			"OutProcVSTPlugin: Library \"C:/My HostId Plugin.dll\" 0 \"MeterId\" 0.5 HostId old-session HostId stale-session"));
+		cloneProbe.cloneItem(outProcProbe, true);
+		FilterTable::Item* meterProbe = cloneProbe.addLine(QStringLiteral(
+			"VUMeter: Label \"My MeterId View\" MeterId old-meter Channels all"));
+		cloneProbe.cloneItem(meterProbe, true);
+		FilterTable::Item* danglingOutProcProbe = cloneProbe.addLine(QStringLiteral(
+			"OutProcVSTPlugin: Library dangling.vst3 HostId"));
+		cloneProbe.cloneItem(danglingOutProcProbe, true);
+		FilterTable::Item* emptyOutProcProbe = cloneProbe.addLine(QStringLiteral(
+			"OutProcVSTPlugin: Library empty.vst3 HostId \"\""));
+		cloneProbe.cloneItem(emptyOutProcProbe, true);
+		FilterTable::Item* danglingMeterProbe = cloneProbe.addLine(QStringLiteral(
+			"VUMeter: Channels all MeterId"));
+		cloneProbe.cloneItem(danglingMeterProbe, true);
+		FilterTable::Item* emptyMeterProbe = cloneProbe.addLine(QStringLiteral(
+			"VUMeter: Channels all MeterId \"\""));
+		cloneProbe.cloneItem(emptyMeterProbe, true);
+		const QList<QString> clonedLines = cloneProbe.getLines();
+		if (clonedLines.size() != 12 ||
+			!clonedLines[1].contains(QStringLiteral(
+				"Library \"C:/My HostId Plugin.dll\"")) ||
+			!clonedLines[1].contains(QStringLiteral("0 \"MeterId\" 0.5")) ||
+			clonedLines[1].contains(QStringLiteral("old-session")) ||
+			clonedLines[1].contains(QStringLiteral("stale-session")) ||
+			!clonedLines[3].contains(QStringLiteral(
+				"Label \"My MeterId View\"")) ||
+			clonedLines[3].contains(QStringLiteral("old-meter")) ||
+			!clonedLines[5].startsWith(QStringLiteral(
+				"OutProcVSTPlugin: HostId ")) ||
+			clonedLines[5].count(QStringLiteral("HostId")) != 1 ||
+			!clonedLines[7].startsWith(QStringLiteral(
+				"OutProcVSTPlugin: HostId ")) ||
+			clonedLines[7].count(QStringLiteral("HostId")) != 1 ||
+			clonedLines[7].contains(QStringLiteral("\"\"")) ||
+			!clonedLines[9].startsWith(QStringLiteral("VUMeter: MeterId ")) ||
+			clonedLines[9].count(QStringLiteral("MeterId")) != 1 ||
+			!clonedLines[11].startsWith(QStringLiteral("VUMeter: MeterId ")) ||
+			clonedLines[11].count(QStringLiteral("MeterId")) != 1 ||
+			clonedLines[11].contains(QStringLiteral("\"\"")))
+		{
+			return false;
+		}
+
+		// Invalid legacy HostIds must be canonicalized to distinct UUIDs before
+		// object lookup, or punctuation replacement could alias two GUI sessions.
+		QScrollArea canonicalProbeArea;
+		canonicalProbeArea.setWidgetResizable(true);
+		FilterTable* canonicalProbe = new FilterTable(this);
+		canonicalProbeArea.setWidget(canonicalProbe);
+		canonicalProbe->initialize(
+			&canonicalProbeArea, outputDevices, inputDevices);
+		canonicalProbe->addLine(QStringLiteral(
+			"OutProcVSTPlugin: Library invalid.vst3 HostId foo!"));
+		canonicalProbe->addLine(QStringLiteral(
+			"OutProcVSTPlugin: Library invalid.vst3 HostId foo?"));
+		canonicalProbe->updateGuis();
+		QCoreApplication::processEvents();
+		const QList<QString> canonicalLines = canonicalProbe->getLines();
+		auto serializedHostId = [](const QString& line)
+		{
+			const QString marker = QStringLiteral(" HostId ");
+			const int offset = line.indexOf(marker);
+			return offset < 0 ? QString() :
+				line.mid(offset + marker.size()).section(' ', 0, 0);
+		};
+		const QString firstCanonicalId = canonicalLines.size() > 0
+			? serializedHostId(canonicalLines[0]) : QString();
+		const QString secondCanonicalId = canonicalLines.size() > 1
+			? serializedHostId(canonicalLines[1]) : QString();
+		if (canonicalLines.size() != 2 || firstCanonicalId.isEmpty() ||
+			secondCanonicalId.isEmpty() || firstCanonicalId == secondCanonicalId ||
+			firstCanonicalId.contains('!') || secondCanonicalId.contains('?'))
+		{
+			return false;
 		}
 	}
 

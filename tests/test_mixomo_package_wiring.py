@@ -32,7 +32,7 @@ def project_items(relative_path: str, kind: str) -> set[str]:
 
 class BuildPackageWiringTests(unittest.TestCase):
     def test_outproc_host_depends_on_common_in_solution(self) -> None:
-        solution = read("EqualizerAPO.sln")
+        solution = read("HibikiEQAPO.sln")
         project_start = solution.index(
             'Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = '
             '"EqApoOutProcHost"'

@@ -7,10 +7,10 @@ $ErrorActionPreference = "Stop"
 
 $expectedOriginPattern = "^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)xup61069/loudness-correction-apo(?:\.git)?/?$"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-$solutionPath = Join-Path $repoRoot "EqualizerAPO.sln"
+$solutionPath = Join-Path $repoRoot "HibikiEQAPO.sln"
 
 if (!(Test-Path -LiteralPath $solutionPath -PathType Leaf)) {
-	throw "EqualizerAPO.sln was not found under $repoRoot"
+	throw "HibikiEQAPO.sln was not found under $repoRoot"
 }
 
 $gitRootText = & git -C $repoRoot rev-parse --show-toplevel

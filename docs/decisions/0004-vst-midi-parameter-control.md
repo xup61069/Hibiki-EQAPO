@@ -26,6 +26,8 @@ VST3 mapping 使用 ParamID，目標只接受可見、非唯讀且宣告 `kCanAu
 
 行程外 host 的 sidecar 格式攜帶有界的 parameter descriptor metadata，並保持舊版 sidecar 可讀。MIDI mapping 的唯一擁有者是 Editor row；行程外 GUI 回傳狀態不得用過期 mapping 覆寫新值。
 
+Editor 終止行程外 GUI 時，必須先送出 `GuiExit` 並給 host 有限寬限時間，讓 host 在正常退出前擷取並寫回最後狀態；只有超時才可強制終止。強制終止前要同時核對 PID、process creation time 與 `EqApoOutProcHost.exe` 的 canonical 路徑，不能只信任可能殘留且遭 PID 重用的暫存 PID 檔。終止期間讀回的狀態若有變更，必須先更新 Editor model，才可開始 MIDI learn 的 temporary-audio transaction。
+
 目前列已有 mapping 時，Editor 必須先確認設定檔已儲存、磁碟內容逐位元相符且沒有其他暫時音訊狀態，再使用與 A/B／校準相同的 durable recovery journal，暫時把該列序列化成沒有 `MidiConfig` 的版本。學習對話框必須先解構並關閉 WinMM handle，才可還原原始檔案；只有還原成功且使用者沒有選擇保留外部修改時，才能把新 mapping 寫回 Editor model。寫入中斷或 Editor 當機時，既有暫時音訊復原流程負責還原或提示衝突。
 
 ## 後果與限制

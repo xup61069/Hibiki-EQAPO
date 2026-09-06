@@ -159,6 +159,10 @@ class ConvolutionSafetyTests(unittest.TestCase):
 
     def test_runtime_validates_file_shape_and_allocation_before_initializing(self) -> None:
         source = read("filters/ConvolutionFilter.cpp")
+        initialize = source[
+            source.index("vector<wstring> ConvolutionFilter::initialize") :
+            source.index("void ConvolutionFilter::copyDry")
+        ]
         prepare = source[
             source.index("bool ConvolutionFilter::prepareImpulseResponse") :
             source.index("ConvolutionFilter::ConvolutionBank* ConvolutionFilter::createBank")
@@ -171,6 +175,12 @@ class ConvolutionSafetyTests(unittest.TestCase):
         self.assertIn("isSafeImpulseShape", prepare)
         self.assertIn("std::numeric_limits<int>::max()", prepare)
         self.assertIn("std::numeric_limits<size_t>::max()", source)
+        self.assertIn("std::any_of(", initialize)
+        self.assertIn("!std::isfinite(sample)", initialize)
+        self.assertLess(
+            initialize.index("!std::isfinite(sample)"),
+            initialize.index("impulseResponses.swap(preparedImpulseResponses)"),
+        )
         self.assertIn("if (bank->filters == NULL)", create_bank)
         self.assertLess(
             create_bank.index("if (bank->filters == NULL)"),
@@ -182,8 +192,42 @@ class ConvolutionSafetyTests(unittest.TestCase):
             graphic.index("bool GraphicEQFilter::prepareImpulseResponse") :
         ]
         self.assertIn("createImpulseResponse", graphic_prepare)
+        self.assertIn("!std::isfinite(node.freq)", graphic_prepare)
+        self.assertIn("node.freq <= 0.0", graphic_prepare)
+        self.assertIn("!std::isfinite(node.dbGain)", graphic_prepare)
+        self.assertIn("node.freq <= previousFrequency", graphic_prepare)
+        self.assertIn("previousFrequency = node.freq", graphic_prepare)
         self.assertIn("impulseResponses.push_back", graphic_prepare)
         self.assertNotIn("hcInitSingle", graphic_prepare)
+
+        benchmark = read("Benchmark/Benchmark.cpp")
+        self.assertIn("runInvalidConvolutionInputTests", benchmark)
+        self.assertIn('"GraphicEQ zero-frequency fails dry out-of-place"', benchmark)
+        self.assertIn('"GraphicEQ negative-frequency fails dry in-place"', benchmark)
+        self.assertIn('"GraphicEQ duplicate-frequency fails dry out-of-place"', benchmark)
+        self.assertIn('"GraphicEQ non-finite frequency fails dry out-of-place"', benchmark)
+        self.assertIn('"GraphicEQ non-finite gain fails dry in-place"', benchmark)
+        self.assertIn('"Convolution non-finite impulse fails dry"', benchmark)
+
+    def test_native_benchmark_rejects_invalid_batch_and_nonfinite_output(self) -> None:
+        benchmark = read("Benchmark/Benchmark.cpp")
+
+        self.assertIn("if (batchsizeArg.getValue() == 0)", benchmark)
+        self.assertIn('"Error: --batchsize must be greater than zero.', benchmark)
+        self.assertIn("bool outputIsFinite = true;", benchmark)
+        self.assertIn("if (!std::isfinite(buf2[i]))", benchmark)
+        self.assertIn('"Processing produced non-finite output samples.', benchmark)
+        self.assertIn("getSafeSampleCount<float>(", benchmark)
+        self.assertIn("vector<float> buf;", benchmark)
+        self.assertIn("vector<float> buf2(sampleCount, 0.0f);", benchmark)
+        self.assertIn("info.frames <= 0", benchmark)
+        self.assertIn("requestedFrames < 1.0", benchmark)
+        self.assertIn("framesRead <= 0", benchmark)
+        self.assertIn("framesWritten <= 0", benchmark)
+        self.assertIn("while (processedFrames < frameCount)", benchmark)
+        self.assertIn("finite &&", benchmark)
+        self.assertIn("std::isfinite(actual[index])", benchmark)
+        self.assertIn("std::numeric_limits<double>::infinity()", benchmark)
 
     def test_runtime_callback_remains_bounded_and_io_free(self) -> None:
         source = read("filters/ConvolutionFilter.cpp")

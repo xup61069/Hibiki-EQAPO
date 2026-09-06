@@ -34,6 +34,7 @@
 #include "IFilterGUIFactory.h"
 
 class MainWindow;
+class FilterTableMimeData;
 
 class FilterTable : public QWidget
 {
@@ -52,6 +53,7 @@ public:
 
 		QString text;
 		QVariantMap prefs;
+		QVariantMap runtimeState;
 		IFilterGUI* gui = NULL;
 	};
 
@@ -81,15 +83,19 @@ public:
 		QList<QString>* lines) const;
 	bool planPreampReduction(double reductionDb, PreampAdjustmentPlan* plan) const;
 	bool applyPreampReduction(const PreampAdjustmentPlan& plan);
-	void setLines(const QString& configPath, const QList<QString>& lines);
+	bool setLines(const QString& configPath, const QList<QString>& lines);
+	bool prepareDeleteAllItems();
+	bool commitDeleteAllItems();
+	bool prepareItemReplacement(Item* item);
 	Item* addLine(const QString& line, Item* before = NULL);
 	Item* cloneItem(Item* item, bool insertBelow);
-	void removeItem(Item* item);
+	bool replaceItemText(Item* item, const QString& text);
+	bool removeItem(Item* item);
 	QMenu* createAddPopupMenu();
 	void cut();
 	void copy();
 	void paste();
-	void deleteSelectedLines();
+	bool deleteSelectedLines();
 	void selectAll();
 	int findText(const QString& text, bool backwards = false);
 	void clearFindSelection();
@@ -137,7 +143,19 @@ protected:
 	void showEvent(QShowEvent*) override;
 
 private:
-	void prepareDeleteItem(Item* item);
+	bool prepareDeleteItem(Item* item);
+	bool prepareDeleteItems(const QList<Item*>& candidateItems);
+	bool commitDeleteItem(Item* item);
+	bool commitDeleteItems(const QList<Item*>& candidateItems);
+	QList<Item*> selectedItemsInOrder() const;
+	void populateMimeDataFromItems(
+		FilterTableMimeData* mimeData,
+		const QList<Item*>& sourceItems);
+	void copyItemsToClipboard(const QList<Item*>& itemsToCopy);
+	void deletePreparedItems(const QList<Item*>& itemsToDelete);
+	void setLinesAfterDeleteCommit(
+		const QString& configPath,
+		const QList<QString>& lines);
 	void ensureRowVisible(int row);
 	int rowForPos(QPoint pos, bool insert);
 	QRectF rowRect(int row);
@@ -164,6 +182,8 @@ private:
 	int minimumHeightHint = 0;
 	int presetScrollX = -1;
 	int presetScrollY = -1;
+
+	friend class MainWindow;
 };
 
 template<typename T> inline uint qHash(QList<T> list)

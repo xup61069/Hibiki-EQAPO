@@ -45,6 +45,7 @@ vector<IFilter*> CrossfeedFilterFactory::createFilter(const wstring& configPath,
 			direct = wcstod(parts[i + 1].c_str(), NULL);
 	}
 
-	void* mem = MemoryHelper::alloc(sizeof(CrossfeedFilter));
-	return vector<IFilter*>(1, new(mem) CrossfeedFilter(algorithm, amount, circumference, headWidth, headLength, angle, cutoff, direct));
+	return adoptFilter(constructFilter<CrossfeedFilter>(
+		algorithm, amount, circumference, headWidth, headLength,
+		angle, cutoff, direct));
 }

@@ -19,6 +19,7 @@
 
 #include "stdafx.h"
 #include <algorithm>
+#include <limits>
 #include <sstream>
 
 #include "helpers/LogHelper.h"
@@ -34,6 +35,8 @@ CopyFilter::CopyFilter(const vector<Assignment>& assignments)
 
 	internalAssignments = NULL;
 	assignmentCount = 0;
+	bypassChannelCount = 0;
+	allocationFailed = false;
 }
 
 CopyFilter::~CopyFilter()
@@ -44,9 +47,36 @@ CopyFilter::~CopyFilter()
 vector<wstring> CopyFilter::initialize(float sampleRate, unsigned maxFrameCount, vector<wstring> channelNames)
 {
 	cleanup();
+	allocationFailed = false;
+	bypassChannelCount = channelNames.size();
+	for (const Assignment& assignment : assignments)
+	{
+		for (const Assignment::Summand& summand : assignment.sourceSum)
+		{
+			const double factor = summand.isDecibel ?
+				std::pow(10.0, summand.factor / 20.0) : summand.factor;
+			if (!std::isfinite(summand.factor) || !std::isfinite(factor))
+			{
+				allocationFailed = true;
+				return channelNames;
+			}
+		}
+	}
+	if (assignments.size() > (std::numeric_limits<unsigned>::max)())
+	{
+		allocationFailed = true;
+		return channelNames;
+	}
 
 	assignmentCount = (unsigned)assignments.size();
-	internalAssignments = (InternalAssignment*)MemoryHelper::alloc(assignmentCount * sizeof(InternalAssignment));
+	internalAssignments = static_cast<InternalAssignment*>(
+		MemoryHelper::allocArray(assignmentCount, sizeof(InternalAssignment)));
+	if (internalAssignments == NULL)
+	{
+		assignmentCount = 0;
+		allocationFailed = true;
+		return channelNames;
+	}
 	memset(internalAssignments, 0, assignmentCount * sizeof(InternalAssignment));
 
 	vector<wstring> outChannelNames;
@@ -65,8 +95,23 @@ vector<wstring> CopyFilter::initialize(float sampleRate, unsigned maxFrameCount,
 		if (it == outChannelNames.end())
 			outChannelNames.push_back(channelName);
 
+		if (a.sourceSum.size() > (std::numeric_limits<unsigned>::max)())
+		{
+			cleanup();
+			allocationFailed = true;
+			return channelNames;
+		}
 		ia.sourceCount = (unsigned)a.sourceSum.size();
-		ia.sourceSum = (InternalAssignment::InternalSummand*)MemoryHelper::alloc(ia.sourceCount * sizeof(InternalAssignment::InternalSummand));
+		ia.sourceSum = static_cast<InternalAssignment::InternalSummand*>(
+			MemoryHelper::allocArray(
+				ia.sourceCount,
+				sizeof(InternalAssignment::InternalSummand)));
+		if (ia.sourceSum == NULL)
+		{
+			cleanup();
+			allocationFailed = true;
+			return channelNames;
+		}
 
 		for (unsigned j = 0; j < ia.sourceCount; j++)
 		{
@@ -112,6 +157,16 @@ vector<wstring> CopyFilter::initialize(float sampleRate, unsigned maxFrameCount,
 #pragma AVRT_CODE_BEGIN
 void CopyFilter::process(double** output, double** input, unsigned frameCount)
 {
+	if (allocationFailed)
+	{
+		for (size_t channel = 0; channel < bypassChannelCount; ++channel)
+		{
+			if (output[channel] != input[channel])
+				memcpy(output[channel], input[channel], frameCount * sizeof(double));
+		}
+		return;
+	}
+
 	for (unsigned i = 0; i < assignmentCount; i++)
 	{
 		InternalAssignment& ia = internalAssignments[i];
@@ -167,6 +222,7 @@ void CopyFilter::cleanup()
 		MemoryHelper::free(internalAssignments);
 		internalAssignments = NULL;
 	}
+	assignmentCount = 0;
 }
 
 std::vector<Assignment> CopyFilter::getAssignments() const

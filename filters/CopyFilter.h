@@ -72,5 +72,7 @@ private:
 
 	InternalAssignment* internalAssignments;
 	unsigned assignmentCount;
+	size_t bypassChannelCount;
+	bool allocationFailed;
 };
 #pragma AVRT_VTABLES_END

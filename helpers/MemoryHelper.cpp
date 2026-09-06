@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <limits>
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #ifdef _DEBUG
@@ -36,6 +37,11 @@
 #include "LogHelper.h"
 #include "MemoryHelper.h"
 
+namespace
+{
+	thread_local bool allocationFailedOnCurrentThread = false;
+}
+
 #ifdef USE_WINDDK
 // someone forgot to add the __stdcall/WINAPI modifier to BaseAudioProcessingObject.h, so we can't use the existing declarations
 extern "C"
@@ -47,6 +53,16 @@ HRESULT __stdcall AERT_Free(void* pMemory);
 
 void* MemoryHelper::alloc(size_t size)
 {
+	const size_t maximumSize = (std::numeric_limits<size_t>::max)();
+	// The aligned pointer can require 16 bytes of prefix. The WDK fallback
+	// uses a second 16-byte prefix to identify malloc-owned storage.
+	if (size > maximumSize - 32)
+	{
+		allocationFailedOnCurrentThread = true;
+		LogFStatic(L"Allocation size overflow.");
+		return NULL;
+	}
+
 	void* memory;
 	bool alternative = false;
 	size += 16;
@@ -68,6 +84,7 @@ void* MemoryHelper::alloc(size_t size)
 #endif
 	if (memory == NULL)
 	{
+		allocationFailedOnCurrentThread = true;
 		LogFStatic(L"Allocation of %d bytes failed.", size);
 		return NULL;
 	}
@@ -81,8 +98,23 @@ void* MemoryHelper::alloc(size_t size)
 	return ptr;
 }
 
+void* MemoryHelper::allocArray(size_t count, size_t elementSize)
+{
+	const size_t maximumSize = (std::numeric_limits<size_t>::max)();
+	if (elementSize != 0 && count > (maximumSize - 32) / elementSize)
+	{
+		allocationFailedOnCurrentThread = true;
+		LogFStatic(L"Allocation size overflow.");
+		return NULL;
+	}
+	return alloc(count * elementSize);
+}
+
 void MemoryHelper::free(void* ptr)
 {
+	if (ptr == NULL)
+		return;
+
 	bool alternative = false;
 	char offset = ((char*)ptr)[-1];
 	if (offset > 16)
@@ -110,4 +142,21 @@ void MemoryHelper::free(void* ptr)
 	::free(memory);
 #endif
 #endif
+}
+
+void MemoryHelper::clearAllocationFailure() noexcept
+{
+	allocationFailedOnCurrentThread = false;
+}
+
+void MemoryHelper::markAllocationFailure() noexcept
+{
+	allocationFailedOnCurrentThread = true;
+}
+
+bool MemoryHelper::consumeAllocationFailure() noexcept
+{
+	const bool failed = allocationFailedOnCurrentThread;
+	allocationFailedOnCurrentThread = false;
+	return failed;
 }

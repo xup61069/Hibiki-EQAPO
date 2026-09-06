@@ -13,8 +13,11 @@ constexpr std::uint32_t OUTPROC_AUDIO_STATUS_ERROR = 1;
 constexpr std::uint32_t OUTPROC_AUDIO_DSP_GAIN = 1;
 constexpr std::uint32_t OUTPROC_AUDIO_DSP_BIQUAD = 2;
 constexpr std::uint32_t OUTPROC_AUDIO_DSP_VST = 3;
+// Runtime filters use this only after a cooperative shutdown has timed out.
+// A forced host exit must never be indistinguishable from a clean exit.
+constexpr std::uint32_t OUTPROC_RUNTIME_FORCED_TERMINATION_EXIT_CODE = 25;
 constexpr std::uint32_t OUTPROC_GUI_INFO_MAGIC = 0x4F504749; // OPGI
-constexpr std::uint32_t OUTPROC_GUI_INFO_VERSION = 1;
+constexpr std::uint32_t OUTPROC_GUI_INFO_VERSION = 2;
 
 struct OutProcGuiInfo
 {
@@ -22,6 +25,7 @@ struct OutProcGuiInfo
 	std::uint32_t version;
 	std::uint32_t processId;
 	std::uint32_t reserved;
+	std::uint64_t processCreationTime;
 };
 
 struct OutProcAudioHeader

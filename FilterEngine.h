@@ -46,15 +46,25 @@ struct LoadedConfigurationFile
 class FilterEngine
 {
 public:
+	enum class ProcessingPolicy
+	{
+		Full,
+		AsioCallbackSafe
+	};
+
 	FilterEngine();
 	~FilterEngine();
 
+	// Must be selected before initialize(). The ASIO policy admits only the
+	// built-in, non-blocking filter allowlist and rejects the whole new
+	// configuration if it contains a known out-of-process or plug-in command.
+	void setProcessingPolicy(ProcessingPolicy policy) noexcept;
 	void setPreMix(bool preMix);
 	void setOfflineAnalysis(bool offlineAnalysis);
 	void clearDeviceInfo();
 	void setDeviceInfo(bool capture, bool postMixInstalled, const std::wstring& deviceName, const std::wstring& connectionName, const std::wstring& deviceGuid, const std::wstring& deviceString);
 	void initialize(float sampleRate, unsigned inputChannelCount, unsigned realChannelCount, unsigned outputChannelCount, unsigned channelMask, unsigned maxFrameCount, const std::wstring& customPath = L"");
-	void loadConfig(const std::wstring& customPath = L"");
+	bool loadConfig(const std::wstring& customPath = L"");
 	void loadConfigFile(const std::wstring& path);
 	void watchRegistryKey(const std::wstring& key);
 	void process(float* output, float* input, unsigned frameCount);
@@ -77,14 +87,25 @@ public:
 	unsigned getChannelMask() const {return channelMask;}
 	float getSampleRate() const {return sampleRate;}
 	unsigned getMaxFrameCount() const {return maxFrameCount;}
+	bool hasActiveConfiguration() const noexcept
+	{
+		return currentConfig.load(std::memory_order_acquire) != nullptr;
+	}
+	bool rejectedUnsafeConfiguration() const noexcept
+	{
+		return unsafeConfigurationRejected.load(std::memory_order_acquire);
+	}
 	mup::ParserX* getParser() {return parser;}
 	const std::vector<LoadedConfigurationFile>& getLoadedConfigurationFiles() const {return loadedConfigurationFiles;}
 	const std::vector<FilterRuntimeVolumeObservation>& getRuntimeVolumeObservations() const {return runtimeVolumeObservations;}
 
 private:
-	void addFilters(std::vector<IFilter*> filters);
+	friend class FilterEngineTestAccess;
+
+	void addFilters(std::vector<IFilter*>& filters);
+	bool isFactoryAllowed(const IFilterFactory* factory) const noexcept;
 	void commitCompletedTransition(FilterConfiguration* pending) noexcept;
-	void cleanupConfigurations();
+	void cleanupConfigurations() noexcept;
 	static void destroyConfiguration(FilterConfiguration* configuration) noexcept;
 	void reclaimRetiredConfiguration() noexcept;
 	void stopNotificationThread() noexcept;
@@ -92,6 +113,11 @@ private:
 	void resizeBuffers(unsigned frameCount);
 
 	std::vector<IFilterFactory*> factories;
+	std::unordered_set<const IFilterFactory*> callbackUnsafeFactories;
+	const IFilterFactory* asioManualLoudnessFactory;
+	const IFilterFactory* asioOriginalLoudnessFactory;
+	ProcessingPolicy processingPolicy;
+	std::atomic<bool> unsafeConfigurationRejected;
 
 	std::vector<std::unique_ptr<double[]>> inputBuf2D, outputBuf2D;
 	std::vector<double*> inputBufPointers, outputBufPointers;
@@ -129,9 +155,9 @@ private:
 	bool lastInPlace;
 	mup::ParserX* parser;
 
-	// The active configuration is published during initialize and thereafter
-	// belongs exclusively to the audio thread until processing has stopped.
-	FilterConfiguration* currentConfig;
+	// The active configuration is published with release semantics. After the
+	// first successful load, only the audio thread replaces it during handoff.
+	std::atomic<FilterConfiguration*> currentConfig;
 	std::atomic<FilterConfiguration*> pendingConfig;
 	std::atomic<FilterConfiguration*> retiredConfig;
 	bool hasInitialConfiguration;

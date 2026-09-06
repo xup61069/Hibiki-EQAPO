@@ -374,7 +374,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>Applies Windows volume as an extra gain inside Equalizer APO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint's reported dB.</string>
+        <string>Applies Windows volume as an extra gain inside Hibiki EQAPO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint's reported dB.</string>
        </property>
        <item>
         <property name="text">

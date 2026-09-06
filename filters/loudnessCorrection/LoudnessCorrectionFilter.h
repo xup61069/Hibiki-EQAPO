@@ -228,13 +228,13 @@ public:
 			int attenuationError = archive.get(attenuation,
 				std::wregex(L"(?:^|\\s)Attenuation\\s+([-+]?(?:[0-9]+(?:[\\.,][0-9]*)?|[\\.,][0-9]+))(?=\\s|$)",
 					std::regex_constants::icase));
-			if (attenuationError != 0)
+			if (attenuationError != 0 || !std::isfinite(attenuation))
 				attenuation = 1.0f;
 
 			int volumeError = archive.get(manualVolume,
 				std::wregex(L"(?:^|\\s)Volume\\s+([-+]?(?:[0-9]+(?:[\\.,][0-9]*)?|[\\.,][0-9]+))(?=\\s|$)",
 					std::regex_constants::icase));
-			useManualVolume = volumeError == 0;
+			useManualVolume = volumeError == 0 && std::isfinite(manualVolume);
 			if (!useManualVolume)
 				manualVolume = 0.0f;
 
@@ -243,7 +243,9 @@ public:
 
 			// Invalid levels fail closed instead of being normalized into a
 			// different audible setting.
-			if (referenceLevel <= 0.0f)
+			if (!std::isfinite(referenceLevel) ||
+				!std::isfinite(referenceOffset) ||
+				referenceLevel <= 0.0f)
 				return true;
 
 			normalize();

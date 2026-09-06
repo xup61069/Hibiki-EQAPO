@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include <algorithm>
+#include <cmath>
 #include <cwctype>
 #include <regex>
 
@@ -39,7 +40,8 @@ vector<ParametricEQFilter::Band> ParametricEQFilterFactory::parseBands(const wst
 		band.freq = wcstod(match.str(3).c_str(), NULL);
 		band.gain = wcstod(match.str(4).c_str(), NULL);
 		band.q = wcstod(match.str(5).c_str(), NULL);
-		if (band.freq > 0.0 && band.q > 0.0)
+		if (std::isfinite(band.freq) && std::isfinite(band.gain) &&
+			std::isfinite(band.q) && band.freq > 0.0 && band.q > 0.0)
 			bands.push_back(band);
 	}
 	return bands;
@@ -51,6 +53,5 @@ vector<IFilter*> ParametricEQFilterFactory::createFilter(const wstring& configPa
 		return vector<IFilter*>();
 
 	vector<ParametricEQFilter::Band> bands = parseBands(parameters);
-	void* mem = MemoryHelper::alloc(sizeof(ParametricEQFilter));
-	return vector<IFilter*>(1, new(mem) ParametricEQFilter(bands));
+	return adoptFilter(constructFilter<ParametricEQFilter>(bands));
 }

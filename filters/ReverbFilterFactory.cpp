@@ -29,6 +29,6 @@ vector<IFilter*> ReverbFilterFactory::createFilter(const wstring& configPath, ws
 			width = wcstod(parts[i + 1].c_str(), NULL);
 	}
 
-	void* mem = MemoryHelper::alloc(sizeof(ReverbFilter));
-	return vector<IFilter*>(1, new(mem) ReverbFilter(roomSize, damping, wet, dry, width));
+	return adoptFilter(constructFilter<ReverbFilter>(
+		roomSize, damping, wet, dry, width));
 }

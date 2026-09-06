@@ -38,6 +38,16 @@ class VSTMidiRuntimeLowLevelTests(unittest.TestCase):
         self.assertIn("VST3ParamID", codec)
         self.assertIn("VST2ParameterIndex", codec)
 
+    def test_runtime_rejects_hidden_midi_targets(self) -> None:
+        source = read("helpers/WinMidiInput.cpp")
+        configure = source[
+            source.index("bool VSTMidiRuntime::configure") :
+            source.index("void VSTMidiRuntime::stop")
+        ]
+
+        self.assertRegex(configure, r"parameter\.readOnly\s*\|\|\s*parameter\.hidden")
+        self.assertIn("if (bindings.empty())\n\t\treturn false;", configure)
+
     def test_codec_rejects_ambiguous_overlapping_sources(self) -> None:
         codec = read("helpers/VSTMidiBindingCodec.h")
         self.assertIn("bindingsConflict", codec)

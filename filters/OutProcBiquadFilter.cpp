@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cwchar>
+#include <limits>
 #include <sstream>
 
 #include "helpers/LogHelper.h"
@@ -63,24 +64,30 @@ OutProcBiquadFilter::~OutProcBiquadFilter()
 
 vector<wstring> OutProcBiquadFilter::initialize(float sampleRate, unsigned maxFrameCount, vector<wstring> channelNames)
 {
+	closeHost();
 	this->sampleRate = sampleRate;
-	this->channelCount = static_cast<unsigned>(channelNames.size());
+	this->channelCount = 0;
 	this->maxFrameCount = maxFrameCount;
-
-	if (sampleRate > 0.0f && maxFrameCount > 0)
-	{
-		const double blockMs = (static_cast<double>(maxFrameCount) * 1000.0) / sampleRate;
-		const double halfBlockMs = blockMs * 0.5;
-		timeoutMs = max(1u, static_cast<unsigned>(min(5.0, halfBlockMs)));
-	}
-	else
-	{
-		timeoutMs = 1;
-	}
-
-	if (channelCount == 0 || maxFrameCount == 0 || sampleRate <= 0.0f)
+	sharedByteCount = 0;
+	if (channelNames.size() > (std::numeric_limits<unsigned>::max)())
+		return channelNames;
+	this->channelCount = static_cast<unsigned>(channelNames.size());
+	if (channelCount == 0 || maxFrameCount == 0 ||
+		!std::isfinite(sampleRate) || sampleRate <= 0.0f ||
+		static_cast<double>(sampleRate) >
+			static_cast<double>((std::numeric_limits<unsigned>::max)()))
 	{
 		LogF(L"OutProcBiquad: invalid audio format, filter will bypass");
+		return channelNames;
+	}
+	const double blockMs = (static_cast<double>(maxFrameCount) * 1000.0) / sampleRate;
+	const double halfBlockMs = blockMs * 0.5;
+	timeoutMs = max(1u, static_cast<unsigned>(min(5.0, halfBlockMs)));
+	if (!BiQuad::isConfigurationValid(
+			type, dbGain, freq, bandwidthOrQOrS,
+			isBandwidthOrS, isCornerFreq))
+	{
+		LogF(L"OutProcBiquad: invalid filter parameters, filter will bypass");
 		return channelNames;
 	}
 
@@ -102,6 +109,11 @@ vector<wstring> OutProcBiquadFilter::initialize(float sampleRate, unsigned maxFr
 	}
 
 	BiQuad masterBiquad(type, dbGain, biquadFreq, sampleRate, bandwidthOrQOrS, isBandwidthOrS);
+	if (!masterBiquad.isValid())
+	{
+		LogF(L"OutProcBiquad: unstable filter section, filter will bypass");
+		return channelNames;
+	}
 	double coeffs[4] = {};
 	masterBiquad.getCoefficients(coeffs, coeffA0);
 	coeffB1 = coeffs[0];
@@ -199,7 +211,8 @@ void OutProcBiquadFilter::closeHost()
 	if (processHandle != NULL)
 	{
 		if (WaitForSingleObject(processHandle, 1000) == WAIT_TIMEOUT)
-			TerminateProcess(processHandle, 0);
+			TerminateProcess(
+				processHandle, OUTPROC_RUNTIME_FORCED_TERMINATION_EXIT_CODE);
 		CloseHandle(processHandle);
 		processHandle = NULL;
 	}

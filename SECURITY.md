@@ -2,7 +2,7 @@
 
 ## Supported versions
 
-Security fixes are provided for the latest GitHub release. Older releases and the original upstream branches should be treated as unsupported.
+Security fixes are provided for the latest Hibiki EQAPO GitHub release. Older releases and the original upstream branches should be treated as unsupported.
 
 ## Reporting a vulnerability
 
@@ -12,4 +12,4 @@ You should receive an acknowledgement within seven days. Please allow time to re
 
 ## Release verification
 
-Release installers are currently unsigned. Verify the SHA-256 file attached to the same GitHub release before running an installer, and only download binaries from this repository's release page.
+Hibiki EQAPO release installers are currently unsigned. Verify the SHA-256 file attached to the same GitHub release before running an installer, and only download binaries from this repository's release page.

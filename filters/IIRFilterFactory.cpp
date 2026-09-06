@@ -72,17 +72,31 @@ vector<IFilter*> IIRFilterFactory::createFilter(const wstring& configPath, wstri
 						{
 							wstring coefficientsString = match.str(1);
 							vector<wstring> coefficientStrings = StringHelper::split(coefficientsString, L' ');
-							if (coefficientStrings.size() != (order + 1) * 2)
+							const size_t expectedCoefficientCount =
+								(static_cast<size_t>(order) + 1) * 2;
+							if (coefficientStrings.size() != expectedCoefficientCount)
 							{
 								LogF(L"Invalid number of coefficients. Expected %d coefficients instead of %d", (order + 1) * 2, coefficientStrings.size());
 							}
 							else
 							{
 								vector<double> coefficients;
+								bool coefficientsValid = true;
 								for (auto it = coefficientStrings.begin(); it != coefficientStrings.end(); it++)
 								{
-									coefficients.push_back(wcstod(it->c_str(), NULL));
+									const double coefficient = wcstod(it->c_str(), NULL);
+									coefficients.push_back(coefficient);
+									coefficientsValid = coefficientsValid && std::isfinite(coefficient);
 								}
+								const double a0 = coefficients[order + 1];
+								if (a0 == 0.0)
+									coefficientsValid = false;
+								for (double coefficient : coefficients)
+									coefficientsValid = coefficientsValid &&
+										std::isfinite(coefficient / a0);
+								if (!coefficientsValid ||
+									!IIRFilter::coefficientsAreStable(coefficients))
+									return vector<IFilter*>();
 
 								wstringstream stream;
 								stream << L"Adding IIR filter of order " << order << " with coefficients";
@@ -93,8 +107,7 @@ vector<IFilter*> IIRFilterFactory::createFilter(const wstring& configPath, wstri
 
 								TraceF(L"%s", stream.str().c_str());
 
-								void* mem = MemoryHelper::alloc(sizeof(IIRFilter));
-								filter = new(mem) IIRFilter(coefficients);
+								filter = constructFilter<IIRFilter>(coefficients);
 							}
 						}
 					}
@@ -103,7 +116,5 @@ vector<IFilter*> IIRFilterFactory::createFilter(const wstring& configPath, wstri
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

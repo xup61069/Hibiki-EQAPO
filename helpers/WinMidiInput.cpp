@@ -516,7 +516,8 @@ bool VSTMidiRuntime::configure(const std::wstring& encodedConfiguration, const s
 		const bool wantsVST3 = binding.parameterType == VSTMidiParameterType::VST3ParamID;
 		for (const VSTParameterDescriptor& parameter : parameters)
 		{
-			if (parameter.readOnly || (wantsVST3 ? parameter.api != VSTParameterApi::VST3 : parameter.api != VSTParameterApi::VST2) ||
+			if (parameter.readOnly || parameter.hidden ||
+				(wantsVST3 ? parameter.api != VSTParameterApi::VST3 : parameter.api != VSTParameterApi::VST2) ||
 				parameter.stableId != binding.parameterId)
 				continue;
 			if (!wantsVST3 && parameter.name != binding.parameterName)

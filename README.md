@@ -1,17 +1,17 @@
-# Equalizer APO 響度校正更新
+# Hibiki EQAPO
 
 [English documentation](README.en.md)
 
 [![建置](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml)
 [![最新版本](https://img.shields.io/github/v/release/xup61069/loudness-correction-apo)](https://github.com/xup61069/loudness-correction-apo/releases/latest)
 
-本儲存庫是直接 fork 自 [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) 的 Windows x64 專案，沿用其系統層級雙精度音訊管線與 x64 VST2／VST3 音訊效果流程，並維護彼此獨立的公式響度校正與原版棚架響度校正、各自的校準工具、完整 Mixomo `exp` 功能線及繁體中文介面。
+**Hibiki EQAPO** 是直接 fork 自 [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) 的 Windows x64 專案，沿用其系統層級雙精度音訊管線與 x64 VST2／VST3 音訊效果流程，並維護彼此獨立的公式響度校正與原版棚架響度校正、各自的校準工具、完整 Mixomo `exp` 功能線及繁體中文介面。
 
 原始碼關係：[Equalizer APO](https://sourceforge.net/projects/equalizerapo/) → [TheFireKahuna/equalizerAPO64](https://github.com/TheFireKahuna/equalizerAPO64) → [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) → 本儲存庫。
 
 本 fork 將 Mixomo 功能完整的 `exp` 程式碼線以審查過的原始碼變更整合進來。公開歷史刻意不把 `exp` commit 當成合併父節點，因為該分支也包含本專案尚未確認下游再散布條款的第三方資料集。
 
-上面連結中的來源儲存庫名稱只用於歸屬說明，不是本專案名稱。本儲存庫不是 Equalizer APO 上游專案，也不是上游官方建置。本功能僅稱為「響度校正」，不主張符合任何標準、取得認證、受到背書、具有從屬關係或獲得核准。
+Hibiki EQAPO 是本 fork 的產品名稱；上面連結中的來源名稱只用於歸屬說明。本儲存庫不是 Equalizer APO 上游專案，也不是上游官方建置。本功能僅稱為「響度校正」，不主張符合任何標準、取得認證、受到背書、具有從屬關係或獲得核准。
 
 > 本安裝程式會原地取代既有 Equalizer APO，沿用相同的預設安裝目錄與登錄位置，不能和上游版本並存。安裝、升級或降級前，請先備份 `config` 與自行安裝的外掛。
 
@@ -36,7 +36,7 @@
 
 - x64 硬體上的 Windows 10 1809 版以上或 Windows 11；本專案未發布 x86 或 ARM64 安裝程式。最低版本依隨附的 [Qt 6.10 Windows 支援條件](https://doc.qt.io/qt-6.10/supported-platforms.html)而定。
 - 可在 Windows 音訊裝置上安裝 Audio Processing Object（APO）的系統管理員權限。
-- Equalizer APO 能夠啟用的播放或擷取端點。
+- Hibiki EQAPO 能夠啟用的播放或擷取端點。
 - Microsoft Visual C++ 2015–2022 x64 執行階段；缺少時，安裝程式會提供微軟下載選項。
 - 選用：用於聲學校準的聲壓計，以及用於音訊效果載入的 x64 VST 外掛。
 
@@ -47,8 +47,8 @@
 請從同一個 Release 下載 x64 安裝程式及其對應的 `.sha256` 檔案，然後在 PowerShell 執行：
 
 ```powershell
-Get-FileHash .\EqualizerAPO-x64-*.exe -Algorithm SHA256
-Get-Content .\EqualizerAPO-x64-*.exe.sha256
+Get-FileHash .\Hibiki-EQAPO-x64-*.exe -Algorithm SHA256
+Get-Content .\Hibiki-EQAPO-x64-*.exe.sha256
 ```
 
 兩個 64 字元的 SHA-256 值必須完全一致。目前安裝程式、隨附的執行檔與 DLL、Release tag 及檢查碼檔都沒有簽章。雜湊相符只能檢查檔案是否損壞，或是否與該 GitHub Release 提供的檔案一致，不能獨立證明發行者身分。
@@ -57,7 +57,7 @@ Get-Content .\EqualizerAPO-x64-*.exe.sha256
 
 1. 若 `C:\Program Files\EqualizerAPO\config` 與 `C:\Program Files\EqualizerAPO\VSTPlugins` 中有需要保留的檔案，請先備份。
 2. 關閉音訊工具，並以系統管理員身分執行安裝程式。安裝程式可能關閉本專案正在執行的工具，也會嘗試建立 Windows 還原點；Windows 拒絕建立還原點時，安裝仍可繼續。
-3. 在「裝置選擇器」中，只替需要處理的播放或擷取端點啟用 Equalizer APO。
+3. 在「裝置選擇器」中，只替需要處理的播放或擷取端點啟用 Hibiki EQAPO。
 4. 允許安裝程式重新啟動 Windows 音訊服務；音訊可能短暫中斷。若安裝程式或裝置選擇器要求，請重新啟動 Windows。
 5. 更新檔案與 APO 註冊期間，請勿強制關閉安裝程式或關閉電腦。
 
@@ -67,9 +67,71 @@ Get-Content .\EqualizerAPO-x64-*.exe.sha256
 
 安裝成功提交後，若 Windows 仍載入舊音訊檔案，清理作業可能延後。復原紀錄顯示 `Pending=1`、`Phase=committed` 本身不代表安裝失敗；相同或較新的安裝程式之後會繼續已驗證的清理作業。請勿手動刪除該復原狀態。
 
+## ASIO® 監聽校正
+
+Hibiki EQAPO is compatible with ASIO® technology. x64 安裝程式可將 **Hibiki EQAPO** 登錄為一個獨立的 ASIO proxy driver，並讓你當場選擇底層的音訊介面原廠 driver。它不會改寫原廠 CLSID 或 driver 檔案。
+
+> **實驗性功能：** 目前自動化與 fake-vendor 測試已通過，但 [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 要求的真實音訊介面 ASIO driver 與 DAW 驗證尚未完成。不能據此推定相容性、故障時必定靜音，或校正一定不會進入 export；只應以低音量、可復原的非正式專案測試。通過該發布門檻前，不能視為 production-ready；正式發行若未完成驗證，必須停用或排除 proxy。
+
+安裝後，只需在每套 DAW 的 Audio Device 設定裡選一次 **Hibiki EQAPO**；DAW 保存這個全域偏好後，新舊專案都會走同一條監聽校正路徑，不需在 track、master bus 或每個專案掛外掛：
+
+```text
+DAW → Hibiki EQAPO → 原廠 ASIO driver → 音訊介面
+```
+
+Proxy 只處理 DAW 送往原廠 driver 的 output buffers，並使用現有的 `config.txt` 與 `FilterEngine`。一般未使用 `Device:` 限定的濾鏡會直接生效；要只套用在 DAW 監聽，可用固定裝置名稱分流：
+
+```text
+Device: Hibiki EQAPO
+# 放置只要用於 DAW 監聽的校正命令
+Device: all
+```
+
+ASIO callback 採較嚴格的安全設定。啟用中的 `VSTPlugin:`、`OutProcVSTPlugin:`、`OutProcGain:`、`OutProcBiquad:`、`VUMeter:` 與「響度校正（原版）」會拒絕整份新設定；公式版響度校正只有明確寫入固定 `Volume` 時可啟用，不會把 Windows endpoint 音量誤當成介面硬體旋鈕。位於不成立的 `Device:`／`If:` scope 或 `State 0` 的命令仍可保留。第一次載入不安全設定時輸出保持乾聲；之後若 reload 出現不安全設定，會繼續使用上一份已發布的安全設定，不套用半份設定。
+
+為了讓 `directProcess=false` 的 DAW worker 不會和硬體 DMA 同時改到同一塊記憶體，proxy 讓 DAW 寫入自己擁有的 output buffers，完成校正後在下一次原廠 callback 才提交。因此固定增加一個 DAW 所選的 ASIO buffer block；啟動時先送出一個靜音 block，再依序播放已完成的資料。`getLatencies` 與支援的 internal-buffer 查詢都會回報這一層；`Delay:`、`Convolution:` 等濾鏡本身再增加的延遲與 tail 仍不會自動加入 host compensation。
+
+目前實作明確限於 x64 DAW、mono/stereo PCM、原廠 driver 依序且不重入的 callbacks，以及 host 對每個非同步 block **恰好一次、依 FIFO 順序**送出的 `outputReady()` completion。第一版只向 DAW 暴露原廠 driver 的前一或兩個 output channels，作為主監聽 mono/stereo pair；其他硬體輸出 pair 尚不能在 proxy 內選擇。DSD 與三聲道以上 output 會拒絕。若 worker 未在下一個 block 前完成、沒有待處理 token 時又收到 completion、queue 溢位或 callback 重入，可觀測到的錯序會使 stream 維持 terminal fail-safe；仍能證明目前 vendor half 可寫時會把它清成靜音，若真正同時重入而 ownership 不可證，proxy 則完全不碰該 buffer，實際硬體輸出由原廠 driver 決定。ASIO 的 `outputReady()` 不帶 buffer index 或 generation；若有問題的 host 把舊 duplicate 精準延遲到下一個有效 token 已發佈之後，proxy 無法把它與真正的新 completion 區分，因此這種 host 行為不在支援契約內。若更換音訊介面，重新執行安裝程式選擇底層 driver。
+
+同一個 DAW process 一次只能有一個已建立 buffers 的 Hibiki EQAPO driver instance；不同 DAW process 能否同時使用，仍取決於原廠 driver 的 multi-client 能力。若原廠 driver 無法完成 stop，proxy 會停止碰觸所有權不明的 buffers，實際硬體輸出由原廠 driver 決定；成功重試 stop 後再 start，或由 DAW 重開音訊裝置，才會建立新的安全邊界。若 `directProcess=false` worker 在 start 失敗或 stop 後仍未結束，該次 prepared allocation 不會重用；dispose 會把整個 arena 與 module 固定保留到 process 結束，避免舊 worker 寫入已釋放記憶體，此時需完整重開 DAW。底層 `outputReady()` 只是可選提示；若原廠 driver 拒絕或丟出例外，proxy 會停用提示並繼續送音訊。音訊介面的 hardware direct monitoring、內建 mixer/DSP 與類比輸出不會經過 proxy；ASIO 也沒有通用的硬體音量 API，因此響度校正應使用與實際監聽聲壓一致的手動音量。
+
+若 DAW 的 offline bounce 不把音訊送往 ASIO hardware，該流程便不經 proxy；各 DAW 的實際路由仍須真機驗證。若 real-time export 確實送往 ASIO hardware，ASIO API 沒有通用的 export 旗標，proxy 無法可靠辨識。
+
+### 進階 VST3 備援
+
+`HibikiEQAPOMonitor.vst3` 只保留給有明確 Monitor FX／Control Room／Listen Bus 的 DAW，或無法使用 proxy 的特殊工作流。它不是預設方案，也不應放在可渲染的 master bus。
+
+從原始碼建置後，關閉所有 DAW，再以系統管理員 PowerShell 明確安裝這個備援：
+
+```powershell
+.\scripts\bootstrap-third-party.ps1
+.\build-local-x64.ps1 -Configuration Release
+.\scripts\manage-monitor-vst3.ps1 -Action Install -Configuration Release
+```
+
+備援的預設位置是 `%CommonProgramFiles%\VST3\HibikiEQAPO\HibikiEQAPOMonitor.vst3`。主 NSIS 安裝程式不會自動部署或移除這個外部 bundle；不再需要時，先關閉 DAW 再執行 `manage-monitor-vst3.ps1 -Action Uninstall`。腳本會先以內建的唯讀 parser 核對固定目錄結構、每個 payload 的 AMD64 PE32+ 格式，以及主模組的 normal／delay import table，再記錄每個檔案的 SHA-256；安裝時不需要 Visual Studio。已被改動或夾帶額外檔案的 bundle 不會被靜默覆寫或刪除。
+
+在 DAW 內只能把它放在該 DAW 文件明確說明「不參與 export/bounce/freeze」的 **Monitor FX**、**Control Room** 或 **Listen Bus**，並作為最後一個校正插件。不要放在一般 track、bus 或可渲染的 master insert。Host 在 `setupProcessing()` 明確宣告 offline 時，外掛會解除 engine 並輸出乾聲；若只有個別 block 標成 offline，則只將該 block 複製成乾聲，不會在 audio callback 釋放既有 engine。real-time export 仍可能回報 realtime，所以不能把這層防護當成不會燒入校正的保證。
+
+> Export safety limit: the plug-in cannot identify every real-time export and cannot prevent a user from placing it on a renderable master bus.
+
+Wrapper 對設定引擎提供固定裝置字串 `DAW Monitor Insert Hibiki EQAPO Monitor VST3`。可以在共用的 `config.txt` 中只對監聽 wrapper 套用手動音量校正：
+
+```text
+Device: DAW Monitor Insert Hibiki EQAPO Monitor VST3
+LoudnessCorrection: Schema 1 Model FormulaLoudnessV1 Binding Single State 1 ReferenceLevel 80 ReferenceOffset 0 Attenuation 1.0 Volume -38.0
+Device: all
+```
+
+`Volume -38.0` 只是範例；請改為實際監聽音量，並在介面硬體旋鈕、內建 mixer/DSP 或類比增益變動後同步更新。ASIO 硬體音量不能自動綁定 Windows endpoint。第一個 `Device:` 之前沒有其他 scope 排除的命令也會在 wrapper 執行；結尾的 `Device: all` 可防止後續命令意外留在 monitor scope。不得讓共用設定中的 `VSTPlugin:` 或 `OutProcVSTPlugin:` 再載入 `HibikiEQAPOMonitor.vst3` 本身；wrapper 會以實體檔案 ID 拒絕直接路徑與檔案別名的自載，但設定仍應明確排除它。
+
+這個 wrapper 是在 DAW process 內執行。FFTW、libsndfile 與 codec graph 以專用 `x64-windows-static-md` 依賴樹靜態連結，避免和其他插件的同名 codec DLL 發生 ABI 碰撞；Release 建置 payload 只帶模組與四個 app-local VC runtime，安裝後另有 manager 建立的 ownership manifest。讀不到已登錄的 `ConfigPath` 或 `config.txt` 時會保持乾聲，不會把只有 buffer 配置成功誤判成可用引擎。Bypass automation 以 process block 為邊界，不是 sample-accurate；任意 `Delay:`、`Convolution:`、VST 或行程外命令的動態 latency／tail 也不會回報給 host。含 `OutProcVSTPlugin:`、第三方 VST 或大型 IR 的設定仍會增加 callback deadline、latency 與穩定性風險，需在實際 buffer size 下另行壓力測試。完整架構、限制與驗證門檻見 [Monitor VST3 說明](MonitorVST3/README.md) 與 [ADR-0006](docs/decisions/0006-monitor-vst3.md)。
+
+ASIO is a registered trademark of Steinberg Media Technologies GmbH.
+
 ## 快速開始
 
-1. 開啟 **Equalizer APO Configuration Editor**，選取實際要使用的播放端點。
+1. 開啟 **Hibiki EQAPO Configuration Editor**，選取實際要使用的播放端點。
 2. 新增 **高階過濾器 → 響度校正**；若要刻意使用 Mixomo 原始棚架演算法，改選完全獨立的 **響度校正（原版）**。
 3. 選擇「**單一端點**」可跟隨目前執行 APO 的實際播放端點；只有刻意讓所有響度校正實例共用 Windows 預設 Multimedia 端點的主音量時，才選擇「**全域（Windows 預設）**」。
 4. 要自動追蹤時關閉「手動音量」；若 Windows 無法代表真實聆聽音量，則啟用手動音量。
@@ -91,7 +153,7 @@ Get-Content .\EqualizerAPO-x64-*.exe.sha256
 
 ### APO 音量跟隨怎麼選
 
-響度輪廓原本只把追蹤到的音量拿來計算音色補償，不會代替 Windows 或硬體音量控制。若 Matrix 類路由會回報端點音量、實際音訊卻沒有跟著變小，可讓 Equalizer APO 再把同一份音量套用到響度校正後的完整輸出：
+響度輪廓原本只把追蹤到的音量拿來計算音色補償，不會代替 Windows 或硬體音量控制。若 Matrix 類路由會回報端點音量、實際音訊卻沒有跟著變小，可讓 Hibiki EQAPO 再把同一份音量套用到響度校正後的完整輸出：
 
 | 模式 | 最終輸出增益 | 適用情境 |
 |---|---|---|
@@ -110,7 +172,7 @@ Configuration Editor、裝置選擇器、裝置測試及更新檢查器會跟隨
 
 ### 設定檔工作區與搜尋
 
-- **設定檔**清單會列出 Equalizer APO `config` 目錄最上層可讀取的 `.txt` 檔，目錄內容改變時自動更新。從清單開啟檔案只代表供編輯器編輯；音訊引擎仍從 `config.txt` 開始載入，其他設定檔只有在 `config.txt` 或其 `Include` 鏈引用時才會影響音訊。
+- **設定檔**清單會列出 Hibiki EQAPO `config` 目錄最上層可讀取的 `.txt` 檔，目錄內容改變時自動更新。從清單開啟檔案只代表供編輯器編輯；音訊引擎仍從 `config.txt` 開始載入，其他設定檔只有在 `config.txt` 或其 `Include` 鏈引用時才會影響音訊。
 - **設定檔**選單可複製、重新命名、匯入或匯出單一 `.txt`。匯入／匯出不會打包 `Include` 引用的檔案、VST 外掛或卷積脈衝。`config.txt` 不能重新命名；重新命名其他設定檔也不會更新其他檔案中的 `Include` 指令。
 - 按 `Ctrl+F` 搜尋目前的濾鏡清單，按 `F3`／`Shift+F3` 前往下一個／上一個結果，按 `Esc` 清除搜尋。
 - **將目前的設定檔連結至所選裝置**只會為目前 Windows 使用者保存編輯器捷徑；日後在 Configuration Editor 選取該裝置時會自動開啟連結檔案。它不會安裝 APO、改變音訊路由或 `Device:` 指令、改寫 `config.txt`，也不會更動響度校正的 `Binding Single`／`Binding All`。
@@ -356,8 +418,8 @@ Windows 音訊引擎實際送入的 block 若固定小於初始化上限，IR �
 必要工具：
 
 - Windows x64 與 PowerShell；
-- Visual Studio 2022，並安裝 **Desktop development with C++** 與 Windows SDK；
-- Git、Python 3、CMake，以及下載產生式相依項目所需的網路連線。
+- Visual Studio 或 Build Tools，並安裝 **MSVC v145 toolset**、**Desktop development with C++** 工作負載與 Windows SDK；
+- Git、**CPython 3.13.2 x64**、CMake，以及下載產生式相依項目所需的網路連線；Qt 解壓工具的雜湊鎖定 wheel 僅對應這個 Python ABI。
 
 建置腳本會在 `third_party` 的忽略目錄中準備固定版次的 vcpkg baseline、Qt 6.10.1 與 NSIS 3.11。
 
@@ -372,11 +434,13 @@ python -m unittest discover -s .\tests -p "test_outproc_vst_lifecycle.py" -v
 git diff --check
 ```
 
-安裝程式與檢查碼會輸出為 `Setup\EqualizerAPO-x64-<version>.exe` 與 `Setup\EqualizerAPO-x64-<version>.exe.sha256`。
+安裝程式與檢查碼會輸出為 `Setup\Hibiki-EQAPO-x64-<version>.exe` 與 `Setup\Hibiki-EQAPO-x64-<version>.exe.sha256`。
 
 主要原始碼位置：
 
 - `filters/loudnessCorrection/`：公式參數表、響應擬合、端點追蹤及執行期 DSP；
+- `HibikiEQAPODriver/`：x64 ASIO proxy、PCM 轉換、callback bridge、原廠 driver 選擇與 fake-vendor 測試；
+- `MonitorVST3/`：納入本地 x64 建置的進階 monitor-only VST3 備援；以獨立 ownership-aware 腳本安裝，主 NSIS 不會自動部署；
 - `filters/`、`Editor/guis/` 與 `EqApoOutProcHost/`：原生音訊工具、濾鏡控制、VST host、舊設定轉換及校準介面；
 - `IRs/` 與 `resources/HeadphoneCalibrations/`：使用者自行提供之脈衝響應與相容耳機校正目錄的使用說明及忽略位置；
 - `Setup/` 與 `scripts/`：安裝程式、相依項目準備、檔案暫存與執行期檢查；

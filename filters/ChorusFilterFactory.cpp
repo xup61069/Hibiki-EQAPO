@@ -31,6 +31,6 @@ vector<IFilter*> ChorusFilterFactory::createFilter(const wstring& configPath, ws
 			feedback = wcstod(parts[i + 1].c_str(), NULL);
 	}
 
-	void* mem = MemoryHelper::alloc(sizeof(ChorusFilter));
-	return vector<IFilter*>(1, new(mem) ChorusFilter(rate, depth, mix, feedback));
+	return adoptFilter(constructFilter<ChorusFilter>(
+		rate, depth, mix, feedback));
 }

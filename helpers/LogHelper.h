@@ -21,6 +21,7 @@
 
 #include <string>
 #include <cstdio>
+#include <mutex>
 
 #define TraceF(format, ...) LogHelper::log(__FILE__, __LINE__, this, true, format, ##__VA_ARGS__)
 #define TraceFStatic(format, ...) LogHelper::log(__FILE__, __LINE__, NULL, true, format, ##__VA_ARGS__)
@@ -35,6 +36,8 @@ public:
 	static void set(FILE* fp, bool enableTrace, bool compact, bool useConsoleColors);
 
 private:
+	static std::mutex& stateMutex();
+	static std::mutex& outputMutex();
 	static bool initialized;
 	static std::wstring logPath;
 	static bool enableTrace;

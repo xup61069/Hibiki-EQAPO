@@ -51,6 +51,7 @@ public:
 	void write(double** output, unsigned frameCount);
 	double** getOutputSamples() {return allSamples;}
 	bool isEmpty();
+	bool isValid() const {return valid;}
 
 private:
 	unsigned realChannelCount;
@@ -61,6 +62,9 @@ private:
 	double** currentSamples;
 	double** currentSamples2;
 	FilterInfo** filterInfos;
-	unsigned filterCount;
+	size_t filterCount;
+	size_t allocatedSampleChannelCount;
+	size_t allocatedSample2ChannelCount;
+	bool valid;
 };
 #pragma AVRT_VTABLES_END

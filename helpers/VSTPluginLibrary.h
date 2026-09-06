@@ -20,6 +20,7 @@
 #pragma once
 
 #include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -34,6 +35,9 @@ class VSTPluginLibrary : public AbstractLibrary
 public:
 	static std::shared_ptr<VSTPluginLibrary> getInstance(const std::wstring& libPath);
 	static std::wstring getDefaultPluginPath();
+	static bool isCurrentModulePath(const std::wstring& libPath);
+	~VSTPluginLibrary() override;
+	int initialize();
 
 	std::wstring getLibPath() override;
 	std::wstring getLoadPath() override;
@@ -50,15 +54,27 @@ public:
 protected:
 	bool loadFunctions() override;
 	int customInitialize() override;
+	void customUninitialize() override;
 
 private:
+	struct InstanceSlot;
+	typedef bool (PLUGIN_API* moduleEntryFunc)();
 	VSTPluginLibrary(const std::wstring& libPath);
+	static std::wstring getInstanceKey(const std::wstring& libPath);
+	static bool tryGetFileIdentityKey(const std::wstring& filePath, std::wstring& identityKey);
+	static bool isCurrentModuleKey(const std::wstring& instanceKey);
+	static std::mutex& instanceMapMutex();
 	static std::wstring resolveVST3ModulePath(const std::wstring& libPath);
-	static std::unordered_map<std::wstring, std::weak_ptr<VSTPluginLibrary>> instanceMap;
+	static std::unordered_map<std::wstring, std::shared_ptr<InstanceSlot>> instanceMap;
+	static std::once_flag defaultPluginPathOnce;
 	static std::wstring defaultPluginPath;
 	std::wstring libPath;
 	std::wstring loadPath;
 	bool vst3 = false;
+	bool selfModule = false;
+	bool vst3ModuleEntered = false;
+	moduleEntryFunc InitModule = NULL;
+	moduleEntryFunc ExitModule = NULL;
 	Steinberg::IPluginFactory* factory = NULL;
 	Steinberg::PClassInfo vst3ClassInfo;
 	std::vector<Steinberg::PClassInfo> vst3ClassInfos;

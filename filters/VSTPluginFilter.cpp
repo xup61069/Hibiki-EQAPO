@@ -18,6 +18,7 @@
 */
 
 #include "stdafx.h"
+#include <limits>
 #include "helpers/StringHelper.h"
 #include "helpers/LogHelper.h"
 #include "helpers/PrecisionTimer.h"
@@ -41,21 +42,63 @@ std::vector<std::wstring> VSTPluginFilter::initialize(float sampleRate, unsigned
 	cleanup();
 
 	channelCount = channelNames.size();
+	if (channelCount > (std::numeric_limits<unsigned>::max)())
+	{
+		skipProcessing = true;
+		return channelNames;
+	}
 	slowProcessingLimitSeconds = max(0.25, (static_cast<double>(maxFrameCount) / max(1.0f, sampleRate)) * 8.0);
 	if (channelCount == 0)
 		return channelNames;
 
 	skipProcessing = false;
+	auto failAllocation = [&]()
+	{
+		cleanup();
+		skipProcessing = true;
+	};
 
 	void* mem = MemoryHelper::alloc(sizeof(VSTPluginInstance));
-	VSTPluginInstance* firstEffect = new(mem) VSTPluginInstance(library, 2, vst3ClassIndex);
+	if (mem == NULL)
+	{
+		skipProcessing = true;
+		return channelNames;
+	}
+	VSTPluginInstance* firstEffect = NULL;
+	try
+	{
+		firstEffect = new(mem) VSTPluginInstance(
+			library, 2, vst3ClassIndex);
+	}
+	catch (...)
+	{
+		MemoryHelper::free(mem);
+		throw;
+	}
+	SCOPE_EXIT
+	{
+		if (firstEffect != NULL)
+		{
+			firstEffect->~VSTPluginInstance();
+			MemoryHelper::free(firstEffect);
+		}
+	};
 	if (!firstEffect->initialize())
 	{
 		LogF(L"The VST plugin %s crashed during initialization.", libPath.c_str());
 		skipProcessing = true;
 	}
 
-	effectChannelCount = max(firstEffect->numInputs(), firstEffect->numOutputs());
+	const int inputCount = firstEffect->numInputs();
+	const int outputCount = firstEffect->numOutputs();
+	if (inputCount < 0 || outputCount < 0)
+	{
+		skipProcessing = true;
+		return channelNames;
+	}
+	pluginInputCount = inputCount;
+	pluginOutputCount = outputCount;
+	effectChannelCount = static_cast<unsigned>(max(inputCount, outputCount));
 	if (effectChannelCount == 0)
 	{
 		LogF(L"The VST plugin %s does not expose audio inputs or outputs.", libPath.c_str());
@@ -63,14 +106,45 @@ std::vector<std::wstring> VSTPluginFilter::initialize(float sampleRate, unsigned
 		effectChannelCount = static_cast<unsigned>(channelCount);
 	}
 	// round up
-	effectCount = (channelCount + (effectChannelCount - 1)) / effectChannelCount;
-	effects = (VSTPluginInstance**)MemoryHelper::alloc(effectCount * sizeof(VSTPluginInstance*));
+	effectCount = channelCount / effectChannelCount +
+		(channelCount % effectChannelCount != 0 ? 1 : 0);
+	effects = static_cast<VSTPluginInstance**>(MemoryHelper::allocArray(
+		effectCount, sizeof(VSTPluginInstance*)));
+	if (effects == NULL)
+	{
+		effectCount = 0;
+		skipProcessing = true;
+		return channelNames;
+	}
+	memset(effects, 0, effectCount * sizeof(VSTPluginInstance*));
 	effects[0] = firstEffect;
-	for (unsigned i = 1; i < effectCount; i++)
+	firstEffect = NULL;
+	for (size_t i = 1; i < effectCount; i++)
 	{
 		mem = MemoryHelper::alloc(sizeof(VSTPluginInstance));
-		effects[i] = new(mem) VSTPluginInstance(library, 2, vst3ClassIndex);
-		if (!effects[i]->initialize() && !skipProcessing)
+		if (mem == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		try
+		{
+			effects[i] = new(mem) VSTPluginInstance(
+				library, 2, vst3ClassIndex);
+		}
+		catch (...)
+		{
+			MemoryHelper::free(mem);
+			throw;
+		}
+		const bool initialized = effects[i]->initialize();
+		if (effects[i]->numInputs() != pluginInputCount ||
+			effects[i]->numOutputs() != pluginOutputCount)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		if (!initialized && !skipProcessing)
 		{
 			LogF(L"The VST plugin %s crashed during initialization.", libPath.c_str());
 			skipProcessing = true;
@@ -79,48 +153,145 @@ std::vector<std::wstring> VSTPluginFilter::initialize(float sampleRate, unsigned
 
 	prepareForProcessing(sampleRate, maxFrameCount);
 	if (!skipProcessing && !this->midiConfig.empty())
-		midiRuntime.configure(this->midiConfig, firstEffect->getParameterDescriptors());
+		midiRuntime.configure(
+			this->midiConfig, effects[0]->getParameterDescriptors());
 
 	// 2 times for input and output
-	emptyChannelCount = 2 * (effectCount * effectChannelCount - channelCount);
-	emptyChannels = (double**)MemoryHelper::alloc(emptyChannelCount * sizeof(double*));
-	for (unsigned i = 0; i < emptyChannelCount; i++)
+	if (effectCount > (std::numeric_limits<size_t>::max)() / effectChannelCount)
 	{
-		emptyChannels[i] = (double*)MemoryHelper::alloc(maxFrameCount * sizeof(double));
-		memset(emptyChannels[i], 0, maxFrameCount * sizeof(double));
+		failAllocation();
+		return channelNames;
 	}
-
-	inputArray = (double**)MemoryHelper::alloc(firstEffect->numInputs() * sizeof(double*));
-	outputArray = (double**)MemoryHelper::alloc(firstEffect->numOutputs() * sizeof(double*));
-
-	// Allocate float buffers for conversion
-	if (firstEffect->numInputs() > 0) {
-		floatInputs = (float**)MemoryHelper::alloc(firstEffect->numInputs() * sizeof(float*));
-		_floatInputBuffer = (float*)MemoryHelper::alloc(firstEffect->numInputs() * maxFrameCount * sizeof(float));
-		for (int i = 0; i < firstEffect->numInputs(); ++i) {
-			floatInputs[i] = _floatInputBuffer + i * maxFrameCount;
+	const size_t effectChannels = effectCount * effectChannelCount;
+	const size_t unusedChannelCount = effectChannels - channelCount;
+	if (unusedChannelCount > (std::numeric_limits<size_t>::max)() / 2)
+	{
+		failAllocation();
+		return channelNames;
+	}
+	emptyChannelCount = 2 * unusedChannelCount;
+	if (emptyChannelCount > 0)
+	{
+		emptyChannels = static_cast<double**>(MemoryHelper::allocArray(
+			emptyChannelCount, sizeof(double*)));
+		if (emptyChannels == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		memset(emptyChannels, 0, emptyChannelCount * sizeof(double*));
+		for (size_t i = 0; i < emptyChannelCount; i++)
+		{
+			emptyChannels[i] = static_cast<double*>(MemoryHelper::allocArray(
+				maxFrameCount, sizeof(double)));
+			if (emptyChannels[i] == NULL)
+			{
+				failAllocation();
+				return channelNames;
+			}
+			memset(emptyChannels[i], 0, maxFrameCount * sizeof(double));
 		}
 	}
 
-	if (firstEffect->numOutputs() > 0) {
-		floatOutputs = (float**)MemoryHelper::alloc(firstEffect->numOutputs() * sizeof(float*));
-		_floatOutputBuffer = (float*)MemoryHelper::alloc(firstEffect->numOutputs() * maxFrameCount * sizeof(float));
-		for (int i = 0; i < firstEffect->numOutputs(); ++i) {
-			floatOutputs[i] = _floatOutputBuffer + i * maxFrameCount;
+	if (inputCount > 0)
+	{
+		inputArray = static_cast<double**>(MemoryHelper::allocArray(
+			static_cast<size_t>(inputCount), sizeof(double*)));
+		if (inputArray == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+	}
+	if (outputCount > 0)
+	{
+		outputArray = static_cast<double**>(MemoryHelper::allocArray(
+			static_cast<size_t>(outputCount), sizeof(double*)));
+		if (outputArray == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+	}
+
+	// Allocate float buffers for conversion
+	if (inputCount > 0) {
+		const size_t inputCountSize = static_cast<size_t>(inputCount);
+		if (maxFrameCount != 0 &&
+			inputCountSize > (std::numeric_limits<size_t>::max)() / maxFrameCount)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		const size_t inputSampleCount = inputCountSize * maxFrameCount;
+		floatInputs = static_cast<float**>(MemoryHelper::allocArray(
+			inputCountSize, sizeof(float*)));
+		_floatInputBuffer = static_cast<float*>(MemoryHelper::allocArray(
+			inputSampleCount, sizeof(float)));
+		if (floatInputs == NULL || _floatInputBuffer == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		for (int i = 0; i < inputCount; ++i) {
+			floatInputs[i] = _floatInputBuffer + static_cast<size_t>(i) * maxFrameCount;
+		}
+	}
+
+	if (outputCount > 0) {
+		const size_t outputCountSize = static_cast<size_t>(outputCount);
+		if (maxFrameCount != 0 &&
+			outputCountSize > (std::numeric_limits<size_t>::max)() / maxFrameCount)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		const size_t outputSampleCount = outputCountSize * maxFrameCount;
+		floatOutputs = static_cast<float**>(MemoryHelper::allocArray(
+			outputCountSize, sizeof(float*)));
+		_floatOutputBuffer = static_cast<float*>(MemoryHelper::allocArray(
+			outputSampleCount, sizeof(float)));
+		if (floatOutputs == NULL || _floatOutputBuffer == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
+		for (int i = 0; i < outputCount; ++i) {
+			floatOutputs[i] = _floatOutputBuffer + static_cast<size_t>(i) * maxFrameCount;
 		}
 	}
 
 	// Allocate delay compensation buffers
-	delayBufferLength = firstEffect->getInitialDelay();
+	const int initialDelay = effects[0]->getInitialDelay();
+	delayBufferLength = initialDelay > 0 ? static_cast<unsigned>(initialDelay) : 0;
 	if (delayBufferLength > 0)
 	{
-		delayBuffers = (double**)MemoryHelper::alloc(channelCount * sizeof(double*));
-		for (unsigned i = 0; i < channelCount; i++)
+		delayBuffers = static_cast<double**>(MemoryHelper::allocArray(
+			channelCount, sizeof(double*)));
+		if (delayBuffers == NULL)
 		{
-			delayBuffers[i] = (double*)MemoryHelper::alloc(delayBufferLength * sizeof(double));
+			failAllocation();
+			return channelNames;
+		}
+		memset(delayBuffers, 0, channelCount * sizeof(double*));
+		for (size_t i = 0; i < channelCount; i++)
+		{
+			delayBuffers[i] = static_cast<double*>(MemoryHelper::allocArray(
+				delayBufferLength, sizeof(double)));
+			if (delayBuffers[i] == NULL)
+			{
+				failAllocation();
+				return channelNames;
+			}
 			memset(delayBuffers[i], 0, delayBufferLength * sizeof(double));
 		}
-		delayTempBuffer = (double*)MemoryHelper::alloc(maxFrameCount * sizeof(double));
+		delayTempBuffer = static_cast<double*>(MemoryHelper::allocArray(
+			maxFrameCount, sizeof(double)));
+		if (delayTempBuffer == NULL)
+		{
+			failAllocation();
+			return channelNames;
+		}
 		delayBufferOffset = 0;
 	}
 
@@ -131,9 +302,11 @@ void VSTPluginFilter::prepareForProcessing(float sampleRate, unsigned maxFrameCo
 {
 	__try
 	{
-		for (unsigned i = 0; i < effectCount; i++)
+		for (size_t i = 0; i < effectCount; i++)
 		{
 			VSTPluginInstance* effect = effects[i];
+			if (effect == NULL)
+				continue;
 
 			if (i == effectCount - 1 && (channelCount % effectChannelCount) != 0)
 				effect->setUsedChannelCount(channelCount % effectChannelCount);
@@ -161,7 +334,7 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 {
 	if (skipProcessing)
 	{
-		for (unsigned i = 0; i < channelCount; i++)
+		for (size_t i = 0; i < channelCount; i++)
 			memcpy(output[i], input[i], frameCount * sizeof(double));
 		return;
 	}
@@ -172,24 +345,24 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 	__try
 	{
 		applyMidiUpdates();
-		unsigned channelOffset = 0;
-		unsigned emptyChannelIndex = 0;
-		for (unsigned i = 0; i < effectCount; i++)
+		size_t channelOffset = 0;
+		size_t emptyChannelIndex = 0;
+		for (size_t i = 0; i < effectCount; i++)
 		{
 			VSTPluginInstance* effect = effects[i];
 			// Setup double pointer arrays to point to the correct source/destination double buffers
-			for (int j = 0; j < effect->numInputs(); j++)
+			for (int j = 0; j < pluginInputCount; j++)
 			{
-				if (channelOffset + j < channelCount)
-					inputArray[j] = input[channelOffset + j];
+				if (channelOffset + static_cast<size_t>(j) < channelCount)
+					inputArray[j] = input[channelOffset + static_cast<size_t>(j)];
 				else
 					inputArray[j] = emptyChannels[emptyChannelIndex++];
 			}
 
-			for (int j = 0; j < effect->numOutputs(); j++)
+			for (int j = 0; j < pluginOutputCount; j++)
 			{
-				if (channelOffset + j < channelCount)
-					outputArray[j] = output[channelOffset + j];
+				if (channelOffset + static_cast<size_t>(j) < channelCount)
+					outputArray[j] = output[channelOffset + static_cast<size_t>(j)];
 				else
 					outputArray[j] = emptyChannels[emptyChannelIndex++];
 			}
@@ -199,7 +372,7 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 			}
 			else {
 				// Convert input from double** to float** using pre-allocated buffers
-				for (int j = 0; j < effect->numInputs(); j++)
+				for (int j = 0; j < pluginInputCount; j++)
 				{
 					convertDoubleToFloat(floatInputs[j], inputArray[j], frameCount);
 				}
@@ -211,24 +384,24 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 				else
 				{
 					// For non-replacing, VST expects to add to the output. Clear float buffer first.
-					for (int j = 0; j < effect->numOutputs(); j++)
+					for (int j = 0; j < pluginOutputCount; j++)
 						memset(floatOutputs[j], 0, frameCount * sizeof(float));
 					effect->process(floatInputs, floatOutputs, frameCount);
 				}
 
 				// Convert output from float** back to double** into the final destination
-				for (int j = 0; j < effect->numOutputs(); j++)
+				for (int j = 0; j < pluginOutputCount; j++)
 				{
 					convertFloatToDouble(outputArray[j], floatOutputs[j], frameCount);
 				}
 			}
 
-			if (effect->numOutputs() < effect->numInputs())
+			if (pluginOutputCount < pluginInputCount)
 			{
-				for (int j = effect->numOutputs(); j < effect->numInputs(); j++)
+				for (int j = pluginOutputCount; j < pluginInputCount; j++)
 				{
-					if (channelOffset + j < channelCount)
-						memset(output[channelOffset + j], 0, frameCount * sizeof(double));
+					if (channelOffset + static_cast<size_t>(j) < channelCount)
+						memset(output[channelOffset + static_cast<size_t>(j)], 0, frameCount * sizeof(double));
 				}
 			}
 
@@ -238,7 +411,7 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 		// Apply delay compensation if needed
 		if (delayBuffers != NULL && delayBufferLength > 0)
 		{
-			for (unsigned i = 0; i < channelCount; i++)
+			for (size_t i = 0; i < channelCount; i++)
 			{
 				double* outputChannel = output[i];
 				double* delayBuffer = delayBuffers[i];
@@ -286,7 +459,7 @@ void VSTPluginFilter::process(double** output, double** input, unsigned frameCou
 			reportCrash = false;
 		}
 
-		for (unsigned i = 0; i < channelCount; i++)
+		for (size_t i = 0; i < channelCount; i++)
 			memcpy(output[i], input[i], frameCount * sizeof(double));
 	}
 
@@ -334,7 +507,7 @@ void VSTPluginFilter::applyMidiUpdates()
 	{
 		if (update.parameter == nullptr)
 			continue;
-		for (unsigned i = 0; i < effectCount; ++i)
+		for (size_t i = 0; i < effectCount; ++i)
 			effects[i]->setParameterNormalized(*update.parameter, update.normalizedValue, true);
 	}
 }
@@ -344,9 +517,11 @@ void VSTPluginFilter::cleanup()
 	midiRuntime.stop();
 	if (effects != NULL)
 	{
-		for (unsigned i = 0; i < effectCount; i++)
+		for (size_t i = 0; i < effectCount; i++)
 		{
 			VSTPluginInstance* effect = effects[i];
+			if (effect == NULL)
+				continue;
 			__try
 			{
 				effect->stopProcessing();
@@ -362,10 +537,12 @@ void VSTPluginFilter::cleanup()
 		effects = NULL;
 	}
 	effectCount = 0;
+	pluginInputCount = 0;
+	pluginOutputCount = 0;
 
 	if (emptyChannels != NULL)
 	{
-		for (unsigned i = 0; i < emptyChannelCount; i++)
+		for (size_t i = 0; i < emptyChannelCount; i++)
 			MemoryHelper::free(emptyChannels[i]);
 		MemoryHelper::free(emptyChannels);
 		emptyChannels = NULL;
@@ -403,7 +580,7 @@ void VSTPluginFilter::cleanup()
 
 	if (delayBuffers != NULL)
 	{
-		for (unsigned i = 0; i < channelCount; i++)
+		for (size_t i = 0; i < channelCount; i++)
 			MemoryHelper::free(delayBuffers[i]);
 		MemoryHelper::free(delayBuffers);
 		delayBuffers = NULL;

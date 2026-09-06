@@ -33,6 +33,8 @@ PreampFilter::PreampFilter(double dbGain)
 {
 	// Calculate the linear gain factor from dB value
 	gain = pow(10.0, this->dbGain / 20.0);
+	if (!std::isfinite(gain))
+		gain = 1.0;
 }
 
 vector<wstring> PreampFilter::initialize(float sampleRate, unsigned maxFrameCount, vector<wstring> channelNames)

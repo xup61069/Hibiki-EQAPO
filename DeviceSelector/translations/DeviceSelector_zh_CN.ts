@@ -28,12 +28,11 @@
         <translation>信息</translation>
     </message>
     <message>
-        <location line="-324"/>
         <source>A registry value that is required for the operation of Equalizer APO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
-        <translation>未正确设置 Equalizer APO 操作所需的注册表值。这可能是由驱动程序安装或卸载引起的。该值已更正。可能需要重新启动才能使更改生效。</translation>
+        <translation type="vanished">未正确设置 Equalizer APO 操作所需的注册表值。这可能是由驱动程序安装或卸载引起的。该值已更正。可能需要重新启动才能使更改生效。</translation>
     </message>
     <message>
-        <location line="+15"/>
+        <location line="-309"/>
         <source>Audio devices</source>
         <translation>音频设备</translation>
     </message>
@@ -85,12 +84,11 @@
         <translation>没有待应用的更改。</translation>
     </message>
     <message>
-        <location line="+2"/>
         <source>Select at least one device to enable Equalizer APO.</source>
-        <translation>请至少选择一个设备以启用 Equalizer APO。</translation>
+        <translation type="vanished">请至少选择一个设备以启用 Equalizer APO。</translation>
     </message>
     <message>
-        <location line="+161"/>
+        <location line="+163"/>
         <source>APO will be uninstalled</source>
         <translation>APO 将被卸载</translation>
     </message>
@@ -150,7 +148,12 @@
         <translation>更新可用</translation>
     </message>
     <message>
-        <location line="+0"/>
+        <location line="-303"/>
+        <source>A registry value that is required for the operation of Hibiki EQAPO was not set correctly. This might have been caused by a driver installation or uninstallation. The value has been corrected. A reboot may be required so that the changes can take effect.</source>
+        <translation>未正确设置 Hibiki EQAPO 操作所需的注册表值。这可能是由驱动程序安装或卸载引起的。该值已更正。可能需要重新启动才能使更改生效。</translation>
+    </message>
+    <message>
+        <location line="+303"/>
         <source>The APO installation of some devices should be upgraded. Do you really want to cancel?</source>
         <translation>部分设备的 APO 安装需要升级。确实要取消吗？</translation>
     </message>
@@ -165,7 +168,12 @@
         <translation>要应用更改，应重新启动 Windows。立即重新启动？</translation>
     </message>
     <message>
-        <location line="+303"/>
+        <location line="+144"/>
+        <source>Select at least one device to enable Hibiki EQAPO.</source>
+        <translation>请至少选择一个设备以启用 Hibiki EQAPO。</translation>
+    </message>
+    <message>
+        <location line="+159"/>
         <source>APO will be installed</source>
         <translation>将安装 APO</translation>
     </message>
@@ -246,7 +254,12 @@
         <translation>如果检测到当前模式存在问题，则自动调整安装模式</translation>
     </message>
     <message>
-        <location line="-65"/>
+        <location line="-92"/>
+        <source>Please select the devices for which Hibiki EQAPO is to be installed:</source>
+        <translation>请选择要安装 Hibiki EQAPO 的设备：</translation>
+    </message>
+    <message>
+        <location line="+27"/>
         <source>Loading audio devices...</source>
         <translation>正在加载音频设备...</translation>
     </message>
@@ -295,12 +308,11 @@ CAUTION: Some sound card drivers can produce unwanted sounds when this is enable
         <translation>Ctrl+C</translation>
     </message>
     <message>
-        <location line="-124"/>
         <source>Please select the devices for which Equalizer APO is to be installed:</source>
-        <translation>请选择要安装 Equalizer APO 的设备：</translation>
+        <translation type="vanished">请选择要安装 Equalizer APO 的设备：</translation>
     </message>
     <message>
-        <location line="+83"/>
+        <location line="-41"/>
         <source>Please select exactly one activated device by clicking on its name</source>
         <translation>请点击名称选择一个已激活的设备</translation>
     </message>
@@ -401,13 +413,21 @@ CAUTION: Some sound card drivers can produce unwanted sounds when this is enable
     </message>
     <message>
         <location line="-50"/>
-        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
-        <translation>均衡器 APO 可以工作，但原始 APO 无法初始化。也许可以在故障排除选项中取消设置“使用原始 APO”。</translation>
+        <source>Hibiki EQAPO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation>Hibiki EQAPO 可以工作，但原始 APO 无法初始化。请尝试在故障排除选项中取消选择“使用原始 APO”。</translation>
     </message>
     <message>
         <location line="+3"/>
+        <source>Hibiki EQAPO did not respond on this processing stage.</source>
+        <translation>Hibiki EQAPO 在此处理阶段没有响应。</translation>
+    </message>
+    <message>
+        <source>Equalizer APO works but original APO could not be initialized. Maybe unset &quot;Use original APO&quot; in troubleshooting options.</source>
+        <translation type="vanished">均衡器 APO 可以工作，但原始 APO 无法初始化。也许可以在故障排除选项中取消设置“使用原始 APO”。</translation>
+    </message>
+    <message>
         <source>Equalizer APO did not respond on this processing stage.</source>
-        <translation>Equalizer APO 在此处理阶段没有响应。</translation>
+        <translation type="vanished">Equalizer APO 在此处理阶段没有响应。</translation>
     </message>
     <message>
         <location line="+35"/>
@@ -424,9 +444,13 @@ CAUTION: Some sound card drivers can produce unwanted sounds when this is enable
     <name>DeviceTestDialogClass</name>
     <message>
         <location filename="../DeviceTestDialog.ui" line="+7"/>
+        <source>Hibiki EQAPO — Testing APO installation on devices...</source>
+        <translation>Hibiki EQAPO — 在设备上测试 APO 安装...</translation>
+    </message>
+    <message>
         <location line="+13"/>
         <source>Testing APO installation on devices...</source>
-        <translation>在设备上测试 APO 安装...</translation>
+        <translation>正在测试设备上的 APO 安装...</translation>
     </message>
     <message>
         <location line="+22"/>

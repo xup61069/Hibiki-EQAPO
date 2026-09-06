@@ -265,16 +265,24 @@ class VSTMidiControlTests(unittest.TestCase):
             gui.index("void VSTPluginFilterGUI::on_midiButton_clicked") :
             gui.index("void VSTPluginFilterGUI::on_vst3ClassComboBox_currentIndexChanged")
         ]
+        ensure_stopped = gui[
+            gui.index("bool VSTPluginFilterGUI::ensureOutProcPanelStopped") :
+            gui.index("void VSTPluginFilterGUI::applyDialog")
+        ]
         self.assertIn("beginTemporaryFilterConfiguration", handler)
         self.assertIn("restoreTemporaryFilterConfiguration", handler)
         self.assertIn("storeWithMidiConfig", handler)
         self.assertIn("std::wstring()", handler)
         self.assertIn("keptExternal", handler)
-        self.assertIn("outProcGuiRunning", handler)
+        self.assertIn("if (outProcMode && !midiConfig.empty())", handler)
+        self.assertNotIn("outProcGuiRunning && !midiConfig.empty()", handler)
+        self.assertIn("if (!ensureOutProcPanelStopped(true))", handler)
         self.assertLess(
-            handler.index("terminateOutProcPanel"),
+            handler.index("ensureOutProcPanelStopped(true)"),
             handler.index("beginTemporaryFilterConfiguration"),
         )
+        self.assertIn("synchronizeRecoveredState && stateChanged", ensure_stopped)
+        self.assertIn("emit updateModel()", ensure_stopped)
         self.assertLess(
             handler.index("beginTemporaryFilterConfiguration"),
             handler.index("VSTMidiMappingDialog dialog"),

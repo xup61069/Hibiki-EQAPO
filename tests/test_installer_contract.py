@@ -3,7 +3,15 @@
 
 from __future__ import annotations
 
+import base64
+import gzip
+import os
 import pathlib
+import re
+import shutil
+import subprocess
+import tempfile
+import time
 import unittest
 
 
@@ -19,6 +27,23 @@ MANIFEST_HARNESS_SOURCE = (
 INSTALLER_BUILD_SCRIPT = (
     ROOT / "scripts" / "build-installer-x64.ps1"
 ).read_text(encoding="utf-8")
+INSTALL_ROOT_ACL_HELPER_PATH = ROOT / "Setup" / "check-install-root-acl.ps1"
+INSTALL_ROOT_ACL_HELPER = INSTALL_ROOT_ACL_HELPER_PATH.read_bytes()
+INSTALL_ROOT_ACL_DEFINES = (
+    ROOT / "Setup" / "InstallRootAclCheck.nsh"
+).read_text(encoding="utf-8")
+EMBEDDED_POWERSHELL_DEFINES_PATH = (
+    ROOT / "Setup" / "EmbeddedPowerShellHelpers.nsh"
+)
+EMBEDDED_POWERSHELL_DEFINES = (
+    EMBEDDED_POWERSHELL_DEFINES_PATH.read_text(encoding="utf-8")
+    if EMBEDDED_POWERSHELL_DEFINES_PATH.is_file()
+    else ""
+)
+STOP_PRODUCT_PROCESSES_HELPER = (
+    ROOT / "Setup" / "stop-product-processes.ps1"
+).read_bytes()
+X64_LOAD_CHECK_HELPER = (ROOT / "Setup" / "x64-load-check.ps1").read_bytes()
 QT_CONFIG = (ROOT / "Setup" / "qt.conf").read_text(encoding="utf-8")
 DEVICE_SELECTOR_SOURCE = (ROOT / "DeviceSelector" / "main.cpp").read_text(
     encoding="utf-8"
@@ -26,6 +51,53 @@ DEVICE_SELECTOR_SOURCE = (ROOT / "DeviceSelector" / "main.cpp").read_text(
 UPDATE_CHECKER_SOURCE = (ROOT / "UpdateChecker" / "main.cpp").read_text(
     encoding="utf-8"
 )
+WINDOWS_POWERSHELL = (
+    pathlib.Path(os.environ.get("WINDIR", "C:/Windows"))
+    / "System32"
+    / "WindowsPowerShell"
+    / "v1.0"
+    / "powershell.exe"
+)
+PING = (
+    pathlib.Path(os.environ.get("WINDIR", "C:/Windows"))
+    / "System32"
+    / "ping.exe"
+)
+CMD = pathlib.Path(os.environ.get("WINDIR", "C:/Windows")) / "System32" / "cmd.exe"
+ICACLS = (
+    pathlib.Path(os.environ.get("WINDIR", "C:/Windows"))
+    / "System32"
+    / "icacls.exe"
+)
+
+
+def embedded_script_chunks(prefix: str) -> list[str]:
+    chunks = {
+        int(index): value
+        for index, value in re.findall(
+            rf'{prefix}_CHUNK_(\d+) "([^"]*)"',
+            EMBEDDED_POWERSHELL_DEFINES,
+        )
+    }
+    if not chunks:
+        return []
+    if set(chunks) != set(range(max(chunks) + 1)):
+        raise AssertionError(f"{prefix} chunks are not contiguous")
+    return [chunks[index] for index in range(max(chunks) + 1)]
+
+
+def embedded_script_decoder(environment_prefix: str, chunk_count: int) -> str:
+    encoded = "+".join(
+        f"$env:{environment_prefix}_{index}" for index in range(chunk_count)
+    )
+    return (
+        f"$z={encoded};"
+        "$b=[Convert]::FromBase64String($z);"
+        "$m=[IO.MemoryStream]::new($b);"
+        "$g=[IO.Compression.GzipStream]::new("
+        "$m,[IO.Compression.CompressionMode]::Decompress);"
+        "$r=[IO.StreamReader]::new($g,[Text.Encoding]::UTF8);"
+    )
 
 
 class InstallerContractTests(unittest.TestCase):
@@ -54,14 +126,14 @@ class InstallerContractTests(unittest.TestCase):
             SETUP_SOURCE,
         )
 
-    def test_user_facing_identity_is_an_unofficial_loudness_correction_fork(self) -> None:
+    def test_user_facing_identity_is_hibiki_eqapo_while_compatibility_ids_remain(self) -> None:
         self.assertIn(
-            '!define PRODUCT_LABEL "Loudness Correction for Equalizer APO"',
+            '!define PRODUCT_LABEL "Hibiki EQAPO"',
             SETUP_SOURCE,
         )
         self.assertIn(
             '!define PRODUCT_FULL_LABEL '
-            '"${PRODUCT_LABEL} (unofficial fork)"',
+            '"${PRODUCT_LABEL} (unofficial Equalizer APO fork)"',
             SETUP_SOURCE,
         )
         self.assertIn('Name "${PRODUCT_FULL_LABEL} ${VERSION}"', SETUP_SOURCE)
@@ -90,13 +162,121 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("Equalizer APO Configuration Editor.lnk", SETUP_SOURCE)
         self.assertIn("Equalizer APO Device Selector.lnk", SETUP_SOURCE)
         self.assertIn(
-            'OutFile "EqualizerAPO-x64-${VERSION}.exe"', SETUP64_SOURCE
+            'OutFile "Hibiki-EQAPO-x64-${VERSION}.exe"', SETUP64_SOURCE
         )
 
     def test_qt_plugins_are_found_outside_the_install_working_directory(self) -> None:
         self.assertIn('File "qt.conf"', SETUP_SOURCE)
-        self.assertIn('Delete "$INSTDIR\\qt.conf"', SETUP_SOURCE)
+        self.assertIn(
+            '!insertmacro RemoveUninstallPayloadFile "$INSTDIR\\qt.conf"',
+            SETUP_SOURCE,
+        )
         self.assertEqual(QT_CONFIG.strip(), "[Paths]\nPlugins = qt")
+
+    def test_install_root_is_trusted_before_elevated_payload_use(self) -> None:
+        self.assertIn('!include "InstallRootAclCheck.nsh"', SETUP_SOURCE)
+        section_start = SETUP_SOURCE.index('Section "-Install"')
+        section_end = SETUP_SOURCE.index("SectionEnd", section_start)
+        section = SETUP_SOURCE[section_start:section_end]
+        first_gate = section.index('StrCpy $InstallRootAllowMissing "1"')
+        create_root = section.index('CreateDirectory "$INSTDIR"')
+        second_gate = section.index(
+            'StrCpy $InstallRootAllowMissing "0"', create_root
+        )
+        final_validation = section.index("Call ValidateInstallRootAcl", second_gate)
+        install_outdir = section.index('SetOutPath "$INSTDIR"', final_validation)
+        restore_point = section.index("Call CreateRestorePoint", install_outdir)
+        self.assertLess(first_gate, create_root)
+        self.assertLess(create_root, second_gate)
+        self.assertLess(second_gate, final_validation)
+        self.assertLess(final_validation, install_outdir)
+        self.assertLess(install_outdir, restore_point)
+
+        recovery_start = SETUP_SOURCE.index(
+            "Function LoadInstallRecoveryTargetFromJournal"
+        )
+        recovery_end = SETUP_SOURCE.index("FunctionEnd", recovery_start)
+        recovery = SETUP_SOURCE[recovery_start:recovery_end]
+        self.assertIn('StrCpy $InstallRootAllowMissing "0"', recovery)
+        self.assertIn("Call ValidateInstallRootAcl", recovery)
+
+        uninstall_start = SETUP_SOURCE.index("Function un.onInit")
+        uninstall_end = SETUP_SOURCE.index("FunctionEnd", uninstall_start)
+        uninstall_init = SETUP_SOURCE[uninstall_start:uninstall_end]
+        self.assertIn('ReadRegStr $0 HKLM ${REGPATH} "InstallPath"', uninstall_init)
+        self.assertIn('GetFullPathName $2 "$EXEDIR"', uninstall_init)
+        self.assertIn("Call un.ValidateInstallRootAcl", uninstall_init)
+        self.assertIn("Abort", uninstall_init)
+
+    @unittest.skipUnless(
+        os.name == "nt" and WINDOWS_POWERSHELL.is_file(),
+        "Windows PowerShell 5.1 is required for the embedded ACL helper test",
+    )
+    def test_embedded_install_root_acl_helper_executes_exact_payload(self) -> None:
+        chunks = {
+            int(index): value
+            for index, value in re.findall(
+                r'INSTALL_ROOT_ACL_CHECK_CHUNK_(\d+) "([^"]*)"',
+                INSTALL_ROOT_ACL_DEFINES,
+            )
+        }
+        self.assertEqual(set(chunks), set(range(8)))
+        encoded = "".join(chunks[index] for index in range(8))
+        self.assertEqual(gzip.decompress(base64.b64decode(encoded)), INSTALL_ROOT_ACL_HELPER)
+
+        decoder = (
+            "$z=$env:EQAPO_ACL_CODE_0+$env:EQAPO_ACL_CODE_1+"
+            "$env:EQAPO_ACL_CODE_2+$env:EQAPO_ACL_CODE_3+"
+            "$env:EQAPO_ACL_CODE_4+$env:EQAPO_ACL_CODE_5+"
+            "$env:EQAPO_ACL_CODE_6+$env:EQAPO_ACL_CODE_7;"
+            "$b=[Convert]::FromBase64String($z);"
+            "$m=[IO.MemoryStream]::new($b);"
+            "$g=[IO.Compression.GzipStream]::new("
+            "$m,[IO.Compression.CompressionMode]::Decompress);"
+            "$r=[IO.StreamReader]::new($g,[Text.Encoding]::UTF8);"
+            "&([ScriptBlock]::Create($r.ReadToEnd()))"
+        )
+        self.assertIn(decoder.replace("$", "$$"), SETUP_SOURCE)
+
+        def run_helper(install_root: pathlib.Path) -> subprocess.CompletedProcess[str]:
+            environment = os.environ.copy()
+            environment["EQAPO_INSTALL_ROOT"] = str(install_root)
+            environment["EQAPO_ALLOW_MISSING_INSTALL_ROOT"] = "0"
+            for index in range(8):
+                environment[f"EQAPO_ACL_CODE_{index}"] = chunks[index]
+            return subprocess.run(
+                [
+                    str(WINDOWS_POWERSHELL),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    decoder,
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                check=False,
+                env=environment,
+            )
+
+        safe_root = pathlib.Path(os.environ.get("WINDIR", "C:/Windows"))
+        safe_result = run_helper(safe_root)
+        self.assertEqual(
+            safe_result.returncode,
+            0,
+            msg=f"stdout:\n{safe_result.stdout}\nstderr:\n{safe_result.stderr}",
+        )
+        with tempfile.TemporaryDirectory(prefix="eqapo-weak-install-root-") as temp_dir:
+            weak_result = run_helper(pathlib.Path(temp_dir))
+        self.assertNotEqual(
+            weak_result.returncode,
+            0,
+            msg="a current-user-owned temporary directory must be rejected",
+        )
 
     def test_installer_validates_payload_before_persistent_changes(self) -> None:
         self.assertIn("CRCCheck force", SETUP_SOURCE)
@@ -1168,8 +1348,10 @@ class InstallerContractTests(unittest.TestCase):
         self.assertIn("kernel32::GetFileAttributesW", validator_body)
         self.assertIn("FILE_ATTRIBUTE_REPARSE_POINT", validator_body)
 
-        config_start = SETUP_SOURCE.index("Section /o un.$(SecRemoveName)")
-        config_end = SETUP_SOURCE.index("SectionEnd", config_start)
+        config_start = SETUP_SOURCE.index(
+            "Function un.RemoveRequestedUserConfiguration"
+        )
+        config_end = SETUP_SOURCE.index("FunctionEnd", config_start)
         config_body = SETUP_SOURCE[config_start:config_end]
         self.assertIn("Call un.ValidateProductChildDirectory", config_body)
         self.assertIn('Delete "$InstallRecoveryPathToCheck\\*.*"', config_body)
@@ -1182,8 +1364,14 @@ class InstallerContractTests(unittest.TestCase):
         self.assertGreaterEqual(
             qt_body.count("Call un.ValidateProductChildDirectory"), 8
         )
-        self.assertIn('Delete "$INSTDIR\\qt\\platforms\\qwindows.dll"', qt_body)
-        self.assertIn('RMDir "$INSTDIR\\qt"', qt_body)
+        self.assertIn(
+            '!insertmacro RemoveUninstallPayloadFile '
+            '"$INSTDIR\\qt\\platforms\\qwindows.dll"',
+            qt_body,
+        )
+        self.assertIn(
+            '!insertmacro RemoveUninstallPayloadDirectory "$INSTDIR\\qt"', qt_body
+        )
         self.assertNotIn("RMDir /r", qt_body)
 
     def test_post_registration_failures_are_checked_and_rolled_back(self) -> None:
@@ -1195,8 +1383,6 @@ class InstallerContractTests(unittest.TestCase):
             '"$INSTDIR\\EqualizerAPO.dll"\' $1'
         )
         post_registration = install_body[registration:]
-        self.assertIn("Pop $InstallOperationCode", post_registration)
-        self.assertIn('${If} $InstallOperationCode == "error"', post_registration)
         self.assertIn('${ElseIf} $InstallOperationCode != 0', post_registration)
         self.assertIn('WriteUninstaller "$INSTDIR\\Uninstall.exe"', post_registration)
         self.assertIn('${If} ${Errors}', post_registration)
@@ -1217,6 +1403,168 @@ class InstallerContractTests(unittest.TestCase):
         )
         self.assertIn("installTransactionFailed:", post_registration)
         self.assertIn("Call RollbackInstallTransaction", post_registration)
+
+    def test_config_acl_operations_never_walk_the_user_writable_tree(self) -> None:
+        install_start = SETUP_SOURCE.index('Section "-Install"')
+        install_end = SETUP_SOURCE.index("SectionEnd", install_start)
+        install_body = SETUP_SOURCE[install_start:install_end]
+        prepare_start = SETUP_SOURCE.index("Function PrepareInstallTransaction")
+        prepare_end = SETUP_SOURCE.index("FunctionEnd", prepare_start)
+        prepare_body = SETUP_SOURCE[prepare_start:prepare_end]
+        rollback_start = SETUP_SOURCE.index("Function RollbackInstallTransaction")
+        rollback_end = SETUP_SOURCE.index("FunctionEnd", rollback_start)
+        rollback_body = SETUP_SOURCE[rollback_start:rollback_end]
+
+        config_acl_commands = [
+            line.strip()
+            for line in SETUP_SOURCE.splitlines()
+            if "icacls.exe" in line
+            and (
+                "$INSTDIR\\config" in line
+                or "$InstallRecoveryAclPath" in line
+            )
+        ]
+        self.assertEqual(len(config_acl_commands), 4)
+        for command in config_acl_commands:
+            with self.subTest(command=command):
+                self.assertIn(" /L", command)
+                self.assertNotIn(" /T", command)
+                self.assertNotIn(" /C", command)
+
+        validator_start = SETUP_SOURCE.index("Function ValidateAndHoldConfigRoot")
+        validator_end = SETUP_SOURCE.index("FunctionEnd", validator_start)
+        validator = SETUP_SOURCE[validator_start:validator_end]
+        self.assertIn("FILE_FLAG_OPEN_REPARSE_POINT", validator)
+        self.assertIn("FILE_FLAG_BACKUP_SEMANTICS", validator)
+        self.assertIn("FILE_SHARE_READ_WRITE", validator)
+        self.assertNotIn("FILE_SHARE_READ_WRITE_DELETE", validator)
+        self.assertIn("GetFileInformationByHandle", validator)
+        self.assertIn("FILE_ATTRIBUTE_DIRECTORY", validator)
+        self.assertIn("FILE_ATTRIBUTE_REPARSE_POINT", validator)
+
+        create_root = install_body.index('CreateDirectory "$INSTDIR\\config"')
+        validate_root = install_body.index("Call ValidateAndHoldConfigRoot", create_root)
+        fresh_only = install_body.index(
+            '${If} $ConfigRootCreated == "1"', validate_root
+        )
+        create_child = install_body.index(
+            'CreateDirectory "$INSTDIR\\config\\HeadphoneCalibrations"',
+            fresh_only,
+        )
+        first_config_file = install_body.index(
+            "File /oname=config\\config.txt", create_child
+        )
+        last_config_file = install_body.index(
+            "File /oname=config\\selective_delay.txt", first_config_file
+        )
+        fresh_only_end = install_body.index("${EndIf}", last_config_file)
+        grant_root = install_body.index("icacls.exe", fresh_only_end)
+        close_root = install_body.index(
+            "Call CloseConfigRootIdentityHandle", grant_root
+        )
+        self.assertLess(create_root, validate_root)
+        self.assertLess(validate_root, fresh_only)
+        self.assertLess(fresh_only, create_child)
+        self.assertLess(create_child, first_config_file)
+        self.assertLess(first_config_file, last_config_file)
+        self.assertLess(last_config_file, fresh_only_end)
+        self.assertLess(fresh_only_end, grant_root)
+        self.assertLess(grant_root, close_root)
+        self.assertNotIn(
+            "CreateDirectory \"$INSTDIR\\config\\",
+            install_body[grant_root:close_root],
+        )
+        self.assertNotIn("File /oname=config\\", install_body[grant_root:close_root])
+        verify_start = SETUP_SOURCE.index("Function VerifyRequiredAssets")
+        verify_end = SETUP_SOURCE.index("FunctionEnd", verify_start)
+        verify_body = SETUP_SOURCE[verify_start:verify_end]
+        self.assertIn('${If} $ConfigRootCreated == "1"', verify_body)
+        self.assertIn(
+            '!insertmacro RequireInstalledAsset "$INSTDIR\\config\\config.txt"',
+            verify_body,
+        )
+        self.assertIn(" /save ", prepare_body)
+        self.assertIn(" /L /Q", prepare_body)
+        self.assertIn(" /restore ", rollback_body)
+        self.assertIn(" /reset /L /Q", rollback_body)
+
+        failed_start = SETUP_SOURCE.index("Function .onInstFailed")
+        failed_end = SETUP_SOURCE.index("FunctionEnd", failed_start)
+        failed_body = SETUP_SOURCE[failed_start:failed_end]
+        self.assertLess(
+            failed_body.index("Call CloseConfigRootIdentityHandle"),
+            failed_body.index("Call RollbackInstallTransaction"),
+        )
+
+    @unittest.skipUnless(
+        os.name == "nt" and CMD.is_file() and ICACLS.is_file(),
+        "Windows cmd.exe and icacls.exe are required for the junction test",
+    )
+    def test_root_only_config_acl_update_does_not_follow_a_child_junction(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory(prefix="eqapo-config-acl-") as temp_dir:
+            root = pathlib.Path(temp_dir)
+            config = root / "config"
+            outside = root / "outside"
+            child_junction = config / "user-junction"
+            config.mkdir()
+            outside.mkdir()
+
+            junction = subprocess.run(
+                [str(CMD), "/D", "/C", "mklink", "/J", str(child_junction), str(outside)],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                check=False,
+            )
+            if junction.returncode != 0:
+                self.skipTest(
+                    "directory junction creation is unavailable: "
+                    + junction.stderr.strip()
+                )
+
+            def outside_acl() -> str:
+                result = subprocess.run(
+                    [str(ICACLS), str(outside)],
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=15,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, msg=result.stderr)
+                return result.stdout.strip()
+
+            original = outside_acl()
+            try:
+                for arguments in (
+                    [
+                        str(config),
+                        "/grant",
+                        "*S-1-5-32-545:(OI)(CI)F",
+                        "/L",
+                        "/Q",
+                    ],
+                    [str(config), "/reset", "/L", "/Q"],
+                ):
+                    with self.subTest(arguments=arguments):
+                        result = subprocess.run(
+                            [str(ICACLS), *arguments],
+                            capture_output=True,
+                            text=True,
+                            encoding="utf-8",
+                            errors="replace",
+                            timeout=15,
+                            check=False,
+                        )
+                        self.assertEqual(result.returncode, 0, msg=result.stderr)
+                        self.assertEqual(outside_acl(), original)
+            finally:
+                if os.path.lexists(child_junction):
+                    os.rmdir(child_junction)
 
     def test_protected_audio_override_has_a_next_run_recovery_journal(self) -> None:
         self.assertIn(
@@ -1283,6 +1631,576 @@ class InstallerContractTests(unittest.TestCase):
         )
         self.assertNotIn('RMDir /r "$SMPROGRAMS\\$OldStartMenuFolder"', SETUP_SOURCE)
         self.assertNotIn('RMDir /r "$SMPROGRAMS\\$StartMenuFolder"', SETUP_SOURCE)
+
+    def test_rollback_removes_optional_directx_payloads_before_restore(self) -> None:
+        remove_start = SETUP_SOURCE.index("Function RemoveInstalledProductFiles")
+        remove_end = SETUP_SOURCE.index("FunctionEnd", remove_start)
+        remove_body = SETUP_SOURCE[remove_start:remove_end]
+
+        self.assertIn(
+            '!insertmacro DeleteTransactionFile "$INSTDIR\\dxcompiler.dll"',
+            remove_body,
+        )
+        self.assertIn(
+            '!insertmacro DeleteTransactionFile "$INSTDIR\\dxil.dll"',
+            remove_body,
+        )
+
+    def test_every_installed_optional_qt_imageformat_is_removed_by_rollback(
+        self,
+    ) -> None:
+        installed = set(
+            re.findall(
+                r'File /nonfatal /oname=qt\\imageformats\\([^" ]+)',
+                SETUP_SOURCE,
+            )
+        )
+        remove_start = SETUP_SOURCE.index("Function RemoveInstalledProductFiles")
+        remove_end = SETUP_SOURCE.index("FunctionEnd", remove_start)
+        rollback = set(
+            re.findall(
+                r'DeleteTransactionFile "\$INSTDIR\\qt\\imageformats\\([^" ]+)',
+                SETUP_SOURCE[remove_start:remove_end],
+            )
+        )
+
+        self.assertEqual(installed, {"qgif.dll", "qjpeg.dll"})
+        self.assertTrue(installed <= rollback)
+
+    def test_uninstaller_blocks_all_installer_recovery_journals_before_trust(
+        self,
+    ) -> None:
+        init_start = SETUP_SOURCE.index("Function un.onInit")
+        init_end = SETUP_SOURCE.index("FunctionEnd", init_start)
+        init = SETUP_SOURCE[init_start:init_end]
+        guard_call = init.index("Call un.BlockIfInstallRecoveryJournalExists")
+        install_path_read = init.index(
+            'ReadRegStr $0 HKLM ${REGPATH} "InstallPath"'
+        )
+        self.assertLess(guard_call, install_path_read)
+        self.assertIn('StrCpy $InstallRecoveryFailed "0"', init[:install_path_read])
+        self.assertIn("Abort", init)
+
+        guard_start = SETUP_SOURCE.index(
+            "Function un.BlockIfInstallRecoveryJournalExists"
+        )
+        guard_end = SETUP_SOURCE.index("FunctionEnd", guard_start)
+        guard = SETUP_SOURCE[guard_start:guard_end]
+        self.assertIn("RegOpenKeyExW", guard)
+        self.assertIn("${ERROR_FILE_NOT_FOUND}", guard)
+        self.assertIn(
+            'ReadRegDWORD $0 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} "Pending"',
+            guard,
+        )
+        self.assertIn(
+            'ReadRegStr $InstallRecoveryPhase HKLM '
+            '${INSTALLER_APP_RECOVERY_REGPATH} "Phase"',
+            guard,
+        )
+        self.assertIn(
+            'ReadRegDWORD $1 HKLM ${INSTALLER_APP_RECOVERY_REGPATH} '
+            '"JournalVersion"',
+            guard,
+        )
+        for phase in (
+            "initializing",
+            "preparing",
+            "prepared",
+            "active",
+            "committed",
+            "rollback-cleanup",
+        ):
+            self.assertIn(f'$InstallRecoveryPhase == "{phase}"', guard)
+        self.assertIn('$0 != 1', guard)
+        self.assertNotIn("DeleteReg", guard)
+
+    def test_setup_blocks_partial_uninstall_until_the_same_journal_is_retried(
+        self,
+    ) -> None:
+        init_start = SETUP_SOURCE.index("Function .onInit")
+        init_end = SETUP_SOURCE.index("FunctionEnd", init_start)
+        init = SETUP_SOURCE[init_start:init_end]
+        guard_call = init.index("Call BlockIfUninstallRecoveryJournalExists")
+        protected_audio_recovery = init.index("Call RecoverProtectedAudioSetting")
+        app_tree_recovery = init.index("Call RecoverInstallTransaction")
+        self.assertLess(guard_call, protected_audio_recovery)
+        self.assertLess(guard_call, app_tree_recovery)
+        self.assertIn("Abort", init[guard_call:protected_audio_recovery])
+        self.assertIn("complete the existing uninstall", init)
+
+        guard_start = SETUP_SOURCE.index(
+            "Function BlockIfUninstallRecoveryJournalExists"
+        )
+        guard_end = SETUP_SOURCE.index("FunctionEnd", guard_start)
+        guard = SETUP_SOURCE[guard_start:guard_end]
+        self.assertIn("RegOpenKeyExW", guard)
+        for value in (
+            "JournalVersion",
+            "InstallPath",
+            "Pending",
+            "Phase",
+            "UpdateCheckerDone",
+            "DeviceSelectorDone",
+            "ApoUnregistered",
+        ):
+            self.assertIn(f'"{value}"', guard)
+        self.assertIn('$UninstallRecoveryPhase == "critical"', guard)
+        self.assertIn('$UninstallRecoveryPhase == "payload"', guard)
+        self.assertNotIn("DeleteReg", guard)
+
+        section_start = SETUP_SOURCE.index('Section "-un.Uninstall"')
+        section_end = SETUP_SOURCE.index("SectionEnd", section_start)
+        section = SETUP_SOURCE[section_start:section_end]
+        completed_side_effects = section.index("Call un.MarkUninstallPayloadPhase")
+        partial_payload = section.index("RemoveUninstallPayloadFile")
+        retry_failure = section.index("uninstallPayloadCleanupFailed:")
+        journal_clear = section.index("Call un.ClearUninstallTransaction")
+        self.assertLess(completed_side_effects, partial_payload)
+        self.assertLess(partial_payload, retry_failure)
+        self.assertLess(retry_failure, journal_clear)
+
+        prepare_start = SETUP_SOURCE.index("Function un.PrepareUninstallTransaction")
+        prepare_end = SETUP_SOURCE.index("FunctionEnd", prepare_start)
+        prepare = SETUP_SOURCE[prepare_start:prepare_end]
+        self.assertIn('$UninstallRecoveryPhase == "payload"', prepare)
+        self.assertIn('$UninstallUpdateCheckerDone != 1', prepare)
+        self.assertIn('$UninstallDeviceSelectorDone != 1', prepare)
+        self.assertIn('$UninstallApoUnregistered != 1', prepare)
+
+    def test_partial_uninstall_uses_a_durable_idempotent_journal(self) -> None:
+        self.assertIn(
+            '!define UNINSTALLER_RECOVERY_REGPATH '
+            '"Software\\EqualizerAPOUninstallRecovery"',
+            SETUP_SOURCE,
+        )
+        prepare_start = SETUP_SOURCE.index("Function un.PrepareUninstallTransaction")
+        prepare_end = SETUP_SOURCE.index("FunctionEnd", prepare_start)
+        prepare = SETUP_SOURCE[prepare_start:prepare_end]
+        for value in (
+            "JournalVersion",
+            "InstallPath",
+            "Pending",
+            "Phase",
+            "UpdateCheckerDone",
+            "DeviceSelectorDone",
+            "ApoUnregistered",
+        ):
+            self.assertIn(f'"{value}"', prepare)
+        self.assertIn("RegOpenKeyExW", prepare)
+        self.assertIn('${UNINSTALLER_RECOVERY_JOURNAL_VERSION}', prepare)
+        self.assertIn('$UninstallRecoveryPhase == "critical"', prepare)
+        self.assertIn('$UninstallRecoveryPhase == "payload"', prepare)
+        self.assertIn('$UninstallRecoveryInstallPath != "$INSTDIR"', prepare)
+
+        init_start = SETUP_SOURCE.index("Function un.onInit")
+        init_end = SETUP_SOURCE.index("FunctionEnd", init_start)
+        init = SETUP_SOURCE[init_start:init_end]
+        self.assertIn("Call un.LoadUninstallRecoveryTargetForInit", init)
+        fallback_start = SETUP_SOURCE.index(
+            "Function un.LoadUninstallRecoveryTargetForInit"
+        )
+        fallback_end = SETUP_SOURCE.index("FunctionEnd", fallback_start)
+        fallback = SETUP_SOURCE[fallback_start:fallback_end]
+        self.assertIn('${UNINSTALLER_RECOVERY_JOURNAL_VERSION}', fallback)
+        self.assertIn('"Pending"', fallback)
+        self.assertIn('$UninstallRecoveryPhase != "critical"', fallback)
+        self.assertIn('$UninstallRecoveryPhase != "payload"', fallback)
+        self.assertIn('"InstallPath"', fallback)
+
+        # A missing helper is accepted only after a valid journal proves that
+        # the corresponding side effect already completed.
+        first_write = prepare.index(
+            'WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH}'
+        )
+        for payload in (
+            "UpdateChecker.exe",
+            "DeviceSelector.exe",
+            "EqualizerAPO.dll",
+        ):
+            self.assertIn(f'${{FileExists}} "$INSTDIR\\{payload}"', prepare[:first_write])
+
+        section_start = SETUP_SOURCE.index('Section "-un.Uninstall"')
+        section_end = SETUP_SOURCE.index("SectionEnd", section_start)
+        section = SETUP_SOURCE[section_start:section_end]
+        prepare_call = section.index("Call un.PrepareUninstallTransaction")
+        stop_call = section.index("Call un.CheckInstalledProductProcesses")
+        self.assertLess(prepare_call, stop_call)
+        for flag, command in (
+            ("$UninstallUpdateCheckerDone", 'UpdateChecker.exe" -u'),
+            ("$UninstallDeviceSelectorDone", 'DeviceSelector.exe" /u'),
+            ("$UninstallApoUnregistered", 'regsvr32.exe" /u /s'),
+        ):
+            condition = section.index(f'${{If}} {flag} == "0"')
+            operation = section.index(command, condition)
+            persisted = section.index(
+                "Call un.PersistUninstallStep", operation
+            )
+            self.assertLess(condition, operation)
+            self.assertLess(operation, persisted)
+
+        persist_start = SETUP_SOURCE.index("Function un.PersistUninstallStep")
+        persist_end = SETUP_SOURCE.index("FunctionEnd", persist_start)
+        persist = SETUP_SOURCE[persist_start:persist_end]
+        persisted_write = persist.index(
+            'WriteRegDWORD HKLM ${UNINSTALLER_RECOVERY_REGPATH}'
+        )
+        persisted_readback = persist.index(
+            'ReadRegDWORD $0 HKLM ${UNINSTALLER_RECOVERY_REGPATH}',
+            persisted_write,
+        )
+        persisted_flush = persist.index(
+            "Call un.FlushUninstallTransaction", persisted_readback
+        )
+        self.assertLess(persisted_write, persisted_readback)
+        self.assertLess(persisted_readback, persisted_flush)
+
+        payload_phase = section.index("Call un.MarkUninstallPayloadPhase")
+        first_delete = section.index("RemoveUninstallPayloadFile")
+        self.assertLess(payload_phase, first_delete)
+        mark_start = SETUP_SOURCE.index("Function un.MarkUninstallPayloadPhase")
+        mark_end = SETUP_SOURCE.index("FunctionEnd", mark_start)
+        mark = SETUP_SOURCE[mark_start:mark_end]
+        phase_write = mark.index('"Phase" "payload"')
+        phase_readback = mark.index('"Phase"', phase_write + 1)
+        phase_flush = mark.index(
+            "Call un.FlushUninstallTransaction", phase_readback
+        )
+        self.assertLess(phase_write, phase_readback)
+        self.assertLess(phase_readback, phase_flush)
+        failure = section.index("uninstallPayloadCleanupFailed:")
+        clear = section.index("Call un.ClearUninstallTransaction")
+        self.assertLess(failure, clear)
+        self.assertNotIn(
+            "${UNINSTALLER_RECOVERY_REGPATH}",
+            section[:clear],
+        )
+
+    def test_powershell_helpers_are_embedded_and_never_executed_from_pluginsdir(
+        self,
+    ) -> None:
+        self.assertIn('!include "EmbeddedPowerShellHelpers.nsh"', SETUP_SOURCE)
+        self.assertNotIn('File "stop-product-processes.ps1"', SETUP_SOURCE)
+        self.assertNotIn('$PLUGINSDIR\\stop-product-processes.ps1', SETUP_SOURCE)
+        self.assertNotIn('File "x64-load-check.ps1"', SETUP_SOURCE)
+        self.assertNotIn('$PLUGINSDIR\\x64-load-check.ps1', SETUP_SOURCE)
+        self.assertNotRegex(
+            SETUP_SOURCE,
+            r'-File\s+"\$PLUGINSDIR\\(?:stop-product-processes|x64-load-check)\.ps1"',
+        )
+
+        stop_chunks = embedded_script_chunks("STOP_PRODUCT_PROCESSES")
+        x64_chunks = embedded_script_chunks("X64_LOAD_CHECK")
+        self.assertTrue(stop_chunks)
+        self.assertTrue(x64_chunks)
+        self.assertEqual(
+            gzip.decompress(base64.b64decode("".join(stop_chunks))),
+            STOP_PRODUCT_PROCESSES_HELPER,
+        )
+        self.assertEqual(
+            gzip.decompress(base64.b64decode("".join(x64_chunks))),
+            X64_LOAD_CHECK_HELPER,
+        )
+
+        stop_decoder = embedded_script_decoder(
+            "EQAPO_STOP_CODE", len(stop_chunks)
+        )
+        stop_decoder += (
+            "$p=@{InstallRoot=$env:EQAPO_PROCESS_INSTALL_ROOT};"
+            "if([int]$env:EQAPO_PROCESS_PROTECT_INTERACTIVE -eq 1){"
+            "$p.ProtectInteractiveApplications=$true};"
+            "&([ScriptBlock]::Create($r.ReadToEnd())) @p"
+        )
+        x64_decoder = embedded_script_decoder(
+            "EQAPO_X64_CODE", len(x64_chunks)
+        )
+        x64_decoder += (
+            "&([ScriptBlock]::Create($r.ReadToEnd())) "
+            "$env:EQAPO_X64_DLL_PATH $env:EQAPO_X64_LOG_PATH"
+        )
+        self.assertIn(stop_decoder.replace("$", "$$"), SETUP_SOURCE)
+        self.assertIn(x64_decoder.replace("$", "$$"), SETUP_SOURCE)
+
+    @unittest.skipUnless(
+        os.name == "nt" and WINDOWS_POWERSHELL.is_file(),
+        "Windows PowerShell 5.1 is required for embedded helper runtime tests",
+    )
+    def test_embedded_x64_load_check_executes_the_exact_source_payload(self) -> None:
+        chunks = embedded_script_chunks("X64_LOAD_CHECK")
+        self.assertTrue(chunks)
+        decoder = embedded_script_decoder("EQAPO_X64_CODE", len(chunks))
+        decoder += (
+            "&([ScriptBlock]::Create($r.ReadToEnd())) "
+            "$env:EQAPO_X64_DLL_PATH $env:EQAPO_X64_LOG_PATH"
+        )
+        with tempfile.TemporaryDirectory(prefix="eqapo-x64-embedded-") as temp_dir:
+            log_path = pathlib.Path(temp_dir) / "diagnostic.log"
+            environment = os.environ.copy()
+            for index, chunk in enumerate(chunks):
+                environment[f"EQAPO_X64_CODE_{index}"] = chunk
+            environment["EQAPO_X64_DLL_PATH"] = str(
+                pathlib.Path(os.environ.get("WINDIR", "C:/Windows"))
+                / "System32"
+                / "kernel32.dll"
+            )
+            environment["EQAPO_X64_LOG_PATH"] = str(log_path)
+            result = subprocess.run(
+                [
+                    str(WINDOWS_POWERSHELL),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    decoder,
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                check=False,
+                env=environment,
+            )
+            self.assertEqual(
+                result.returncode,
+                0,
+                msg=f"stdout:\n{result.stdout}\nstderr:\n{result.stderr}",
+            )
+            self.assertIn("LoadLibrary OK.", log_path.read_text(encoding="utf-8"))
+
+    def test_every_nsexec_result_is_popped_from_the_nsis_stack(self) -> None:
+        lines = [line.strip() for line in SETUP_SOURCE.splitlines()]
+        for index, line in enumerate(lines):
+            if not line.startswith("nsExec::ExecToLog"):
+                continue
+            with self.subTest(command=line):
+                self.assertLess(index + 1, len(lines))
+                self.assertTrue(lines[index + 1].startswith("Pop $"))
+
+    def test_process_shutdown_is_bound_to_the_installed_executable_path(self) -> None:
+        helper = (ROOT / "Setup" / "stop-product-processes.ps1").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertNotIn("taskkill.exe", SETUP_SOURCE)
+        self.assertNotIn(" /IM ", SETUP_SOURCE)
+        self.assertIn("QueryFullProcessImageName", helper)
+        self.assertIn("StringComparison.OrdinalIgnoreCase", helper)
+        self.assertIn("expectedPath", helper)
+        self.assertIn("TerminateProcess(process, 1)", helper)
+        self.assertIn("throw new Win32Exception(error)", helper)
+        self.assertIn("GetProcessesByName($processName)", helper)
+        self.assertNotIn("[Diagnostics.Process]::GetProcesses()", helper)
+        self.assertIn("$ProtectInteractiveApplications", helper)
+        self.assertIn("$runningInteractiveProcesses", helper)
+        self.assertIn("exit 2", helper)
+        self.assertIn("The same handle is used", helper)
+        self.assertIn("Call StopInstalledProductProcesses", SETUP_SOURCE)
+        self.assertIn("Call un.StopInstalledProductProcesses", SETUP_SOURCE)
+
+        prepare_start = SETUP_SOURCE.index("Function PrepareInstallTransaction")
+        prepare_end = SETUP_SOURCE.index("FunctionEnd", prepare_start)
+        prepare = SETUP_SOURCE[prepare_start:prepare_end]
+        install_start = SETUP_SOURCE.index('Section "-Install"')
+        install_end = SETUP_SOURCE.index("SectionEnd", install_start)
+        install = SETUP_SOURCE[install_start:install_end]
+        self.assertIn('ReadRegStr $0 HKLM ${REGPATH} "InstallPath"', prepare)
+        self.assertIn('StrCpy $VerifiedPreviousInstall "1"', prepare)
+        self.assertIn('${If} $VerifiedPreviousInstall == "1"', prepare)
+        self.assertLess(
+            prepare.index("Call ValidateInstallRecoveryTarget"),
+            prepare.index("Call CloseRunningApplications"),
+        )
+        self.assertLess(
+            prepare.index("Call CloseRunningApplications"),
+            prepare.index("Call SaveInstallMetadataJournal"),
+        )
+        self.assertNotIn("Call CloseRunningApplications", install)
+
+    @unittest.skipUnless(
+        os.name == "nt" and WINDOWS_POWERSHELL.is_file() and PING.is_file(),
+        "Windows PowerShell 5.1 and ping.exe are required for the process test",
+    )
+    def test_process_shutdown_runtime_requires_consent_and_preserves_same_name_apps(
+        self,
+    ) -> None:
+        chunks = embedded_script_chunks("STOP_PRODUCT_PROCESSES")
+        self.assertTrue(chunks)
+        self.assertEqual(
+            gzip.decompress(base64.b64decode("".join(chunks))),
+            STOP_PRODUCT_PROCESSES_HELPER,
+        )
+        decoder = embedded_script_decoder("EQAPO_STOP_CODE", len(chunks))
+        decoder += (
+            "$p=@{InstallRoot=$env:EQAPO_PROCESS_INSTALL_ROOT};"
+            "if([int]$env:EQAPO_PROCESS_PROTECT_INTERACTIVE -eq 1){"
+            "$p.ProtectInteractiveApplications=$true};"
+            "&([ScriptBlock]::Create($r.ReadToEnd())) @p"
+        )
+
+        def run_process_helper(
+            install_root: pathlib.Path, protect_interactive: bool
+        ) -> subprocess.CompletedProcess[str]:
+            environment = os.environ.copy()
+            environment["EQAPO_PROCESS_INSTALL_ROOT"] = str(install_root)
+            environment["EQAPO_PROCESS_PROTECT_INTERACTIVE"] = (
+                "1" if protect_interactive else "0"
+            )
+            for index, chunk in enumerate(chunks):
+                environment[f"EQAPO_STOP_CODE_{index}"] = chunk
+            return subprocess.run(
+                [
+                    str(WINDOWS_POWERSHELL),
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-Command",
+                    decoder,
+                ],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=15,
+                check=False,
+                env=environment,
+            )
+
+        creation_flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+        with tempfile.TemporaryDirectory(prefix="eqapo-process-stop-") as temp_dir:
+            temp = pathlib.Path(temp_dir)
+            exact_root = temp / "installed"
+            unrelated_root = temp / "unrelated"
+            exact_root.mkdir()
+            unrelated_root.mkdir()
+            exact_executable = exact_root / "Editor.exe"
+            outproc_executable = exact_root / "EqApoOutProcHost.exe"
+            unrelated_executable = unrelated_root / "Editor.exe"
+            shutil.copy2(PING, exact_executable)
+            shutil.copy2(PING, outproc_executable)
+            shutil.copy2(PING, unrelated_executable)
+            exact_process = subprocess.Popen(
+                [str(exact_executable), "-t", "127.0.0.1"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+            unrelated_process = subprocess.Popen(
+                [str(unrelated_executable), "-t", "127.0.0.1"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+            outproc_process = subprocess.Popen(
+                [str(outproc_executable), "-t", "127.0.0.1"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=creation_flags,
+            )
+            try:
+                time.sleep(0.3)
+                check = run_process_helper(
+                    exact_root,
+                    protect_interactive=True,
+                )
+                self.assertEqual(
+                    check.returncode,
+                    2,
+                    msg=f"stdout:\n{check.stdout}\nstderr:\n{check.stderr}",
+                )
+                self.assertIsNone(exact_process.poll())
+                self.assertIsNone(unrelated_process.poll())
+                self.assertIsNone(outproc_process.poll())
+
+                stop = run_process_helper(
+                    exact_root,
+                    protect_interactive=False,
+                )
+                self.assertEqual(
+                    stop.returncode,
+                    0,
+                    msg=f"stdout:\n{stop.stdout}\nstderr:\n{stop.stderr}",
+                )
+                exact_process.wait(timeout=5)
+                outproc_process.wait(timeout=5)
+                self.assertIsNone(unrelated_process.poll())
+            finally:
+                for process in (exact_process, unrelated_process, outproc_process):
+                    if process.poll() is None:
+                        process.kill()
+                    process.wait(timeout=5)
+
+    def test_uninstaller_stops_before_deleting_files_on_critical_cleanup_failure(
+        self,
+    ) -> None:
+        section_start = SETUP_SOURCE.index('Section "-un.Uninstall"')
+        section_end = SETUP_SOURCE.index("SectionEnd", section_start)
+        section = SETUP_SOURCE[section_start:section_end]
+
+        stop_offset = section.index("Call un.StopInstalledProductProcesses")
+        check_offset = section.index("Call un.CheckInstalledProductProcesses")
+        consent_offset = section.index("$(UninstallCloseAppsPrompt)")
+        self.assertLess(check_offset, consent_offset)
+        self.assertLess(consent_offset, stop_offset)
+        self.assertLess(stop_offset, section.index('UpdateChecker.exe" -u'))
+        self.assertLess(stop_offset, section.index('DeviceSelector.exe" /u'))
+        self.assertIn("close them before silent uninstall", section)
+
+        for command in (
+            'UpdateChecker.exe" -u',
+            'DeviceSelector.exe" /u',
+            'regsvr32.exe" /u /s',
+        ):
+            with self.subTest(command=command):
+                command_offset = section.index(command)
+                command_line = section[command_offset:].splitlines()[0]
+                self.assertIn("$InstallOperationCode", command_line)
+
+        failure = section.index("uninstallCriticalCleanupFailed:")
+        success = section.index("uninstallCriticalCleanupSucceeded:")
+        first_file_delete = section.index(
+            '!insertmacro RemoveUninstallPayloadFile '
+            '"$INSTDIR\\Configuration reference'
+        )
+        payload_failure_guard = section.index(
+            '${If} $InstallRecoveryFailed == "1"', first_file_delete
+        )
+        uninstall_metadata_delete = section.index(
+            "DeleteRegKey HKLM ${UNINST_REGPATH}"
+        )
+        self.assertIn("${If} ${Errors}", section)
+        self.assertGreaterEqual(section.count("$InstallOperationCode != 0"), 3)
+        self.assertIn("SetErrorLevel 1", section[failure:success])
+        self.assertIn("Abort", section[failure:success])
+        self.assertLess(failure, success)
+        self.assertLess(success, first_file_delete)
+        self.assertLess(first_file_delete, payload_failure_guard)
+        self.assertLess(success, uninstall_metadata_delete)
+
+        optional_start = SETUP_SOURCE.index("Section /o un.$(SecRemoveName)")
+        optional_end = SETUP_SOURCE.index("SectionEnd", optional_start)
+        optional_section = SETUP_SOURCE[optional_start:optional_end]
+        user_data_function_start = SETUP_SOURCE.index(
+            "Function un.RemoveRequestedUserConfiguration"
+        )
+        user_data_function_end = SETUP_SOURCE.index(
+            "FunctionEnd", user_data_function_start
+        )
+        user_data_function = SETUP_SOURCE[
+            user_data_function_start:user_data_function_end
+        ]
+        user_data_call = section.index("Call un.RemoveRequestedUserConfiguration")
+        self.assertIn(
+            'StrCpy $RemoveUserConfigurationRequested "1"', optional_section
+        )
+        self.assertNotIn('Delete "$INSTDIR\\*.reg"', optional_section)
+        self.assertNotIn("DeleteRegKey HKCU ${REGPATH}", optional_section)
+        self.assertIn('Delete "$INSTDIR\\*.reg"', user_data_function)
+        self.assertIn("DeleteRegKey HKCU ${REGPATH}", user_data_function)
+        self.assertLess(success, user_data_call)
+        self.assertLess(payload_failure_guard, user_data_call)
+        self.assertLess(user_data_call, uninstall_metadata_delete)
 
 
 if __name__ == "__main__":

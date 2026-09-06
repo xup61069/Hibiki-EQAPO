@@ -34,7 +34,8 @@ using namespace std;
 #define voicemeeterKeyPath L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VB:Voicemeeter {17359A74-1236-5467}"
 #define voicemeeterWowKeyPath L"HKEY_LOCAL_MACHINE\\SOFTWARE\\Wow6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\VB:Voicemeeter {17359A74-1236-5467}"
 #define uninstallStringValueName L"UninstallString"
-static const wchar_t* startupFilename = L"Equalizer APO Voicemeeter Client.lnk";
+static const wchar_t* startupFilename = L"Hibiki EQAPO Voicemeeter Client.lnk";
+static const wchar_t* legacyStartupFilename = L"Equalizer APO Voicemeeter Client.lnk";
 static const wchar_t* clientFilename = L"VoicemeeterClient.exe";
 static const wchar_t* voicemeeterClientKeyPath = USER_REGPATH L"\\Voicemeeter Client";
 static const wchar_t* sampleRateValueName = L"sampleRate";
@@ -113,8 +114,7 @@ void VoicemeeterAPOInfo::prependInfos(vector<shared_ptr<AbstractAPOInfo>>& list)
 	else
 	{
 		// Voicemeeter was uninstalled but Voicemeeter Client might still be installed
-		wstring startupFilePath = getStartupPath();
-		wstring argString = getLinkArgs(startupFilePath);
+		wstring argString = getStartupLinkArgs();
 		vector<wstring> args = splitArgs(argString);
 
 		int i = 0;
@@ -129,9 +129,8 @@ void VoicemeeterAPOInfo::prependInfos(vector<shared_ptr<AbstractAPOInfo>>& list)
 VoicemeeterAPOInfo::VoicemeeterAPOInfo(const wstring& connectionName, bool voicemeeterInstalled)
 	: connectionName(connectionName), voicemeeterInstalled(voicemeeterInstalled)
 {
-	wstring startupFilePath = getStartupPath();
 	wstring path;
-	wstring argString = getLinkArgs(startupFilePath, &path);
+	wstring argString = getStartupLinkArgs(&path);
 	vector<wstring> args = splitArgs(argString);
 	installed = find(args.begin(), args.end(), connectionName) != args.end();
 
@@ -147,7 +146,8 @@ VoicemeeterAPOInfo::VoicemeeterAPOInfo(const wstring& connectionName, bool voice
 	}
 
 	wstring clientPath = getClientPath();
-	changes = (path != clientPath);
+	changes = path != clientPath ||
+		GetFileAttributesW(getLegacyStartupPath().c_str()) != INVALID_FILE_ATTRIBUTES;
 }
 
 wstring VoicemeeterAPOInfo::getConnectionName() const
@@ -238,7 +238,7 @@ bool VoicemeeterAPOInfo::isVoicemeeterInstalled() const
 void VoicemeeterAPOInfo::install()
 {
 	wstring startupFilePath = getStartupPath();
-	wstring argString = getLinkArgs(startupFilePath);
+	wstring argString = getStartupLinkArgs();
 	vector<wstring> args = splitArgs(argString);
 	vector<wstring>::iterator it = find(args.begin(), args.end(), connectionName);
 	if (it == args.end())
@@ -249,12 +249,13 @@ void VoicemeeterAPOInfo::install()
 	wstring clientPath = getClientPath();
 
 	createLink(startupFilePath, clientPath, argString);
+	DeleteFileW(getLegacyStartupPath().c_str());
 }
 
 void VoicemeeterAPOInfo::uninstall()
 {
 	wstring startupFilePath = getStartupPath();
-	wstring argString = getLinkArgs(startupFilePath);
+	wstring argString = getStartupLinkArgs();
 	vector<wstring> args = splitArgs(argString);
 	vector<wstring>::iterator it = find(args.begin(), args.end(), connectionName);
 	if (it != args.end())
@@ -271,10 +272,12 @@ void VoicemeeterAPOInfo::uninstall()
 		clientPath = clientPath + L"\\" + clientFilename;
 
 		createLink(startupFilePath, clientPath, argString);
+		DeleteFileW(getLegacyStartupPath().c_str());
 	}
 	else
 	{
 		DeleteFileW(startupFilePath.c_str());
+		DeleteFileW(getLegacyStartupPath().c_str());
 	}
 }
 
@@ -293,6 +296,26 @@ wstring VoicemeeterAPOInfo::getStartupPath()
 	CoTaskMemFree(startupPath);
 
 	return result + L"\\" + startupFilename;
+}
+
+wstring VoicemeeterAPOInfo::getLegacyStartupPath()
+{
+	PWSTR startupPath;
+	SHGetKnownFolderPath(FOLDERID_Startup, KF_FLAG_DONT_UNEXPAND, NULL, &startupPath);
+	wstring result(startupPath);
+
+	CoTaskMemFree(startupPath);
+
+	return result + L"\\" + legacyStartupFilename;
+}
+
+wstring VoicemeeterAPOInfo::getStartupLinkArgs(wstring* path)
+{
+	const wstring currentPath = getStartupPath();
+	if (GetFileAttributesW(currentPath.c_str()) != INVALID_FILE_ATTRIBUTES)
+		return getLinkArgs(currentPath, path);
+
+	return getLinkArgs(getLegacyStartupPath(), path);
 }
 
 wstring VoicemeeterAPOInfo::getClientPath()
@@ -397,14 +420,14 @@ wstring VoicemeeterAPOInfo::joinArgs(const vector<wstring>& args)
 
 void VoicemeeterAPOInfo::ensureVoicemeeterClientRunning()
 {
-	wstring startupFilePath = getStartupPath();
-	wstring argString = getLinkArgs(startupFilePath);
+	wstring argString = getStartupLinkArgs();
 	vector<wstring> args = splitArgs(argString);
 	wstring clientPath = getClientPath();
 
-	HANDLE tokenHandle;
+	HANDLE tokenHandle = NULL;
 	if (!OpenProcessToken(GetCurrentProcess(), TOKEN_ADJUST_PRIVILEGES | TOKEN_QUERY, &tokenHandle))
 		throw RegistryException(L"Error in OpenProcessToken while taking ownership");
+	SCOPE_EXIT{CloseHandle(tokenHandle); };
 
 	LUID luid;
 	if (!LookupPrivilegeValue(NULL, SE_DEBUG_NAME, &luid))
@@ -441,8 +464,8 @@ void VoicemeeterAPOInfo::ensureVoicemeeterClientRunning()
 	{
 		if (wcscmp(entry.szExeFile, clientFilename) == 0)
 		{
-			HANDLE processHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_TERMINATE, FALSE, entry.th32ProcessID);
-			if (processHandle == INVALID_HANDLE_VALUE)
+			HANDLE processHandle = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, entry.th32ProcessID);
+			if (processHandle == NULL)
 				throw exception("Could not open process");
 			SCOPE_EXIT{CloseHandle(processHandle); };
 
@@ -460,19 +483,24 @@ void VoicemeeterAPOInfo::ensureVoicemeeterClientRunning()
 				throw exception("Could not read process parameters from process memory");
 
 			wchar_t* cmdLineBuf = new wchar_t[processParams.CommandLine.Length / sizeof(wchar_t)];
-			SCOPE_EXIT{delete cmdLineBuf; };
+			SCOPE_EXIT{delete[] cmdLineBuf; };
 			if (!ReadProcessMemory(processHandle, processParams.CommandLine.Buffer, cmdLineBuf, processParams.CommandLine.Length, NULL))
 				throw exception("Could not read command line from process memory");
 			wstring cmdLine(cmdLineBuf, processParams.CommandLine.Length / sizeof(wchar_t));
 
 			vector<wstring> processArgs = splitArgs(cmdLine);
-			wstring path = processArgs.front();
-			processArgs.erase(processArgs.begin());
-
-			if (path != clientPath || processArgs != args)
+			if (processArgs.empty())
 				closeProcess(entry.th32ProcessID);
 			else
-				matchingProcessExists = true;
+			{
+				wstring path = processArgs.front();
+				processArgs.erase(processArgs.begin());
+
+				if (path != clientPath || processArgs != args)
+					closeProcess(entry.th32ProcessID);
+				else
+					matchingProcessExists = true;
+			}
 		}
 
 		loop = Process32NextW(snapshotHandle, &entry) != 0;

@@ -107,13 +107,21 @@ vector<IFilter*> OutProcVSTPluginFilterFactory::createFilter(const wstring& conf
 
 		if (!libPath.empty())
 		{
-			TraceF(L"Adding out-of-process VST plugin %s", libPath.c_str());
-			void* mem = MemoryHelper::alloc(sizeof(OutProcVSTPluginFilter));
-			filter = new(mem) OutProcVSTPluginFilter(libPath, chunkData, paramMap, hostId, engine != nullptr && engine->isAnalysisMode(), vst3ClassIndex, midiConfig);
+			if (VSTPluginLibrary::isCurrentModulePath(libPath))
+			{
+				LogF(L"Recursive out-of-process VST library load rejected for %s",
+					libPath.c_str());
+			}
+			else
+			{
+				TraceF(L"Adding out-of-process VST plugin %s", libPath.c_str());
+				filter = constructFilter<OutProcVSTPluginFilter>(
+					libPath, chunkData, paramMap, hostId,
+					engine != nullptr && engine->isAnalysisMode(),
+					vst3ClassIndex, midiConfig);
+			}
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

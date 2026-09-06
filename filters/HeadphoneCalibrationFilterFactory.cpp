@@ -10,6 +10,5 @@ vector<IFilter*> HeadphoneCalibrationFilterFactory::createFilter(const wstring& 
 	if (command != L"HeadphoneCalibration")
 		return vector<IFilter*>();
 
-	void* mem = MemoryHelper::alloc(sizeof(HeadphoneCalibrationFilter));
-	return vector<IFilter*>(1, new(mem) HeadphoneCalibrationFilter());
+	return adoptFilter(constructFilter<HeadphoneCalibrationFilter>());
 }

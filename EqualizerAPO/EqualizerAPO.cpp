@@ -32,10 +32,10 @@ using namespace std;
 
 long EqualizerAPO::instCount = 0;
 const CRegAPOProperties<1> EqualizerAPO::regPostMixProperties(
-	EQUALIZERAPO_POST_MIX_GUID, L"EqualizerAPO", L"Copyright (C) 2015", 1, 0, __uuidof(IAudioProcessingObject),
+	EQUALIZERAPO_POST_MIX_GUID, L"Hibiki EQAPO", L"Copyright (C) 2015", 1, 0, __uuidof(IAudioProcessingObject),
 	(APO_FLAG)(APO_FLAG_FRAMESPERSECOND_MUST_MATCH | APO_FLAG_BITSPERSAMPLE_MUST_MATCH | APO_FLAG_INPLACE));
 const CRegAPOProperties<1> EqualizerAPO::regPreMixProperties(
-	EQUALIZERAPO_PRE_MIX_GUID, L"EqualizerAPO", L"Copyright (C) 2015", 1, 0, __uuidof(IAudioProcessingObject),
+	EQUALIZERAPO_PRE_MIX_GUID, L"Hibiki EQAPO", L"Copyright (C) 2015", 1, 0, __uuidof(IAudioProcessingObject),
 	(APO_FLAG)(APO_FLAG_FRAMESPERSECOND_MUST_MATCH | APO_FLAG_BITSPERSAMPLE_MUST_MATCH | APO_FLAG_INPLACE));
 
 EqualizerAPO::EqualizerAPO(IUnknown* pUnkOuter)

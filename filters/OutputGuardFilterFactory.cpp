@@ -9,6 +9,7 @@
 */
 
 #include "stdafx.h"
+#include <cmath>
 #include "helpers/LogHelper.h"
 #include "helpers/MemoryHelper.h"
 #include "helpers/StringHelper.h"
@@ -27,16 +28,14 @@ vector<IFilter*> OutputGuardFilterFactory::createFilter(const wstring& configPat
 		wstring value = StringHelper::replaceCharacters(parameters, L",", L".");
 		double ceilingDb = -1.0;
 		int matched = swscanf_s(value.c_str(), L" %lf dB", &ceilingDb);
-		if (matched == 1)
+		if (matched == 1 && std::isfinite(ceilingDb) &&
+			std::isfinite(std::pow(10.0, ceilingDb / 20.0)))
 		{
 			TraceF(L"Enabling output guard at %g dBFS", ceilingDb);
 
-			void* mem = MemoryHelper::alloc(sizeof(OutputGuardFilter));
-			filter = new(mem) OutputGuardFilter(ceilingDb);
+			filter = constructFilter<OutputGuardFilter>(ceilingDb);
 		}
 	}
 
-	if (filter == NULL)
-		return vector<IFilter*>(0);
-	return vector<IFilter*>(1, filter);
+	return adoptFilter(filter);
 }

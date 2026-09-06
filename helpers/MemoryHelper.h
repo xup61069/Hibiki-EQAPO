@@ -19,6 +19,8 @@
 
 #pragma once
 
+#include <cstddef>
+
 #ifdef USE_WINDDK
 #include <BaseAudioProcessingObject.h>
 #else
@@ -32,5 +34,9 @@ class MemoryHelper
 {
 public:
 	static void* alloc(size_t size);
+	static void* allocArray(size_t count, size_t elementSize);
 	static void free(void* ptr);
+	static void clearAllocationFailure() noexcept;
+	static void markAllocationFailure() noexcept;
+	static bool consumeAllocationFailure() noexcept;
 };

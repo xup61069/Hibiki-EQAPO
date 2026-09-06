@@ -27,41 +27,101 @@
 using namespace std;
 
 FilterConfiguration::FilterConfiguration(FilterEngine* engine, const vector<FilterInfo*>& filterInfos, unsigned allChannelCount)
+	: realChannelCount(engine->getRealChannelCount()),
+	  outputChannelCount(engine->getOutputChannelCount()),
+	  allChannelCount(allChannelCount),
+	  allSamples(NULL),
+	  allSamples2(NULL),
+	  currentSamples(NULL),
+	  currentSamples2(NULL),
+	  filterInfos(NULL),
+	  filterCount(filterInfos.size()),
+	  allocatedSampleChannelCount(0),
+	  allocatedSample2ChannelCount(0),
+	  valid(false)
 {
-	this->allChannelCount = allChannelCount;
-	realChannelCount = engine->getRealChannelCount();
-	outputChannelCount = engine->getOutputChannelCount();
 	unsigned maxFrameCount = engine->getMaxFrameCount();
 
-	allSamples = (double**)MemoryHelper::alloc(allChannelCount * sizeof(double*));
-	for (size_t i = 0; i < allChannelCount; i++)
-		allSamples[i] = (double*)MemoryHelper::alloc(maxFrameCount * sizeof(double));
-	allSamples2 = (double**)MemoryHelper::alloc(allChannelCount * sizeof(double*));
-	for (size_t i = 0; i < allChannelCount; i++)
-		allSamples2[i] = (double*)MemoryHelper::alloc(maxFrameCount * sizeof(double));
-	currentSamples = (double**)MemoryHelper::alloc(allChannelCount * sizeof(double*));
-	currentSamples2 = (double**)MemoryHelper::alloc(allChannelCount * sizeof(double*));
-
-	filterCount = (unsigned)filterInfos.size();
-	this->filterInfos = (FilterInfo**)MemoryHelper::alloc(filterCount * sizeof(FilterInfo*));
+	this->filterInfos = static_cast<FilterInfo**>(MemoryHelper::allocArray(
+		filterCount, sizeof(FilterInfo*)));
+	if (this->filterInfos == NULL)
+	{
+		for (FilterInfo* filterInfo : filterInfos)
+		{
+			filterInfo->filter->~IFilter();
+			MemoryHelper::free(filterInfo->filter);
+			MemoryHelper::free(filterInfo->inChannels);
+			MemoryHelper::free(filterInfo->outChannels);
+			MemoryHelper::free(filterInfo);
+		}
+		filterCount = 0;
+		return;
+	}
 	for (size_t i = 0; i < filterCount; i++)
 		this->filterInfos[i] = filterInfos[i];
+
+	allSamples = static_cast<double**>(MemoryHelper::allocArray(
+		allChannelCount, sizeof(double*)));
+	if (allSamples == NULL)
+		return;
+	memset(allSamples, 0, allChannelCount * sizeof(double*));
+	for (size_t i = 0; i < allChannelCount; i++)
+	{
+		allSamples[i] = static_cast<double*>(MemoryHelper::allocArray(
+			maxFrameCount, sizeof(double)));
+		if (allSamples[i] == NULL)
+			return;
+		++allocatedSampleChannelCount;
+	}
+
+	allSamples2 = static_cast<double**>(MemoryHelper::allocArray(
+		allChannelCount, sizeof(double*)));
+	if (allSamples2 == NULL)
+		return;
+	memset(allSamples2, 0, allChannelCount * sizeof(double*));
+	for (size_t i = 0; i < allChannelCount; i++)
+	{
+		allSamples2[i] = static_cast<double*>(MemoryHelper::allocArray(
+			maxFrameCount, sizeof(double)));
+		if (allSamples2[i] == NULL)
+			return;
+		++allocatedSample2ChannelCount;
+	}
+
+	currentSamples = static_cast<double**>(MemoryHelper::allocArray(
+		allChannelCount, sizeof(double*)));
+	if (currentSamples == NULL)
+		return;
+	currentSamples2 = static_cast<double**>(MemoryHelper::allocArray(
+		allChannelCount, sizeof(double*)));
+	if (currentSamples2 == NULL)
+		return;
+
+	valid = true;
 }
 
 FilterConfiguration::~FilterConfiguration()
 {
-	MemoryHelper::free(currentSamples2);
-	MemoryHelper::free(currentSamples);
+	if (currentSamples2 != NULL)
+		MemoryHelper::free(currentSamples2);
+	if (currentSamples != NULL)
+		MemoryHelper::free(currentSamples);
 
-	for (size_t i = 0; i < allChannelCount; i++)
-		MemoryHelper::free(allSamples2[i]);
-	MemoryHelper::free(allSamples2);
+	if (allSamples2 != NULL)
+	{
+		for (size_t i = 0; i < allocatedSample2ChannelCount; i++)
+			MemoryHelper::free(allSamples2[i]);
+		MemoryHelper::free(allSamples2);
+	}
 
-	for (size_t i = 0; i < allChannelCount; i++)
-		MemoryHelper::free(allSamples[i]);
-	MemoryHelper::free(allSamples);
+	if (allSamples != NULL)
+	{
+		for (size_t i = 0; i < allocatedSampleChannelCount; i++)
+			MemoryHelper::free(allSamples[i]);
+		MemoryHelper::free(allSamples);
+	}
 
-	for (size_t i = 0; i < filterCount; i++)
+	for (size_t i = 0; filterInfos != NULL && i < filterCount; i++)
 	{
 		filterInfos[i]->filter->~IFilter();
 		MemoryHelper::free(filterInfos[i]->filter);
@@ -71,7 +131,8 @@ FilterConfiguration::~FilterConfiguration()
 			MemoryHelper::free(filterInfos[i]->outChannels);
 		MemoryHelper::free(filterInfos[i]);
 	}
-	MemoryHelper::free(filterInfos);
+	if (filterInfos != NULL)
+		MemoryHelper::free(filterInfos);
 }
 
 #pragma AVRT_CODE_BEGIN
@@ -158,14 +219,19 @@ unsigned FilterConfiguration::doTransition(FilterConfiguration* nextConfig, unsi
 
 	for (unsigned f = 0; f < frameCount; f++)
 	{
-		double factor = 0.5f * (1.0f - cos(transitionCounter * (double)M_PI / transitionLength));
-		if (transitionCounter >= transitionLength)
-			factor = 1.0f;
+		double factor = 1.0;
+		if (transitionLength != 0 && transitionCounter < transitionLength)
+		{
+			factor = 0.5 * (1.0 - cos(
+				transitionCounter * static_cast<double>(M_PI) /
+				transitionLength));
+		}
 
 		for (unsigned c = 0; c < outputChannelCount; c++)
 			currentSamples[c][f] = currentSamples[c][f] * (1 - factor) + nextSamples[c][f] * factor;
 
-		transitionCounter++;
+		if (transitionCounter < transitionLength)
+			transitionCounter++;
 	}
 
 	return transitionCounter;
