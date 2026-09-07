@@ -365,7 +365,7 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         self.assertIn("double lastCorrectionVolume", FILTER_SOURCE)
         self.assertIn("double lastFollowVolume", FILTER_SOURCE)
         self.assertEqual(
-            FILTER_SOURCE.count("lastCorrectionVolume = currentState.levelDb"),
+            FILTER_SOURCE.count("lastCorrectionVolume = listeningVolume"),
             1,
         )
         self.assertIn(
@@ -376,6 +376,8 @@ class LoudnessSafetyContractTests(unittest.TestCase):
             "unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread",
             maxsplit=1,
         )[1].split("#pragma AVRT_CODE_BEGIN", maxsplit=1)[0]
+        self.assertIn("calculateListeningVolumeDb(", worker)
+        self.assertIn("std::abs(listeningVolume - lastCorrectionVolume) > 0.05", worker)
         self.assertIn("const bool correctionEnabled =", worker)
         self.assertIn(
             "if (correctionEnabled && (recovering || correctionVolumeChanged))",
@@ -632,7 +634,7 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         release_workflow = (
             ROOT / ".github" / "workflows" / "release.yml"
         ).read_text(encoding="utf-8")
-        self.assertEqual(version, "3.1.0")
+        self.assertEqual(version, "3.1.1")
         self.assertEqual(manifest["version-string"], version)
         self.assertIn(f'default: "v{version}"', release_workflow)
 

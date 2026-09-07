@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 3.1.1
 
+- Fixed formula loudness contours using endpoint dB instead of the selected Linear/Squared follow attenuation; initialization, scalar-only updates and Studio previews now agree with calibration. Added explicit APO target-dB/source readouts, unambiguous amplitude-curve labels, manual dB guidance and guarded Single-endpoint rebinding when leaving manual mode. Windows volume remains read-only; automatic full-volume takeover is not implemented.
 - Fixed Windows clean-checkout CI failures by pinning embedded PowerShell helper line endings and creating the ASIO SDK include directory in the isolated MSBuild argument test.
 
 ## 3.1.0

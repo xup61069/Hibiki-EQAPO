@@ -338,6 +338,11 @@ public:
 		double currentVolumeDb,
 		double currentVolumeScalar,
 		bool muted);
+	// Non-muted listening attenuation used by the contour and calibration.
+	static double calculateListeningVolumeDb(
+		FilterParameters::VolumeFollowMode mode,
+		double currentVolumeDb,
+		double currentVolumeScalar);
 
 private:
 	friend class LoudnessCorrectionFilterTestAccess;

@@ -77,6 +77,7 @@ private:
 	std::wstring getRequestedEndpointId() const;
 	void refreshVolumeController();
 	void updateAutomaticVolumeUi();
+	void updateVolumeReadout();
 	bool tryReadEndpointVolumeState(EndpointVolumeState& volumeState);
 	bool tryUpdateVolume();
 	Ui::LoudnessCorrectionFilterGUI* ui;
@@ -87,5 +88,6 @@ private:
 	std::wstring endpointId;
 	QTimer timer;
 	std::unique_ptr<VolumeController> volumeController;
+	EndpointVolumeState lastEndpointState;
 	double lastVolume = -1;
 };

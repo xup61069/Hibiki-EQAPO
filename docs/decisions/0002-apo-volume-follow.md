@@ -49,12 +49,16 @@ Accepted
 7. **校準不解除必要的寬頻衰減。** 校準時暫時把音色補償設為平直，但已啟用的 `VolumeFollow` 繼續作用，避免測試噪音在 Matrix 路由突然變成全音量。
 8. **移除固定 1 dB correction margin。** correction branch 只依偵測到的響應峰值衰減，再以完整傳遞掃描作必要的額外降低。跟隨關閉且輪廓為中性或近中性時，不應只因啟用功能就固定掉約 1 dB。這仍不是 limiter，使用者需自行保留播放餘裕。
 9. **分析快照必須完整。** 自動音量的離線分析與自動前級 freshness 判斷要同時綁定端點 identity、dB、scalar、mute 與來源可用狀態，不能只比對 dB 後接受過期結果。
+10. **輪廓與跟隨衰減共用聆聽級別。** 跟隨啟用時，初始化、背景更新、校準與 UI 預覽皆使用非靜音 `20 log10(g)`；Off 維持端點／手動 dB。Linear／Logarithmic 若只改 scalar，也必須以此有效 dB 判斷是否超過 0.05 dB 輪廓更新門檻；mute 單獨變化不重算輪廓。此修正不改三條既有增益公式或設定 token，但會修正舊版線性／平方模式的音色補償量。
+11. **UI 不假冒 runtime 遙測。** 「APO 跟隨目標」由本列設定與來源快照計算，不代表 APO 已載入或量測輸出；不含 EQ、headroom 或其他衰減。來源失聯必須顯示未知，不能以 Editor 的最後讀值推定另一個 runtime 保留的增益。Studio 明示使用開窗時快照。
 
 ## 未採用方案
 
 ### 直接寫回 Windows 主音量
 
 這會把讀取型 DSP 變成系統控制器，可能形成通知迴圈、和使用者或其他應用程式競爭，仍無法保證 Matrix 會套用該值，因此不採用。
+
+2026-09-07 再評估「固定 Windows 100%、APO 全權控制」：手動 `Volume`＋`VolumeFollow Windows` 已能控制 APO dB，但不應自動拉高端點。`State 0`、停用 APO 或繞過處理路徑都會移除 APO 衰減；現有架構沒有全路徑執行確認與獨立 fail-safe 主音量層。硬體／軟體音量能力查詢只能辨識端點能力，無法證明每條串流實際經過此 APO。故維持 read-only；未來接管需獨立控制器、處理確認、端點切換／重開機復原與不受 EQ bypass 影響的增益護欄。[Microsoft endpoint volume hardware support](https://learn.microsoft.com/en-us/windows/win32/api/endpointvolume/nf-endpointvolume-iaudioendpointvolume-queryhardwaresupport)。
 
 ### 把跟隨增益併入 correction branch
 

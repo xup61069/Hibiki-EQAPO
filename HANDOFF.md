@@ -4,7 +4,8 @@
 
 ## 當前結論
 
-- PR #7 已以 merge commit `9aab9b16c98e1efc529b50c97ec3a29bef33e323` 合併至 `main`（不是 squash merge）。`v3.1.0` 標籤已推送，但 release run `34064319013` 失敗，未產生 GitHub Release。修復位於 `codex/release-ci-repair`；目前工作是修復 Windows checkout 換行與測試 ASIO SDK 目錄缺漏。
+- **本輪音量修正與 3.1.1 發布已完成。** 包含公式版響度輪廓衰減與校準／工作台一致性修正、UI 目標 dB 數值與控制量顯示、清晰振幅曲線名稱、手動切回自動重新綁定保護；升級安裝檔已完成本機安裝測試，底層 ASIO 目標綁定至 MiniFuse。
+- 前輪查核：PR #7 以 merge commit `9aab9b16c98e1efc529b50c97ec3a29bef33e323` 合併至 `main`；PR #8（commit `0184c5e`）修復 CI 換行與 ASIO SDK 目錄。本版以 3.1.1 釋出。
 - x64 **Hibiki EQAPO** ASIO proxy 已接入 source、local build、installer staging／registration／rollback／uninstall 與 binary gates。使用者在安裝時選底層原廠 driver，再於每套 DAW 的全域 Audio Device 選一次 Hibiki EQAPO；不需要在每個專案掛 VST。
 - [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 仍為 **Proposed**。Fake-vendor 與自動化驗證已完成，但真實 vendor ASIO driver＋DAW matrix 尚未完成；因此 proxy 是 experimental，不得宣稱普遍相容或正式 release-ready。
 - `HibikiEQAPOMonitor.vst3` 只保留為特殊 monitor-only 工作流的進階 fallback；主 NSIS 不部署、更新或移除它。
@@ -17,6 +18,25 @@
 ```
 
 若 Git、build、artifact 或測試與本檔不同，以即時結果為準。ASIO 完整工程報告見 [docs/2026-09-06_hibiki-eqapo-asio-proxy-report.md](docs/2026-09-06_hibiki-eqapo-asio-proxy-report.md)。
+
+## 2026-09-07 本輪音量跟隨驗證
+
+- 修正：啟用跟隨後，初始化與背景輪廓改用非靜音 `20 log10(g)`，Linear／Logarithmic scalar-only 變更也會觸發必要更新；Off 與三條既有增益公式、設定 token、10 ms gain ramp、mute／失聯／State 0 行為不變。修正會改變先前算錯的線性／平方音色補償量。
+- UI：明確顯示本列「APO 跟隨目標」及來源 dB／控制位置；不是量測或 APO 已載入的確認，不含 EQ／headroom／Windows／硬體衰減。曲線改顯示振幅線性、振幅平方、依 dB 衰減；手動 −50 dB 的 legacy scalar mapping 有明確說明。Single 從手動切回自動重新走 render／identity guard。Studio 使用同一公式，標明開窗快照，切回自動恢復快照 dB，未知／更換綁定時不繪製假定曲線。
+- Windows 接管：維持 read-only，不強制 100%。現有 manual `Volume`＋`VolumeFollow Windows` 可做 APO dB 控制，但沒有可驗證的全路徑處理確認、獨立 fail-safe 增益與重開機復原；旁路 APO 會移除其衰減。設計理由與未來必要條件見 ADR-0002／README。未進行真實 DAW 或硬體聆聽驗證。
+
+| 本輪 Gate | 結果／證據 |
+| --- | --- |
+| Native reproduction | 舊實作在 Full/Fast × Linear/Squared 四例失敗；修後三曲線 active-contour/post-gain 與 scalar-only synthetic publisher 對照通過（48 kHz、stereo、256-frame blocks；float 參數對照誤差門檻 `1e-7`）。`work/volume-baseline-runtime.log`、`work/volume-fixed-runtime.log` |
+| Python | 390 run／389 pass／1 expected skip；`test_built_host_cold_starts_and_hands_off` 因 `Global\` mapping Win32 error 5 跳過。`work/volume-python-final.log` |
+| Release installer | 完整 `scripts/build-installer-x64.ps1 -Configuration Release` 通過；`work/volume-installer-final.log`。初次增量建置 LNK1103 由完整 rebuild 排除 |
+| Runtime | `scripts/test-runtime-loudness.ps1 -Configuration Release` 通過，包含既有 parser、失效安全、handoff、Full/Fast、near-neutral、ramp、block/scalar 等；`work/volume-runtime-final.log` |
+| UI | 正式回歸矩陣 90/90 通過；額外 focused 21/21（EN／zh_CN／zh_TW × 三主題 × 100%／200%，另繁中三主題 150% text）。EN light 100%、簡中 dark 200%、繁中 light 100%／high-contrast text 150% 人工檢視可見完整新列、無字串重疊；`artifacts/ui-regression`、`artifacts/volume-follow-ui/focused-*` |
+| UI test entry | `volume-follow` 是 test-only snapshot 情境；第一輪被白名單忽略的空白截圖作廢，已修正 whitelist、加契約，增量重建 snapshot Editor 後重拍 21 張。該修正不編入 production 分支；`work/volume-snapshot-entry-build.log`、`work/volume-focused-ui.log` |
+| Translations | 四份 Editor `.ts`／`.qm` 同步重新產生；zh_TW 無 unfinished，新字串與 placeholders 契約通過 |
+| Whitespace | `git diff --check` 通過 |
+
+本輪釋出安裝檔版本為 3.1.1：`Setup/Hibiki-EQAPO-x64-3.1.1.exe`，16,111,899 bytes，SHA-256 `A209A447AE99E35FBBFCB45BED6D8D4981725E58F753ED03821DB75F18569907`。實機升級安裝與 Device Selector 重新綁定已測試通過。
 
 ## 不可破壞的 ASIO 契約
 

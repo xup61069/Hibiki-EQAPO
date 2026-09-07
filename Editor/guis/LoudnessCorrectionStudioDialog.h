@@ -11,6 +11,7 @@
 #pragma once
 
 #include <QDialog>
+#include "filters/loudnessCorrection/LoudnessCorrectionFilter.h"
 
 class QEvent;
 class QPainter;
@@ -33,6 +34,9 @@ public:
 		bool useManualVolume,
 		double volume,
 		bool automaticVolumeAvailable,
+		LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode volumeFollow,
+		double automaticVolumeScalar,
+		double automaticVolumeDb,
 		QWidget* parent = 0);
 	~LoudnessCorrectionStudioDialog();
 
@@ -68,10 +72,14 @@ private:
 	void updateResponsiveLayout();
 	void paintCurvePreview(QPainter& painter) const;
 	void refreshStatusStyle(const char* status);
+	double listeningVolumeDb() const;
 
 	Ui::LoudnessCorrectionStudioDialog* ui;
 	bool initialGlobalBinding;
 	bool automaticVolumeAvailable;
+	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode volumeFollow;
+	double automaticVolumeScalar;
+	double automaticVolumeDb;
 	bool calibrateAfterApply;
 	bool applyingModernStyle;
 	bool responsiveLayoutInitialized = false;
