@@ -2,8 +2,8 @@
 
 [繁體中文主要說明](README.md)
 
-[![Build](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml)
-[![Latest release](https://img.shields.io/github/v/release/xup61069/loudness-correction-apo)](https://github.com/xup61069/loudness-correction-apo/releases/latest)
+[![Build](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml)
+[![Latest release](https://img.shields.io/github/v/release/xup61069/Hibiki-EQAPO)](https://github.com/xup61069/Hibiki-EQAPO/releases/latest)
 
 **Hibiki EQAPO** is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It retains the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
 
@@ -42,7 +42,7 @@ The pass-through VU Meter reports RMS, sample peak, clipping, and ungated loudne
 
 ## Download and verification
 
-> **Install the version marked latest on GitHub Releases.** Download only from this repository's [GitHub Releases](https://github.com/xup61069/loudness-correction-apo/releases/latest); see [CHANGELOG.md](CHANGELOG.md) for version-specific fixes and known issues.
+> **Install the version marked latest on GitHub Releases.** Download only from this repository's [GitHub Releases](https://github.com/xup61069/Hibiki-EQAPO/releases/latest); see [CHANGELOG.md](CHANGELOG.md) for version-specific fixes and known issues.
 
 Download the x64 installer and its matching `.sha256` file from the same release. In PowerShell:
 
@@ -543,8 +543,8 @@ Prerequisites:
 The build scripts bootstrap the pinned vcpkg baseline, Qt 6.10.1, and NSIS 3.11 into ignored directories under `third_party`.
 
 ```powershell
-git clone https://github.com/xup61069/loudness-correction-apo.git
-Set-Location .\loudness-correction-apo
+git clone https://github.com/xup61069/Hibiki-EQAPO.git
+Set-Location .\Hibiki-EQAPO
 python -m unittest discover -s .\tests -p "test_*.py" -v
 .\scripts\build-installer-x64.ps1 -Configuration Release
 .\scripts\test-runtime-loudness.ps1 -Configuration Release

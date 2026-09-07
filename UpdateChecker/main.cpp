@@ -40,7 +40,7 @@ void showFailureMessage(QString message, QString title, bool silentMode);
 
 namespace
 {
-	const QUrl releaseApiUrl("https://api.github.com/repos/xup61069/loudness-correction-apo/releases/latest");
+	const QUrl releaseApiUrl("https://api.github.com/repos/xup61069/Hibiki-EQAPO/releases/latest");
 
 	QNetworkRequest createReleaseRequest(const QString& installedVersion)
 	{

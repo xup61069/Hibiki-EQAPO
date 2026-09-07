@@ -4,7 +4,7 @@
 
 ## 先確認你在正確的 repository
 
-正式來源是 <https://github.com/xup61069/loudness-correction-apo>。本機上層目錄可能同時包含數個舊 clone、worktree、安裝檔、dump 與另一個完全無關的 Git repository；不可從上層目錄直接執行提交。
+正式來源是 <https://github.com/xup61069/Hibiki-EQAPO>。本機上層目錄可能同時包含數個舊 clone、worktree、安裝檔、dump 與另一個完全無關的 Git repository；不可從上層目錄直接執行提交。
 
 開始前在 repository 根目錄執行：
 
@@ -14,7 +14,7 @@
 
 此命令會驗證 repository 根目錄、solution 與 `origin`，顯示即時版本、branch、HEAD、相對 `origin/main` 的 ahead/behind、dirty files 及所有 worktree。網路失敗時要揭露 fetch 未完成，不可把本機快取的 `origin/main` 當成最新遠端。
 
-`origin` 必須指向 `xup61069/loudness-correction-apo`。若 `git rev-parse` 回到 `G:\AICODE`、remote 是 `ae-effects-db`，或 repo 根目錄不含本專案的 `HibikiEQAPO.sln`，立即停止；那是錯誤的上層 repository。上層針對 After Effects 資料庫的 `AGENTS.md` 不適用於本專案。
+`origin` 必須指向 `xup61069/Hibiki-EQAPO`（或相容轉址 `xup61069/loudness-correction-apo`）。若 `git rev-parse` 回到 `G:\AICODE`、remote 是 `ae-effects-db`，或 repo 根目錄不含本專案的 `HibikiEQAPO.sln`，立即停止；那是錯誤的上層 repository。上層針對 After Effects 資料庫的 `AGENTS.md` 不適用於本專案。
 
 工作樹若已有修改，全部先視為使用者或前一位 AI 的工作。先讀 diff、保留它們，只明確 stage 本次檔案；禁止用 `git add .`、`git add -A`、破壞性 reset 或 checkout 清理工作樹。也禁止 `git clean -fdx`／`git clean -xdf`：ignored 路徑可能含使用者自行提供的 IR、耳機校正資料與外掛，不是可任意刪除的 build cache。
 
