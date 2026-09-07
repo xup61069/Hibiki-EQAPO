@@ -2,8 +2,8 @@
 
 [English documentation](README.en.md)
 
-[![建置](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/loudness-correction-apo/actions/workflows/build.yml)
-[![最新版本](https://img.shields.io/github/v/release/xup61069/loudness-correction-apo)](https://github.com/xup61069/loudness-correction-apo/releases/latest)
+[![建置](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml)
+[![最新版本](https://img.shields.io/github/v/release/xup61069/Hibiki-EQAPO)](https://github.com/xup61069/Hibiki-EQAPO/releases/latest)
 
 **Hibiki EQAPO** 是直接 fork 自 [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) 的 Windows x64 專案，沿用其系統層級雙精度音訊管線與 x64 VST2／VST3 音訊效果流程，並維護彼此獨立的公式響度校正與原版棚架響度校正、各自的校準工具、完整 Mixomo `exp` 功能線及繁體中文介面。
 
@@ -42,7 +42,7 @@ Hibiki EQAPO 是本 fork 的產品名稱；上面連結中的來源名稱只用�
 
 ## 下載與驗證
 
-> **建議安裝 GitHub Releases 標示的最新版本。** 請只從本儲存庫的 [GitHub Releases](https://github.com/xup61069/loudness-correction-apo/releases/latest) 下載；各版本的已知問題與修正請見 [CHANGELOG.md](CHANGELOG.md)。
+> **建議安裝 GitHub Releases 標示的最新版本。** 請只從本儲存庫的 [GitHub Releases](https://github.com/xup61069/Hibiki-EQAPO/releases/latest) 下載；各版本的已知問題與修正請見 [CHANGELOG.md](CHANGELOG.md)。
 
 請從同一個 Release 下載 x64 安裝程式及其對應的 `.sha256` 檔案，然後在 PowerShell 執行：
 
@@ -434,8 +434,8 @@ Windows 音訊引擎實際送入的 block 若固定小於初始化上限，IR �
 建置腳本會在 `third_party` 的忽略目錄中準備固定版次的 vcpkg baseline、Qt 6.10.1 與 NSIS 3.11。
 
 ```powershell
-git clone https://github.com/xup61069/loudness-correction-apo.git
-Set-Location .\loudness-correction-apo
+git clone https://github.com/xup61069/Hibiki-EQAPO.git
+Set-Location .\Hibiki-EQAPO
 python -m unittest discover -s .\tests -p "test_*.py" -v
 .\scripts\build-installer-x64.ps1 -Configuration Release
 .\scripts\test-runtime-loudness.ps1 -Configuration Release

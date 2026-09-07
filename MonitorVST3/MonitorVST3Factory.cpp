@@ -18,7 +18,7 @@ using namespace EqualizerAPO::MonitorVST3;
 
 BEGIN_FACTORY_DEF(
 	"Hibiki EQAPO",
-	"https://github.com/xup61069/loudness-correction-apo",
+	"https://github.com/xup61069/Hibiki-EQAPO",
 	"")
 
 	DEF_CLASS2(

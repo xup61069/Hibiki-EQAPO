@@ -5,7 +5,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
-$expectedOriginPattern = "^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)xup61069/loudness-correction-apo(?:\.git)?/?$"
+$expectedOriginPattern = "^(?:https://github\.com/|git@github\.com:|ssh://git@github\.com/)xup61069/(?:Hibiki-EQAPO|loudness-correction-apo)(?:\.git)?/?$"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $solutionPath = Join-Path $repoRoot "HibikiEQAPO.sln"
 

@@ -32,10 +32,9 @@ SHIPPED_DOCUMENT_LINKS = tuple(
 
 class UpdateCheckerTests(unittest.TestCase):
     def test_checks_this_forks_https_github_release(self) -> None:
-        self.assertIn(
-            "https://api.github.com/repos/xup61069/"
-            "loudness-correction-apo/releases/latest",
-            MAIN_SOURCE,
+        self.assertTrue(
+            "https://api.github.com/repos/xup61069/Hibiki-EQAPO/releases/latest" in MAIN_SOURCE
+            or "https://api.github.com/repos/xup61069/loudness-correction-apo/releases/latest" in MAIN_SOURCE
         )
         self.assertNotIn("equalizerapo.sourceforge.io/checkVersion", MAIN_SOURCE)
         self.assertIn("QVersionNumber::compare", MAIN_SOURCE)
@@ -89,10 +88,13 @@ class UpdateCheckerTests(unittest.TestCase):
         self.assertNotIn("Loudness Correction for Equalizer APO", DIALOG_UI)
 
     def test_shipped_document_shortcuts_use_this_forks_https_docs(self) -> None:
-        expected_root = "URL=https://github.com/xup61069/loudness-correction-apo"
+        expected_roots = (
+            "URL=https://github.com/xup61069/Hibiki-EQAPO",
+            "URL=https://github.com/xup61069/loudness-correction-apo",
+        )
         for shortcut in SHIPPED_DOCUMENT_LINKS:
             with self.subTest(shortcut=shortcut):
-                self.assertIn(expected_root, shortcut)
+                self.assertTrue(any(root in shortcut for root in expected_roots))
                 self.assertNotIn("URL=http://", shortcut)
                 self.assertNotIn("sourceforge.net/p/equalizerapo/wiki", shortcut)
 
