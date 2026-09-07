@@ -196,6 +196,7 @@ class BuildToolchainContractTests(unittest.TestCase):
         # remove exactly the directories this test created in ``finally``.
         generated_dependency_directories = (
             ROOT / "third_party" / "vcpkg_installed" / "x64-windows" / "include",
+            ROOT / "third_party" / "vcpkg_installed" / "x64-windows" / "include" / "asiosdk" / "common",
             ROOT / "third_party" / "vcpkg_installed" / "x64-windows" / "lib",
             ROOT
             / "third_party"
@@ -338,6 +339,11 @@ if probe.returncode != 0:
     sys.stderr.buffer.write(probe.stdout)
     sys.stderr.buffer.write(probe.stderr)
     raise SystemExit(probe.returncode)
+
+# Stop at the final fake build: this argument/import test produces no native
+# binaries and must never execute stale test binaries from a developer build.
+if sys.argv[1].replace(chr(92), "/") == "VoicemeeterClient/VoicemeeterClient.vcxproj":
+    raise SystemExit(73)
 """,
             encoding="utf-8",
         )
@@ -385,7 +391,15 @@ foreach ($variableName in $env:EQAPO_POISONED_MSBUILD_ENV_NAMES.Split(";")) {
     "UserRootDir", $PoisonedUserRoot, "Process"
 )
 [Environment]::SetEnvironmentVariable("PoisonLoaded", "true", "Process")
-& $BuildScript -Configuration Release -MsBuildCommand $MsBuildCommand -Rebuild
+try {
+    & $BuildScript -Configuration Release -MsBuildCommand $MsBuildCommand -Rebuild
+    throw "Fake MSBuild did not stop before native test execution"
+} catch {
+    if ($_.Exception.Message -ne "Native x64 build failed for VoicemeeterClient\\VoicemeeterClient.vcxproj with exit code 73") {
+        throw
+    }
+}
+$global:LASTEXITCODE = 0
 if ($env:SystemRoot -ne $PoisonedWindows -or
     $env:VCTargetsPath -ne $PoisonedVCTargetsPath -or
     $env:UserRootDir -ne $PoisonedUserRoot -or

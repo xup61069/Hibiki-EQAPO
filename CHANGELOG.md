@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed Windows clean-checkout CI failures by pinning embedded PowerShell helper line endings and creating the ASIO SDK include directory in the isolated MSBuild argument test.
+
 ## 3.1.0
 
 - Added an experimental x64 `Hibiki EQAPO` ASIO proxy driver for transparent DAW monitoring correction. Setup selects and records an existing x64 hardware driver once, while each DAW only needs to select Hibiki EQAPO as its global audio device; projects do not require a master-bus plug-in. The proxy keeps vendor registry/classes untouched, forwards IASIO lifecycle and callbacks, exposes stable proxy-owned DAW output buffers, and commits each completed mono/stereo PCM `FilterEngine` result to vendor buffers on the following callback. This staging reports one added ASIO block, keeps worker processing away from hardware/DMA buffers, treats host `outputReady` only as a completion signal, preserves dry audio when DSP is unavailable, and silences a missed block only while vendor-buffer write ownership remains provable; otherwise it leaves the ambiguous buffer untouched and hardware output is vendor-defined. It rejects DSD and ambiguous multichannel layouts. Registry publication, rollback, uninstall ownership, PE/import/export validation, and fake-vendor staging/order tests are covered separately; real hardware-driver/DAW validation remains a release blocker under ADR-0007, and the Monitor VST3 is retained only as an advanced fallback.
