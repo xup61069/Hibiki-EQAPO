@@ -1576,6 +1576,58 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>Linear amplitude</source>
+        <translation>振幅線性</translation>
+    </message>
+    <message>
+        <source>Squared amplitude</source>
+        <translation>振幅平方</translation>
+    </message>
+    <message>
+        <source>Follow dB</source>
+        <translation>依 dB 衰減</translation>
+    </message>
+    <message>
+        <source>Manual input: %1 dB · control %2%</source>
+        <translation>手動輸入：%1 dB · 控制位置 %2%</translation>
+    </message>
+    <message>
+        <source>Endpoint: %1 dB · control %2%</source>
+        <translation>端點回報：%1 dB · 控制位置 %2%</translation>
+    </message>
+    <message>
+        <source>Endpoint unavailable</source>
+        <translation>無法讀取端點</translation>
+    </message>
+    <message>
+        <source>APO follow target: 0.00 dB (bypassed)</source>
+        <translation>APO 跟隨目標：0.00 dB（已旁路）</translation>
+    </message>
+    <message>
+        <source>APO follow target: 0.00 dB (off)</source>
+        <translation>APO 跟隨目標：0.00 dB（已關閉）</translation>
+    </message>
+    <message>
+        <source>APO follow target: unknown (source unavailable)</source>
+        <translation>APO 跟隨目標：未知（無法讀取來源）</translation>
+    </message>
+    <message>
+        <source>APO follow target: muted (-inf dB)</source>
+        <translation>APO 跟隨目標：靜音（−∞ dB）</translation>
+    </message>
+    <message>
+        <source>APO follow target: %1 dB</source>
+        <translation>APO 跟隨目標：%1 dB</translation>
+    </message>
+    <message>
+        <source>Off: describes external attenuation only. With volume follow enabled, this controls APO gain. For direct dB control choose Follow dB. Linear/Squared retain the legacy mapping: -50 dB input means 50% control position, not -50 dB output.</source>
+        <translation>跟隨關閉時，此值只描述外部衰減；啟用跟隨後，會控制 APO 增益。要直接以 dB 控制，請選「依 dB 衰減」。線性／平方保留舊版對應：輸入 −50 dB 代表控制位置 50%，不是輸出衰減 −50 dB。</translation>
+    </message>
+    <message>
+        <source>Calculated target for this row, not a measurement or confirmation that APO is active. Excludes EQ/headroom and Windows/hardware attenuation. Apply/save changes to affect audio. Source loss holds the runtime&apos;s last gain; cold start without a source is muted. Bypassing this row removes its attenuation.</source>
+        <translation>這是本列的計算目標，不是量測值，也不代表 APO 已生效。不含 EQ／輸出餘裕及 Windows／硬體衰減；套用或儲存後才影響音訊。來源中斷時，執行中的 APO 保留最後增益；冷啟動無來源時靜音。旁路本列會移除其衰減。</translation>
+    </message>
+    <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="238"/>
         <source>Attenuation:</source>
         <translation>補償強度 (Attenuation)：</translation>
@@ -1634,8 +1686,8 @@ Alexander Walch</source>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
-        <source>Applies Windows volume as an extra gain inside Hibiki EQAPO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint&apos;s reported dB.</source>
-        <translation>在 Hibiki EQAPO 內額外套用 Windows 音量增益。僅適用於路由端點會回報音量變化、卻未實際降低音訊的情況；否則音量會被衰減兩次。「線性」使用端點比例值，「對數」使用比例值的平方，「Windows」則使用端點回報的 dB。</translation>
+        <source>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
+        <translation>在 Hibiki EQAPO 內增加衰減；若 Windows／硬體已在降低音量，請保持關閉。振幅線性使用控制位置 s（50% = −6.02 dB），振幅平方使用 s 的平方（50% = −12.04 dB），依 dB 衰減使用端點／手動 dB。不會改變 Windows 音量。</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="440"/>
@@ -2044,6 +2096,14 @@ Alexander Walch</source>
 </context>
 <context>
     <name>LoudnessCorrectionStudioDialog</name>
+    <message>
+        <source>APO follow target: %1 dB</source>
+        <translation>APO 跟隨目標：%1 dB</translation>
+    </message>
+    <message>
+        <source>Preview uses the volume snapshot from when this window opened.</source>
+        <translation>預覽使用開啟此視窗時的音量快照。</translation>
+    </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="20"/>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="98"/>

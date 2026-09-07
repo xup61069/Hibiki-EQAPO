@@ -97,6 +97,7 @@ README 只描述目前功能、操作與限制，不放 `What's new`／「更新
 - 新增欄位時必須定義缺省值、舊設定行為、序列化規則、未知值與重複值行為，並加入原生回歸測試。
 - `VolumeFollow` 缺省與明確 `Off` 都表示 unity，序列化時省略 `Off`，以避免舊設定或正常端點重複承受 Windows 衰減。有效值只有 `Linear`、`Logarithmic`、`Windows`；無效或重複的已知欄位要 fail closed。Linear 使用 scalar `s`，Logarithmic 使用 `s²`，Windows 使用 `10^(d/20)`；自動模式的 `s`／`d` 來自端點 scalar／dB，手動模式的 `d` 是 `Volume`，`s` 則由 `clamp((Volume + 100) / 100, 0, 1)` 取得。自動端點 mute 永遠是零增益。
 - 不得讓 UI 預覽、離線分析與實際 runtime 對同一份已儲存設定產生不同語意。
+- 公式版啟用 `VolumeFollow` 時，輪廓聆聽衰減使用非靜音 `20 log10(g)`，與校準、工作台預覽一致；Off 才用端點／手動 dB。背景更新門檻依有效聆聽 dB 比較，scalar-only 可能需要重算線性／平方輪廓，mute-only 不需重算。UI 的跟隨目標是計算值而非 runtime 遙測，來源失聯不得假稱已知 APO 的最後增益。
 - VST `MidiConfig` 壞掉、未知、超限或有重疊來源時只停用 MIDI，不得停用 VST 音訊。VST3 綁定以 ParamID 定位，且只可提供可見、非唯讀、具有 `kCanAutomate` 的參數；VST2 以 parameter index 加名稱 guard。行程外 sidecar 不得用舊 mapping 回寫 Editor row。更換外掛或 class 前必須確認並清除 parameter-specific state。
 - 已有 `MidiConfig` 的目前列進入 MIDI learn 前，必須用 durable temporary-audio journal 暫時序列化成無 mapping 版本，讓 audio host 釋放只允許單一 client 的 WinMM 裝置。Learner 必須先關閉 handle 才還原原始檔；還原失敗或使用者保留外部修改時不得套用新 mapping。其他列／行程的占用仍只能顯示 Busy 並重試。
 - `Convolution:` 是穩定設定指令，UI 顯示名稱是「IR 卷積」。相對路徑只以設定檔目錄解析；runtime 只接受與裝置相同取樣率及安全尺寸內、完整且有限值的 IR。Editor 的「重建相符 FIR」是使用幅度響應的手動 minimum-phase 重建，不是保留相位／延遲的 resampler，也不得在文字輸入或選檔時自動執行。

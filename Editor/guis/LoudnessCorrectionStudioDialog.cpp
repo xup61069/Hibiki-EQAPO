@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cmath>
+#include <limits>
 #if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
 #include <QAccessibilityHints>
 #endif
@@ -80,11 +81,17 @@ LoudnessCorrectionStudioDialog::LoudnessCorrectionStudioDialog(
 	bool useManualVolume,
 	double volume,
 	bool automaticVolumeAvailable,
+	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode volumeFollow,
+	double automaticVolumeScalar,
+	double automaticVolumeDb,
 	QWidget* parent)
 	: QDialog(parent),
 	  ui(new Ui::LoudnessCorrectionStudioDialog),
 	  initialGlobalBinding(globalBinding),
 	  automaticVolumeAvailable(automaticVolumeAvailable),
+	  volumeFollow(volumeFollow),
+	  automaticVolumeScalar(automaticVolumeScalar),
+	  automaticVolumeDb(automaticVolumeDb),
 	  calibrateAfterApply(false),
 	  applyingModernStyle(false)
 {
@@ -308,7 +315,11 @@ void LoudnessCorrectionStudioDialog::on_bindingComboBox_currentIndexChanged(int 
 
 void LoudnessCorrectionStudioDialog::on_manualVolumeCheckBox_toggled(bool checked)
 {
-	Q_UNUSED(checked);
+	if (!checked && automaticVolumeAvailable)
+	{
+		QSignalBlocker blocker(ui->volumeSpinBox);
+		ui->volumeSpinBox->setValue(automaticVolumeDb);
+	}
 	updateModernUi();
 }
 
@@ -560,13 +571,23 @@ QToolTip {
 		setStyleSheet(themedStyle);
 }
 
+double LoudnessCorrectionStudioDialog::listeningVolumeDb() const
+{
+	const bool manual = getUseManualVolume();
+	if (!manual && (!automaticVolumeAvailable || getGlobalBinding() != initialGlobalBinding))
+		return std::numeric_limits<double>::quiet_NaN();
+	const double volume = getVolume();
+	return LoudnessCorrectionFilter::calculateListeningVolumeDb(
+		volumeFollow, volume, manual ? (volume + 100.0) / 100.0 : automaticVolumeScalar);
+}
+
 void LoudnessCorrectionStudioDialog::updateModernUi()
 {
 	const int referenceLevel = ui->refLevelSpinBox->value();
 	const int referenceOffset = ui->refOffsetSpinBox->value();
 	const int strengthPercent = qRound(ui->strengthSpinBox->value() * 100.0);
 	const double currentLevel = (std::max)(0.0, (std::min)(100.0,
-		referenceLevel + ui->volumeSpinBox->value() - referenceOffset));
+		referenceLevel + listeningVolumeDb() - referenceOffset));
 
 	ui->profileSummaryLabel->setText(tr("%1 phon · %2 dB · %3%")
 		.arg(referenceLevel)
@@ -575,6 +596,8 @@ void LoudnessCorrectionStudioDialog::updateModernUi()
 	ui->curveMetaLabel->setText(tr("Estimated %1 phon · %2% strength")
 		.arg(QString::number(currentLevel, 'f', 0))
 		.arg(strengthPercent));
+	if (!std::isfinite(listeningVolumeDb()))
+		ui->curveMetaLabel->setText(tr("Check after apply"));
 
 	const bool manual = ui->manualVolumeCheckBox->isChecked();
 	const bool bindingChanged = getGlobalBinding() != initialGlobalBinding;
@@ -584,8 +607,10 @@ void LoudnessCorrectionStudioDialog::updateModernUi()
 	{
 		ui->trackingStatusLabel->setText(tr("Manual · %1 dB")
 			.arg(QString::number(ui->volumeSpinBox->value(), 'f', 1)));
-		ui->volumeHintLabel->setText(tr(
-			"Use the same hardware volume position represented by this value."));
+		ui->volumeHintLabel->setText(volumeFollow ==
+			LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF ? tr(
+			"Use the same hardware volume position represented by this value.") :
+			tr("APO follow target: %1 dB").arg(listeningVolumeDb(), 0, 'f', 2));
 		refreshStatusStyle("manual");
 	}
 	else if (bindingChanged)
@@ -599,10 +624,7 @@ void LoudnessCorrectionStudioDialog::updateModernUi()
 	{
 		ui->trackingStatusLabel->setText(tr("Automatic · %1 dB")
 			.arg(QString::number(ui->volumeSpinBox->value(), 'f', 1)));
-		ui->volumeHintLabel->setText(
-			getGlobalBinding() ?
-			tr("Tracks the Windows default Multimedia playback volume.") :
-			tr("Tracks the selected APO playback endpoint."));
+		ui->volumeHintLabel->setText(tr("Preview uses the volume snapshot from when this window opened."));
 		refreshStatusStyle("automatic");
 	}
 	else
@@ -641,10 +663,16 @@ void LoudnessCorrectionStudioDialog::paintCurvePreview(QPainter& painter) const
 	QRectF plot = QRectF(ui->curvePreview->rect()).adjusted(14.0, 8.0, -14.0, -24.0);
 	if (plot.width() <= 1.0 || plot.height() <= 1.0)
 		return;
+	if (!std::isfinite(listeningVolumeDb()))
+	{
+		painter.setPen(label);
+		painter.drawText(plot, Qt::AlignCenter, tr("Check after apply"));
+		return;
+	}
 
 	const double referenceLevel = ui->refLevelSpinBox->value();
 	const double currentLevel = (std::max)(0.0, (std::min)(100.0,
-		referenceLevel + ui->volumeSpinBox->value() - ui->refOffsetSpinBox->value()));
+		referenceLevel + listeningVolumeDb() - ui->refOffsetSpinBox->value()));
 	const double strength = ui->strengthSpinBox->value();
 	double gains[LoudnessProfile::FREQUENCY_COUNT];
 	double maximumMagnitude = 0.0;

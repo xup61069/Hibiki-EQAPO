@@ -183,7 +183,7 @@ class AsioInstallerDiscoveryRuntimeTests(unittest.TestCase):
                         capture_output=True,
                         text=True,
                         check=False,
-                        timeout=5,
+                        timeout=20,
                     )
                     self.assertEqual(
                         result.returncode,

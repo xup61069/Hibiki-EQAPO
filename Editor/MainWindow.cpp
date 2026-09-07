@@ -75,6 +75,12 @@
 #include "MainWindow.h"
 #include "filters/loudnessCorrection/VolumeController.h"
 #include "ui_MainWindow.h"
+#ifdef EQAPO_ENABLE_UI_SNAPSHOTS
+#include "guis/LoudnessCorrectionFilterGUI.h"
+#include <QCheckBox>
+#include <QComboBox>
+#include <QDoubleSpinBox>
+#endif
 
 using namespace std;
 
@@ -4092,7 +4098,8 @@ FilterTable* MainWindow::addTab(QString title, QString tooltip, QString configPa
 bool MainWindow::loadSnapshotScenario(const QString& scenario)
 {
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
-	const bool denseScenario = scenario == QStringLiteral("dense");
+	const bool volumeScenario = scenario == QStringLiteral("volume-follow");
+	const bool denseScenario = scenario == QStringLiteral("dense") || volumeScenario;
 	const bool restoredToolsScenario = scenario == QStringLiteral("restored-tools");
 	if ((!denseScenario && !restoredToolsScenario) || !isEmpty())
 		return false;
@@ -4123,7 +4130,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 	// intentionally restores the real user's per-file QSettings.
 	const QList<QString> lines = denseScenario ? QList<QString>{
 		QStringLiteral("LoudnessCorrectionOriginal: Schema 1 Model MixomoShelfV1 State 1 ReferenceLevel 0 ReferenceOffset 0 Attenuation 1.0"),
-		QStringLiteral("LoudnessCorrection: Schema 1 Model FormulaLoudnessV1 Binding Single State 1 ReferenceLevel 80 ReferenceOffset 40 Attenuation 1.0 Volume -38.0"),
+		QStringLiteral("LoudnessCorrection: Schema 1 Model FormulaLoudnessV1 Binding Single State 1 ReferenceLevel 80 ReferenceOffset 40 Attenuation 1.0 Volume -38.0 VolumeFollow Linear"),
 		QStringLiteral("Filter: ON PK Fc 1000 Hz Gain -3 dB Q 1"),
 		QStringLiteral("UnsupportedSnapshotCommand: this-deliberately-long-unknown-command-keeps-the-raw-text-middle-elision-and-tooltip-path-covered"),
 		QStringLiteral("VSTPlugin: Library snapshot-memory\\plugins\\this-deliberately-long-vst-plugin-library-name-keeps-real-world-path-layout-covered-without-loading-a-file.dll"),
@@ -4369,6 +4376,18 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 		}
 	}
 
+	if (volumeScenario)
+	{
+		// A focused capture must actually expose the changed row. The dense
+		// matrix intentionally gives most vertical space to the analysis panel.
+		ui->analysisDockWidget->hide();
+		QTimer::singleShot(100, this, [scrollArea, filterTable]() {
+			QWidget* row = filterTable->findChild<QWidget*>(
+				QStringLiteral("LoudnessCorrectionFilterGUI"));
+			if (row != NULL)
+				scrollArea->verticalScrollBar()->setValue(row->mapTo(filterTable, QPoint(0, 0)).y());
+		});
+	}
 	refreshWorkspaceActionState();
 	return true;
 #else
@@ -4380,7 +4399,8 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 bool MainWindow::snapshotLayoutIsValid() const
 {
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
-	const bool denseScenario = UiSnapshot::scenario() == QStringLiteral("dense");
+	const bool denseScenario = UiSnapshot::scenario() == QStringLiteral("dense") ||
+		UiSnapshot::scenario() == QStringLiteral("volume-follow");
 	const bool restoredToolsScenario = UiSnapshot::scenario() == QStringLiteral("restored-tools");
 	if (!denseScenario && !restoredToolsScenario)
 		return true;
@@ -4398,6 +4418,33 @@ bool MainWindow::snapshotLayoutIsValid() const
 
 	if (denseScenario)
 	{
+		// Exercise real widgets without attaching them to a file or audio host.
+		// An invalid Single binding must never fall back to the default endpoint.
+		using Parameters = LoudnessCorrectionFilter::FilterParameters;
+		LoudnessCorrectionFilterGUI probe(true, 80, 0, 1,
+			Parameters::BINDING_SINGLE, true, -50,
+			Parameters::ENGINE_FULL, Parameters::VOLUME_FOLLOW_LINEAR, L"", false);
+		auto target = probe.findChild<QLabel*>(QStringLiteral("volumeFollowStatusLabel"));
+		auto curve = probe.findChild<QComboBox*>(QStringLiteral("volumeFollowComboBox"));
+		auto manual = probe.findChild<QCheckBox*>(QStringLiteral("manualVolumeCheckBox"));
+		auto volume = probe.findChild<QDoubleSpinBox*>(QStringLiteral("volumeSpinBox"));
+		if (!target || !curve || !manual || !volume || !target->text().contains("-6.02"))
+			return false;
+		curve->setCurrentIndex(2);
+		if (!target->text().contains("-12.04")) return false;
+		curve->setCurrentIndex(3);
+		if (!target->text().contains("-50.00")) return false;
+		volume->setValue(-20);
+		if (!target->text().contains("-20.00")) return false;
+		manual->setChecked(false);
+		QString command, parameters;
+		probe.store(command, parameters);
+		if (parameters.contains(" Volume ") || !parameters.contains("Binding Single") ||
+			target->text() != QCoreApplication::translate("LoudnessCorrectionFilterGUI",
+				"APO follow target: unknown (source unavailable)")) return false;
+		curve->setCurrentIndex(0);
+		if (!target->text().contains("0.00")) return false;
+
 		const QList<QWidget*> deviceRows = findChildren<QWidget*>(
 			QStringLiteral("DeviceFilterGUI"));
 		if (deviceRows.size() != 3)

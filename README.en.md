@@ -267,11 +267,21 @@ The loudness profile normally uses the tracked volume only to calculate tonal co
 | Mode | Final output gain | When to use it |
 |---|---|---|
 | **Off** / omitted `VolumeFollow` | `1` | The backward-compatible default for Windows or hardware paths that already attenuate the signal. |
-| **Linear** / `VolumeFollow Linear` | volume scalar `s` | Directly follows the normalized 0–1 volume scalar. |
-| **Logarithmic** / `VolumeFollow Logarithmic` | `s²` | Reduces volume more quickly than Linear. |
-| **Windows** / `VolumeFollow Windows` | `10^(dB/20)` | Converts the automatic endpoint dB or manual `Volume` to amplitude; it does not guess or recreate an unpublished Windows slider curve. |
+| **Linear amplitude** / `VolumeFollow Linear` | volume scalar `s` | 50% control → −6.02 dB; 25% → −12.04 dB. Not equal dB steps or perceptually linear loudness. |
+| **Squared amplitude** / `VolumeFollow Logarithmic` | `s²` | 50% control → −12.04 dB; 25% → −24.08 dB. Preserves the legacy token and formula. |
+| **Follow dB** / `VolumeFollow Windows` | `10^(dB/20)` | Directly follows endpoint or manual dB; does not recreate the Windows slider curve. |
 
 In automatic mode, `s` and dB come from the same endpoint selected by `Binding`. In manual mode, `Volume` is used directly as dB and `clamp((Volume + 100) / 100, 0, 1)` supplies `s` for Linear and Logarithmic. Non-muted values are floored at −100 dB; in automatic mode, endpoint mute produces exact silence in every enabled mode. Changes use a 10 ms ramp. `Attenuation 0` makes tonal correction flat but leaves APO volume follow active; only `State 0` bypasses both.
+
+A manual −50 dB input therefore means 50% control position and −6.02 dB output attenuation in Linear amplitude, **not** −50 dB output. Choose **Follow dB** for direct manual dB control. With follow enabled, both contour calculation and calibration use the selected curve's `20 log10(g)` listening attenuation. Scalar-only changes can update the contour; mute only changes gain. Off continues to model external attenuation from endpoint/manual dB.
+
+The **APO follow target** readout is calculated from this row and its latest source snapshot, not measured output or confirmation that APO is loaded. It excludes EQ/headroom and Windows/hardware attenuation; apply/save changes to affect audio. An unavailable source shows an unknown target because Editor cannot know another APO instance's retained runtime gain. Studio previews use the source snapshot at dialog open, not live volume monitoring.
+
+### Can Windows stay at 100% with APO owning volume?
+
+**Manual APO dB control is available; automatic Windows master-volume takeover is not.** On a verified monitoring route without additional Windows attenuation, select manual volume and Follow dB. This never raises Windows volume for you. If Windows still attenuates the signal, both gains multiply.
+
+A background loop forcing 100% is insufficient: Windows may use software or hardware volume, and disabling, removing or bypassing APO (or routing audio around it) removes APO attenuation. There is no verified all-path takeover/recovery protocol, so the application does not force full system volume or override mute. Seamless takeover would require an independent master-volume controller, processing acknowledgement, endpoint/reboot recovery and a fail-safe gain stage independent of bypassable EQ.
 
 This feature is read-only and **never writes or moves the Windows volume control**. If Windows, an amplifier, or the speaker path already applies attenuation, enabling follow multiplies the two reductions and makes the result quieter; leave it **Off** when uncertain. If automatic follow has never obtained a valid snapshot at startup, output remains muted. A temporary read failure after a valid snapshot holds the last successful follow gain instead of jumping to 0 dB; recovery moves to the new value over 10 ms. Tonal correction separately follows the fail-closed behavior described below.
 

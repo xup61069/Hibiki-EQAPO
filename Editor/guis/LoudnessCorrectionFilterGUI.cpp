@@ -135,6 +135,8 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 	}
 
 	connect(&timer, SIGNAL(timeout()), this, SLOT(updateVolume()));
+	updateAutomaticVolumeUi();
+	updateVolumeReadout();
 	timer.start(250);
 }
 
@@ -244,6 +246,7 @@ void LoudnessCorrectionFilterGUI::refreshVolumeController()
 	}
 
 	automaticVolumeAvailable = true;
+	lastEndpointState = endpointVolumeState;
 	lastVolume = endpointVolumeState.levelDb;
 	endpointId = volumeController->getEndpointId();
 }
@@ -251,10 +254,10 @@ void LoudnessCorrectionFilterGUI::refreshVolumeController()
 void LoudnessCorrectionFilterGUI::updateAutomaticVolumeUi()
 {
 	ui->manualVolumeCheckBox->setText(tr("Manual volume:"));
-	if (automaticVolumeAvailable)
+	if (automaticVolumeAvailable || ui->manualVolumeCheckBox->isChecked())
 	{
 		ui->manualVolumeCheckBox->setToolTip(tr(
-			"Use this when a DAC or amplifier hardware knob controls the real listening level."));
+			"Off: describes external attenuation only. With volume follow enabled, this controls APO gain. For direct dB control choose Follow dB. Linear/Squared retain the legacy mapping: -50 dB input means 50% control position, not -50 dB output."));
 		ui->volumeSpinBox->setSpecialValueText(QString());
 	}
 	else
@@ -270,6 +273,39 @@ void LoudnessCorrectionFilterGUI::updateAutomaticVolumeUi()
 	ui->volumeSpinBox->setToolTip(ui->manualVolumeCheckBox->toolTip());
 	ui->volumeSpinBox->setAccessibleDescription(
 		ui->manualVolumeCheckBox->toolTip());
+}
+
+void LoudnessCorrectionFilterGUI::updateVolumeReadout()
+{
+	const bool manual = ui->manualVolumeCheckBox->isChecked();
+	const auto mode = getVolumeFollowMode();
+	const double sourceDb = manual ? ui->volumeSpinBox->value() : lastEndpointState.levelDb;
+	const double scalar = manual ? (sourceDb + 100.0) / 100.0 : lastEndpointState.scalar;
+	const bool available = manual || automaticVolumeAvailable;
+	ui->volumeSourceLabel->setText(available ?
+		(manual ? tr("Manual input: %1 dB · control %2%") :
+			tr("Endpoint: %1 dB · control %2%"))
+			.arg(sourceDb, 0, 'f', 1).arg(qBound(0.0, scalar * 100.0, 100.0), 0, 'f', 1) :
+		tr("Endpoint unavailable"));
+	QString target;
+	if (!state)
+		target = tr("APO follow target: 0.00 dB (bypassed)");
+	else if (mode == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
+		target = tr("APO follow target: 0.00 dB (off)");
+	else if (!available)
+		target = tr("APO follow target: unknown (source unavailable)");
+	else
+	{
+		const double gain = LoudnessCorrectionFilter::calculateVolumeFollowGain(
+			mode, sourceDb, scalar, !manual && lastEndpointState.muted);
+		target = gain == 0.0 ? tr("APO follow target: muted (-inf dB)") :
+			tr("APO follow target: %1 dB").arg(20.0 * std::log10(gain), 0, 'f', 2);
+	}
+	ui->volumeFollowStatusLabel->setText(target);
+	ui->volumeFollowStatusLabel->setToolTip(tr(
+		"Calculated target for this row, not a measurement or confirmation that APO is active. Excludes EQ/headroom and Windows/hardware attenuation. Apply/save changes to affect audio. Source loss holds the runtime's last gain; cold start without a source is muted. Bypassing this row removes its attenuation."));
+	ui->volumeFollowStatusLabel->setAccessibleDescription(
+		target + QStringLiteral(". ") + ui->volumeFollowStatusLabel->toolTip());
 }
 
 void LoudnessCorrectionFilterGUI::on_refLevelSpinBox_valueChanged(int value)
@@ -322,6 +358,7 @@ void LoudnessCorrectionFilterGUI::on_bindingComboBox_currentIndexChanged(int ind
 		ui->volumeSpinBox->setEnabled(false);
 	}
 
+	updateVolumeReadout();
 	emit updateModel();
 }
 
@@ -338,32 +375,28 @@ void LoudnessCorrectionFilterGUI::on_manualVolumeCheckBox_toggled(bool checked)
 	}
 	else
 	{
-		if (!volumeController)
-			volumeController.reset(new VolumeController(getRequestedEndpointId()));
-		EndpointVolumeState endpointVolumeState;
-		if (FAILED(volumeController->getVolumeState(endpointVolumeState)) ||
-			!std::isfinite(endpointVolumeState.levelDb) ||
-			!std::isfinite(endpointVolumeState.scalar))
+		// Use the same Single/render/identity guards as initial binding.
+		refreshVolumeController();
+		if (!automaticVolumeAvailable)
 		{
-			automaticVolumeAvailable = false;
-			volumeController.reset();
 			updateAutomaticVolumeUi();
+			updateVolumeReadout();
 			ui->volumeSpinBox->setEnabled(false);
-			QToolTip::showText(
-				ui->manualVolumeCheckBox->mapToGlobal(
-					QPoint(0, ui->manualVolumeCheckBox->height())),
-				ui->manualVolumeCheckBox->toolTip(),
-				ui->manualVolumeCheckBox);
+			if (isVisible())
+				QToolTip::showText(
+					ui->manualVolumeCheckBox->mapToGlobal(
+						QPoint(0, ui->manualVolumeCheckBox->height())),
+					ui->manualVolumeCheckBox->toolTip(),
+					ui->manualVolumeCheckBox);
 			emit updateModel();
 			return;
 		}
-		automaticVolumeAvailable = true;
 		ui->volumeSpinBox->setSpecialValueText(QString());
 		updateAutomaticVolumeUi();
-		lastVolume = endpointVolumeState.levelDb;
-		endpointId = volumeController->getEndpointId();
 		ui->volumeSpinBox->setValue(lastVolume);
 	}
+	updateAutomaticVolumeUi();
+	updateVolumeReadout();
 	emit updateModel();
 }
 
@@ -372,6 +405,7 @@ void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged(double value)
 	if (ui->manualVolumeCheckBox->isChecked())
 	{
 		lastVolume = value;
+		updateVolumeReadout();
 		emit updateModel();
 	}
 }
@@ -386,6 +420,8 @@ void LoudnessCorrectionFilterGUI::on_volumeFollowComboBox_currentIndexChanged(
 	int index)
 {
 	(void)index;
+	updateAutomaticVolumeUi();
+	updateVolumeReadout();
 	emit updateModel();
 }
 
@@ -399,6 +435,9 @@ void LoudnessCorrectionFilterGUI::on_studioButton_clicked()
 		ui->manualVolumeCheckBox->isChecked(),
 		ui->volumeSpinBox->value(),
 		automaticVolumeAvailable,
+		getVolumeFollowMode(),
+		lastEndpointState.scalar,
+		lastEndpointState.levelDb,
 		this);
 	if (dialog.exec() != QDialog::Accepted)
 		return;
@@ -449,6 +488,8 @@ void LoudnessCorrectionFilterGUI::on_studioButton_clicked()
 		}
 	}
 
+	updateAutomaticVolumeUi();
+	updateVolumeReadout();
 	emit updateModel();
 	if (dialog.shouldCalibrateAfterApply())
 		on_calibrateButton_clicked();
@@ -605,6 +646,7 @@ bool LoudnessCorrectionFilterGUI::tryReadEndpointVolumeState(
 		return false;
 	}
 	endpointId = volumeController->getEndpointId();
+	lastEndpointState = volumeState;
 	return !endpointId.empty();
 }
 
@@ -645,6 +687,7 @@ bool LoudnessCorrectionFilterGUI::tryUpdateVolume()
 void LoudnessCorrectionFilterGUI::updateVolume()
 {
 	(void)tryUpdateVolume();
+	updateVolumeReadout();
 }
 
 

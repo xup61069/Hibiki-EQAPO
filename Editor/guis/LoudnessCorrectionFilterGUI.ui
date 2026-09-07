@@ -374,7 +374,7 @@
         </sizepolicy>
        </property>
        <property name="toolTip">
-        <string>Applies Windows volume as an extra gain inside Hibiki EQAPO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint's reported dB.</string>
+        <string>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</string>
        </property>
        <item>
         <property name="text">
@@ -383,22 +383,35 @@
        </item>
        <item>
         <property name="text">
-         <string>Linear</string>
+         <string>Linear amplitude</string>
         </property>
        </item>
        <item>
         <property name="text">
-         <string>Logarithmic</string>
+         <string>Squared amplitude</string>
         </property>
        </item>
        <item>
         <property name="text">
-         <string>Windows (reported dB)</string>
+         <string>Follow dB</string>
         </property>
        </item>
       </widget>
      </item>
      <item row="3" column="0" colspan="2">
+      <widget class="QLabel" name="volumeFollowStatusLabel">
+       <property name="text"><string notr="true"/></property>
+       <property name="wordWrap"><bool>true</bool></property>
+       <property name="font"><font><bold>true</bold></font></property>
+      </widget>
+     </item>
+     <item row="4" column="0" colspan="2">
+      <widget class="QLabel" name="volumeSourceLabel">
+       <property name="text"><string notr="true"/></property>
+       <property name="wordWrap"><bool>true</bool></property>
+      </widget>
+     </item>
+     <item row="5" column="0" colspan="2">
       <widget class="QCheckBox" name="fastEngineCheckBox">
        <property name="toolTip">
         <string>Experimental two-filter approximation. Uses less CPU but may differ noticeably from Full, especially at very low listening levels.</string>

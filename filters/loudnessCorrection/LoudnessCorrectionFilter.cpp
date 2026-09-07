@@ -390,10 +390,12 @@ std::vector<std::wstring> LoudnessCorrectionFilter::initialize(
 	_pendingVolumeFollowGainLinear = _volumeFollowGainLinear;
 
 	std::vector<double> gains;
+	const double initialListeningVolume = calculateListeningVolumeDb(
+		_parameters.volumeFollow, initialVolume, initialVolumeScalar);
 	if (_parameters.engine == FilterParameters::ENGINE_FAST)
-		calculateFastShelfGains(initialVolume, gains, _outputGainLinear);
+		calculateFastShelfGains(initialListeningVolume, gains, _outputGainLinear);
 	else
-		calculateBandGains(initialVolume, gains, _outputGainLinear);
+		calculateBandGains(initialListeningVolume, gains, _outputGainLinear);
 	bool initialIdentity = _outputGainLinear == 1.0;
 	for (size_t band = 0; band < _activeBandCount; ++band)
 		initialIdentity = initialIdentity && std::abs(gains[band]) <= 1.0e-12;
@@ -1118,6 +1120,21 @@ double LoudnessCorrectionFilter::calculateVolumeFollowGain(
 	}
 }
 
+double LoudnessCorrectionFilter::calculateListeningVolumeDb(
+	FilterParameters::VolumeFollowMode mode,
+	double currentVolumeDb,
+	double currentVolumeScalar)
+{
+	// Off tracks external attenuation. Enabled curves realize the listening
+	// attenuation themselves; endpoint dB can be unrelated to their gain.
+	// Mute does not change the contour, so unmute needs only a gain ramp.
+	if (mode == FilterParameters::VOLUME_FOLLOW_OFF)
+		return std::isfinite(currentVolumeDb) ?
+			(std::max)(-100.0, (std::min)(0.0, currentVolumeDb)) : 0.0;
+	return 20.0 * std::log10(calculateVolumeFollowGain(
+		mode, currentVolumeDb, currentVolumeScalar, false));
+}
+
 void LoudnessCorrectionFilter::publishVolumeFollowUpdate(
 	double currentVolumeDb,
 	double currentVolumeScalar,
@@ -1141,10 +1158,12 @@ void LoudnessCorrectionFilter::publishVolumeUpdate(
 	std::vector<double>& scratchGains)
 {
 	double outputGainLinear = 1.0;
+	const double listeningVolume = calculateListeningVolumeDb(
+		_parameters.volumeFollow, currentVolumeDb, currentVolumeScalar);
 	if (_parameters.engine == FilterParameters::ENGINE_FAST)
-		calculateFastShelfGains(currentVolumeDb, scratchGains, outputGainLinear);
+		calculateFastShelfGains(listeningVolume, scratchGains, outputGainLinear);
 	else
-		calculateBandGains(currentVolumeDb, scratchGains, outputGainLinear);
+		calculateBandGains(listeningVolume, scratchGains, outputGainLinear);
 	bool identity = outputGainLinear == 1.0;
 	for (size_t band = 0; band < _activeBandCount; ++band)
 		identity = identity && std::abs(scratchGains[band]) <= 1.0e-12;
@@ -1445,9 +1464,11 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 	LoudnessCorrectionFilter* self = static_cast<LoudnessCorrectionFilter*>(parameter);
 	VolumeController volumeController(self->getVolumeControllerEndpointId());
 	double lastCorrectionVolume = self->_hasInitialAutomaticVolume ?
-		self->_initialAutomaticVolume :
+		calculateListeningVolumeDb(self->_parameters.volumeFollow,
+			self->_initialAutomaticVolume, self->_initialAutomaticVolumeScalar) :
 		std::numeric_limits<double>::quiet_NaN();
-	double lastFollowVolume = lastCorrectionVolume;
+	double lastFollowVolume = self->_hasInitialAutomaticVolume ?
+		self->_initialAutomaticVolume : std::numeric_limits<double>::quiet_NaN();
 	double lastVolumeScalar = self->_hasInitialAutomaticVolume ?
 		self->_initialAutomaticVolumeScalar :
 		std::numeric_limits<double>::quiet_NaN();
@@ -1481,9 +1502,11 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 		}
 
 		bool recovering = self->_runtimeBypass.load(std::memory_order_acquire);
+		const double listeningVolume = calculateListeningVolumeDb(
+			self->_parameters.volumeFollow, currentState.levelDb, currentState.scalar);
 		const bool correctionVolumeChanged =
 			!std::isfinite(lastCorrectionVolume) ||
-			std::abs(currentState.levelDb - lastCorrectionVolume) > 0.05;
+			std::abs(listeningVolume - lastCorrectionVolume) > 0.05;
 		const bool followStateChanged = !std::isfinite(lastVolumeScalar) ||
 			!std::isfinite(lastFollowVolume) ||
 			std::abs(currentState.levelDb - lastFollowVolume) > 1.0e-6 ||
@@ -1502,8 +1525,8 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 		}
 		else
 		{
-			// A mute or scalar-only notification changes only the final wideband
-			// gain. With no correction branch, every endpoint update does too.
+			// Mute or a change below the contour threshold only updates gain.
+			// Scalar-only changes can require a new Linear/Squared contour.
 			// Avoid needless coefficient publication and 350 ms bank warmup.
 			self->publishVolumeFollowUpdate(
 				currentState.levelDb,
@@ -1511,7 +1534,7 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 				currentState.muted);
 		}
 		if (correctionVolumeChanged)
-			lastCorrectionVolume = currentState.levelDb;
+			lastCorrectionVolume = listeningVolume;
 		if (recovering)
 		{
 			// Keep bypass asserted until the audio thread consumes this recovery.

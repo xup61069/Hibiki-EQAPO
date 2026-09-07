@@ -1553,6 +1553,58 @@ Modifiez les autorisations du fichier ou copiez le fichier dans le répertoire d
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>Linear amplitude</source>
+        <translation>Amplitude linéaire</translation>
+    </message>
+    <message>
+        <source>Squared amplitude</source>
+        <translation>Amplitude au carré</translation>
+    </message>
+    <message>
+        <source>Follow dB</source>
+        <translation>Suivre les dB</translation>
+    </message>
+    <message>
+        <source>Manual input: %1 dB · control %2%</source>
+        <translation>Entrée manuelle : %1 dB · commande %2%</translation>
+    </message>
+    <message>
+        <source>Endpoint: %1 dB · control %2%</source>
+        <translation>Point de terminaison : %1 dB · commande %2%</translation>
+    </message>
+    <message>
+        <source>Endpoint unavailable</source>
+        <translation>Point de terminaison indisponible</translation>
+    </message>
+    <message>
+        <source>APO follow target: 0.00 dB (bypassed)</source>
+        <translation>Cible APO : 0.00 dB (contourné)</translation>
+    </message>
+    <message>
+        <source>APO follow target: 0.00 dB (off)</source>
+        <translation>Cible APO : 0.00 dB (désactivé)</translation>
+    </message>
+    <message>
+        <source>APO follow target: unknown (source unavailable)</source>
+        <translation>Cible APO : inconnue (source indisponible)</translation>
+    </message>
+    <message>
+        <source>APO follow target: muted (-inf dB)</source>
+        <translation>Cible APO : silence (−∞ dB)</translation>
+    </message>
+    <message>
+        <source>APO follow target: %1 dB</source>
+        <translation>Cible APO : %1 dB</translation>
+    </message>
+    <message>
+        <source>Off: describes external attenuation only. With volume follow enabled, this controls APO gain. For direct dB control choose Follow dB. Linear/Squared retain the legacy mapping: -50 dB input means 50% control position, not -50 dB output.</source>
+        <translation>Désactivé : décrit seulement l’atténuation externe. Sinon, règle le gain APO. Choisir « Suivre les dB » pour un réglage direct en dB. Linéaire/Carré conservent la correspondance historique : −50 dB en entrée signifie 50% de commande, pas −50 dB en sortie.</translation>
+    </message>
+    <message>
+        <source>Calculated target for this row, not a measurement or confirmation that APO is active. Excludes EQ/headroom and Windows/hardware attenuation. Apply/save changes to affect audio. Source loss holds the runtime&apos;s last gain; cold start without a source is muted. Bypassing this row removes its attenuation.</source>
+        <translation>Cible calculée de cette ligne, ni mesure ni confirmation que l’APO est actif. Exclut EQ/marge et atténuation Windows/matérielle. Appliquer/enregistrer les changements. Une source perdue conserve le dernier gain ; un démarrage sans source est muet. Contourner cette ligne retire son atténuation.</translation>
+    </message>
+    <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="111"/>
         <source>Reference level:</source>
         <translation>Niveau de référence:</translation>
@@ -1613,8 +1665,8 @@ Alexander Walch</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
-        <source>Applies Windows volume as an extra gain inside Hibiki EQAPO. Use this only when the routed endpoint reports volume changes but does not attenuate audio; otherwise attenuation is applied twice. Linear uses the endpoint scalar, Logarithmic squares it, and Windows uses the endpoint&apos;s reported dB.</source>
-        <translation>Applique le volume Windows comme gain supplémentaire dans Hibiki EQAPO. Utilisez cette option uniquement si le point de terminaison routé signale les changements de volume sans atténuer le son ; sinon, l’atténuation sera appliquée deux fois. Linéaire utilise la valeur scalaire du point de terminaison, Logarithmique son carré et Windows la valeur en dB signalée par le point de terminaison.</translation>
+        <source>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
+        <translation>Ajoute une atténuation dans Hibiki EQAPO ; désactiver si Windows/le matériel atténue déjà. Amplitude linéaire utilise la commande s (50% = −6.02 dB), amplitude au carré utilise s au carré (50% = −12.04 dB), Suivre les dB utilise les dB du périphérique/manuels. Ne modifie pas le volume Windows.</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="440"/>
@@ -2020,6 +2072,14 @@ Alexander Walch</translation>
 </context>
 <context>
     <name>LoudnessCorrectionStudioDialog</name>
+    <message>
+        <source>APO follow target: %1 dB</source>
+        <translation>Cible APO : %1 dB</translation>
+    </message>
+    <message>
+        <source>Preview uses the volume snapshot from when this window opened.</source>
+        <translation>L’aperçu utilise le volume relevé à l’ouverture de cette fenêtre.</translation>
+    </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="20"/>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="98"/>

@@ -27,6 +27,13 @@ ANALYSIS_RESET_SOURCES = {
     "Reset analysis zoom and position",
 }
 LOUDNESS_REQUIRED_FINISHED_SOURCES = {
+    "Linear amplitude",
+    "Squared amplitude",
+    "Follow dB",
+    "APO follow target: %1 dB",
+    "APO follow target: unknown (source unavailable)",
+    "APO follow target: muted (-inf dB)",
+    "Preview uses the volume snapshot from when this window opened.",
     "APO volume-follow attenuation:",
     "Experimental fast engine:",
     "Experimental two-filter approximation. Uses less CPU but may differ noticeably from Full, especially at very low listening levels.",

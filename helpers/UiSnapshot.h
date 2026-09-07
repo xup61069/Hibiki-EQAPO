@@ -37,6 +37,7 @@ namespace UiSnapshot
 		const QString value = qEnvironmentVariable(
 			"EQAPO_UI_SNAPSHOT_SCENARIO").trimmed().toLower();
 		return value == QStringLiteral("dense")
+			|| value == QStringLiteral("volume-follow")
 			|| value == QStringLiteral("restored-tools")
 			? value : QString();
 	}

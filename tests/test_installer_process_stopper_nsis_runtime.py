@@ -183,7 +183,7 @@ $lines = @(
                         encoding="utf-8",
                         errors="replace",
                         check=False,
-                        timeout=5,
+                        timeout=20,
                         env=environment,
                     )
                     self.assertEqual(

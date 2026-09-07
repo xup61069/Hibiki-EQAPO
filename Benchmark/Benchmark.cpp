@@ -2564,13 +2564,22 @@ namespace
 		// this also guards its post-gain ordering.
 		for (Parameters::EngineMode engine : {
 			Parameters::ENGINE_FULL, Parameters::ENGINE_FAST })
+		for (Parameters::VolumeFollowMode mode : {
+			Parameters::VOLUME_FOLLOW_LINEAR,
+			Parameters::VOLUME_FOLLOW_LOGARITHMIC,
+			Parameters::VOLUME_FOLLOW_WINDOWS })
 		{
 			Parameters baselineParameters = parameters;
 			baselineParameters.attenuation = 1.0f;
 			baselineParameters.engine = engine;
 			baselineParameters.volumeFollow = Parameters::VOLUME_FOLLOW_OFF;
 			Parameters followedParameters = baselineParameters;
-			followedParameters.volumeFollow = Parameters::VOLUME_FOLLOW_WINDOWS;
+			followedParameters.volumeFollow = mode;
+			const double expectedGain = mode == Parameters::VOLUME_FOLLOW_LINEAR ?
+				0.8 : mode == Parameters::VOLUME_FOLLOW_LOGARITHMIC ? 0.64 : 0.1;
+			// The contour must use the same attenuation as calibration and the
+			// final wideband stage, not the unrelated source value (-20 dB).
+			baselineParameters.manualVolume = 20.0 * std::log10(expectedGain);
 
 			LoudnessCorrectionFilter baselineFilter(baselineParameters);
 			LoudnessCorrectionFilter followedFilter(followedParameters);
@@ -2578,6 +2587,10 @@ namespace
 				static_cast<float>(sampleRate), blockSize, stereoChannels);
 			followedFilter.initialize(
 				static_cast<float>(sampleRate), blockSize, stereoChannels);
+			LoudnessCorrectionFilterTestAccess::enableSyntheticAutomaticVolumePublisher(
+				baselineFilter);
+			LoudnessCorrectionFilterTestAccess::enableSyntheticAutomaticVolumePublisher(
+				followedFilter);
 
 			double baselineInput[2][blockSize];
 			double baselineOutput[2][blockSize];
@@ -2589,9 +2602,19 @@ namespace
 			double* followedInPlaceChannels[] = {
 				followedInPlace[0], followedInPlace[1] };
 			bool activeCorrectionPassed = true;
-			const unsigned blockCount = 768;
+			const unsigned blockCount = 1152;
 			for (unsigned block = 0; block < blockCount; ++block)
 			{
+				const double updatedGain = mode == Parameters::VOLUME_FOLLOW_LINEAR ?
+					0.5 : mode == Parameters::VOLUME_FOLLOW_LOGARITHMIC ? 0.25 : 0.1;
+				if (block == 384)
+				{
+					// The reported dB stays fixed while scalar changes independently.
+					LoudnessCorrectionFilterTestAccess::publishVolumeState(
+						baselineFilter, 20.0 * std::log10(updatedGain), 0.5, false);
+					LoudnessCorrectionFilterTestAccess::publishVolumeState(
+						followedFilter, -20.0, 0.5, false);
+				}
 				for (unsigned channel = 0; channel < 2; ++channel)
 				{
 					for (unsigned frame = 0; frame < blockSize; ++frame)
@@ -2614,9 +2637,14 @@ namespace
 				{
 					for (unsigned frame = 0; frame < blockSize; ++frame)
 					{
+						// The initial manual parameter is float; allow its dB
+						// quantization. During retarget, the gain ramps separately.
+						if (block >= 384 && block < 768)
+							continue;
 						activeCorrectionPassed = std::abs(
 							followedInPlace[channel][frame] -
-							baselineOutput[channel][frame] * 0.1) <= 1.0e-10 &&
+							baselineOutput[channel][frame] *
+							(block < 384 ? expectedGain : updatedGain)) <= 1.0e-7 &&
 							activeCorrectionPassed;
 					}
 				}
@@ -2628,7 +2656,7 @@ namespace
 					followedFilter) &&
 				activeCorrectionPassed;
 			if (!activeCorrectionPassed)
-				fprintf(stderr, "volume-follow-active-correction-post-gain failed.\n");
+				fprintf(stderr, "volume-follow-active-correction-post-gain failed (engine=%d, mode=%d).\n", engine, mode);
 			passed = activeCorrectionPassed && passed;
 		}
 
