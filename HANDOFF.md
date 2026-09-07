@@ -4,11 +4,11 @@
 
 ## 當前結論
 
-- 工作位於 `codex/full-audit-fixes`；`HEAD` 與 `origin/main` 都是 `4471881500f8d60abb2768cff6818daf65589c83`。核心變更已於 commit 4471881 提交；本檔與驗證報告記錄其最終狀態。
+- PR #7 已以 merge commit `9aab9b16c98e1efc529b50c97ec3a29bef33e323` 合併至 `main`（不是 squash merge）。`v3.1.0` 標籤已推送，但 release run `34064319013` 失敗，未產生 GitHub Release。修復位於 `codex/release-ci-repair`；目前工作是修復 Windows checkout 換行與測試 ASIO SDK 目錄缺漏。
 - x64 **Hibiki EQAPO** ASIO proxy 已接入 source、local build、installer staging／registration／rollback／uninstall 與 binary gates。使用者在安裝時選底層原廠 driver，再於每套 DAW 的全域 Audio Device 選一次 Hibiki EQAPO；不需要在每個專案掛 VST。
 - [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 仍為 **Proposed**。Fake-vendor 與自動化驗證已完成，但真實 vendor ASIO driver＋DAW matrix 尚未完成；因此 proxy 是 experimental，不得宣稱普遍相容或正式 release-ready。
 - `HibikiEQAPOMonitor.vst3` 只保留為特殊 monitor-only 工作流的進階 fallback；主 NSIS 不部署、更新或移除它。
-- 本輪已在使用者明確授權下，將 unsigned experimental x64 installer 實機安裝至既有相容路徑，底層 driver 為 `Universal Audio Volt`、TargetCLSID `{7FA0A3EC-EBB7-4249-9CDC-F5474EE19B74}`。ASIO／COM registration、driver 檔案、音訊服務與 recovery journal 均驗證通過；尚未啟動 DAW 或進行 playback。沒有安裝 fallback VST3，也沒有 commit、push、tag、PR 或 release。
+- 2026-09-06 已在使用者明確授權下，將 unsigned experimental 3.0.7 x64 installer 實機安裝至既有相容路徑，底層 driver 為 `Universal Audio Volt`、TargetCLSID `{7FA0A3EC-EBB7-4249-9CDC-F5474EE19B74}`。當時 ASIO／COM registration、driver 檔案、音訊服務與 recovery journal 均驗證通過；尚未進行 DAW playback。沒有安裝 fallback VST3。這是歷史部署證據，不能視為 3.1.0 發布驗證。
 
 接手時先讀 `AGENTS.md`，再執行：
 
@@ -42,7 +42,7 @@
 - `RunEmbeddedProcessStopper` 的 PowerShell command 位於 NSIS 單引號參數內，原本內嵌的 `-eq '1'` 會破壞已有安裝版本的升級解析。現改為 `if([int]$env:EQAPO_PROCESS_PROTECT_INTERACTIVE -eq 1)`；production command 的 NSIS → nsExec → PowerShell runtime gate 2／2，以及其餘 40 項 installer contract 通過。
 - 修正後 installer 已成功在實機完成升級式安裝。`Hibiki EQAPO` ASIO key、proxy CLSID／`InprocServer32`、Volt target、Windows Audio／Audio Endpoint Builder running 狀態與無殘留 installer recovery journal 均已確認；這只證明部署與註冊，不證明 DAW 音訊相容性。
 
-## 最終驗證證據
+## 2026-09-06 本機歷史驗證證據
 
 | Gate | 結果 |
 | --- | --- |
@@ -62,7 +62,7 @@
 
 唯一 Python skip 是 `test_outproc_vst_lifecycle.OutProcVSTLifecycleTests.test_built_host_cold_starts_and_hands_off`；目前執行身分不能建立 `Global\` named mapping，Win32 error 5。其餘測試不能取代該權限情境的實跑。
 
-## Final artifacts
+## 2026-09-06 本機歷史產物（3.0.7；非 3.1.0 發布產物）
 
 | 產物 | Bytes | SHA-256 | 簽章 |
 | --- | ---: | --- | --- |
@@ -80,7 +80,7 @@ Driver source／stage 的 length 與 SHA-256 完全一致；Monitor source／sta
 - Hardware direct monitor、介面 mixer／DSP、實體旋鈕與類比輸出不經 proxy；手動 `Volume` 必須對應實際監聽 SPL。
 - Offline bounce 是否繞過 proxy、real-time export 是否送到 hardware 仍由各 DAW routing 決定，必須真機驗證。
 - Installer、driver 與 fallback VST3 都未簽章；正式散布前仍需完成 ASIO SDK／靜態連結第三方元件的 notices、corresponding source／relink materials 審核。
-- 工作樹含大量相互依賴的既有修改；不得用 destructive reset／checkout 清掉，也不要把 ignored build、installer 或 `work/` evidence 誤加進 Git。
+- 核心修改已合併至 main；ignored build、installer、回復安裝包與 `work/` evidence 保留於本機，不納入 Git。
 
 ## 接手順序
 
@@ -88,4 +88,4 @@ Driver source／stage 的 length 與 SHA-256 完全一致；Monitor source／sta
 2. 若 source／project／Setup 有變動，重跑完整 Release installer、runtime、ASIO／Monitor PE、自載、官方 VST validator 與當下完整 Python suite，並保留 live ASIO discovery harness 與 installer contracts。
 3. 在低音量、可復原測試環境完成真實 vendor＋DAW matrix，將具體 driver／DAW version、buffer／rate 與結果寫入新 evidence。
 4. 只有真機 gate 全過後才能把 ADR-0007 改成 Accepted；否則正式 installer 必須停用／排除 proxy。
-5. 使用者明確授權後，才可分批 stage／commit、push、tag 或 release；本快照不構成該授權。
+5. 使用者已授權推送與發布。既有 `v3.1.0` 標籤維持原 commit；任何包含修復的新發布須使用新版本，不能移動標籤或把不同 commit 的安裝包附到舊標籤。

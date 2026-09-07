@@ -1,0 +1,4 @@
+# These sources are embedded byte-for-byte in NSIS payloads.
+Setup/check-install-root-acl.ps1 text eol=lf
+Setup/stop-product-processes.ps1 text eol=lf
+Setup/x64-load-check.ps1 text eol=crlf
