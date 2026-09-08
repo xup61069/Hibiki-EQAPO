@@ -73,6 +73,11 @@
 #include "version.h"
 #include "FilterTable.h"
 #include "MainWindow.h"
+#include "StudioMotion.h"
+#include "widgets/StudioSignature.h"
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QVBoxLayout>
 #include "filters/loudnessCorrection/VolumeController.h"
 #include "ui_MainWindow.h"
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
@@ -722,6 +727,57 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	}
 
 	ui->setupUi(this);
+	QFrame* studioHeader = new QFrame(ui->centralWidget);
+	studioHeader->setObjectName(QStringLiteral("studioHeader"));
+	auto* headerLayout = new QHBoxLayout(studioHeader);
+	headerLayout->setContentsMargins(12, 8, 12, 12);
+	headerLayout->setSpacing(22);
+	auto* identity = new QVBoxLayout;
+	identity->setSpacing(0);
+	auto* wordmark = new QLabel(QStringLiteral("HIBIKI"), studioHeader);
+	wordmark->setObjectName(QStringLiteral("studioWordmark"));
+	auto* edition = new QLabel(QStringLiteral("EQAPO / STUDIO"), studioHeader);
+	edition->setObjectName(QStringLiteral("studioEdition"));
+	identity->addWidget(wordmark);
+	identity->addWidget(edition);
+	headerLayout->addLayout(identity);
+	auto* section = new QLabel(tr("Signal chain"), studioHeader);
+	section->setObjectName(QStringLiteral("studioSection"));
+	headerLayout->addWidget(section);
+	headerLayout->addStretch();
+	headerLayout->addWidget(new StudioSignature(studioHeader));
+	ui->gridLayout->removeWidget(ui->tabWidget);
+	ui->gridLayout->addWidget(studioHeader, 0, 0);
+	ui->gridLayout->addWidget(ui->tabWidget, 1, 0);
+	ui->gridLayout->setRowStretch(1, 1);
+	QFrame* emptyState = new QFrame(ui->centralWidget);
+	emptyState->setObjectName(QStringLiteral("studioEmptyState"));
+	auto* emptyLayout = new QVBoxLayout(emptyState);
+	emptyLayout->setContentsMargins(32, 20, 32, 20);
+	emptyLayout->setSpacing(12);
+	emptyLayout->addStretch();
+	auto* emptyTitle = new QLabel(tr("Build your signal chain"), emptyState);
+	emptyTitle->setObjectName(QStringLiteral("studioEmptyTitle"));
+	emptyLayout->addWidget(emptyTitle);
+	auto* emptyHint = new QLabel(tr("Open a configuration file or start with a new profile."), emptyState);
+	emptyHint->setObjectName(QStringLiteral("studioEmptyHint"));
+	emptyHint->setWordWrap(true);
+	emptyLayout->addWidget(emptyHint);
+	auto* emptyActions = new QHBoxLayout;
+	for (QAction* action : {ui->actionNew, ui->actionOpen})
+	{
+		auto* button = new QPushButton(action->text(), emptyState);
+		connect(button, &QPushButton::clicked, action, &QAction::trigger);
+		emptyActions->addWidget(button);
+	}
+	emptyActions->addStretch();
+	emptyLayout->addLayout(emptyActions);
+	emptyLayout->addStretch();
+	ui->gridLayout->addWidget(emptyState, 1, 0);
+	connect(ui->tabWidget, &QTabWidget::currentChanged, this, [this, emptyState](int) {
+		emptyState->setVisible(ui->tabWidget->count() == 0);
+		StudioMotion::reveal(ui->tabWidget->currentWidget());
+	});
 	// Keep every standard docking gesture available even when a saved layout
 	// previously left the analysis panel floating.  These defaults are made
 	// explicit because a QMainWindow state restore also restores the floating
@@ -777,7 +833,7 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 		SIGNAL(triggered()),
 		ui->graphicsView,
 		SLOT(resetView()));
-	resize(GUIHelper::scale(QSize(1024, 768)));
+	resize(GUIHelper::scale(snapshotMode ? QSize(1024, 768) : QSize(1280, 900)));
 	ui->mainToolBar->setIconSize(GUIHelper::scale(QSize(19, 19)));
 	ui->mainToolBar->setMovable(false);
 	ui->mainToolBar->setFloatable(false);
@@ -930,6 +986,28 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	ui->gridLayout_4->addWidget(headroomValueLabel, 4, 1);
 	ui->gridLayout_4->addWidget(analysisStateLabel, 5, 0, 1, 2);
 	ui->gridLayout_4->addWidget(autoPreampButton, 6, 0, 1, 2);
+	// A horizontal analysis setup strip leaves room for the signal chain on
+	// compact displays, while keeping measurements alongside the response plot.
+	const QList<QWidget*> analysisControls = {
+		ui->startFromLabel, ui->startFromComboBox,
+		ui->analysisChannelLabel, ui->analysisChannelComboBox,
+		ui->resolutionLabel, ui->resolutionSpinBox, ui->resetAnalysisViewButton
+	};
+	for (QWidget* control : analysisControls)
+		ui->gridLayout_3->removeWidget(control);
+	for (int column = 0; column < analysisControls.size(); ++column)
+		ui->gridLayout_3->addWidget(analysisControls[column], 0, column);
+	ui->gridLayout_3->setColumnStretch(1, 1);
+	ui->gridLayout_3->setColumnStretch(3, 1);
+	ui->gridLayout_2->removeWidget(ui->groupBox);
+	ui->gridLayout_2->removeWidget(ui->groupBox_2);
+	ui->gridLayout_2->removeWidget(ui->graphicsView);
+	ui->gridLayout_2->addWidget(ui->groupBox, 0, 0, 1, 2);
+	ui->gridLayout_2->addWidget(ui->groupBox_2, 1, 0);
+	ui->gridLayout_2->setAlignment(ui->groupBox_2, Qt::AlignTop);
+	ui->gridLayout_2->addWidget(ui->graphicsView, 1, 1);
+	ui->gridLayout_2->setRowStretch(0, 0);
+	ui->gridLayout_2->setRowStretch(1, 1);
 
 	analysisThread = new AnalysisThread;
 	analysisThread->start();
@@ -957,6 +1035,17 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	refreshProfiles();
 	syncProfileSelection();
 	refreshWorkspaceActionState();
+	bool useInitialStudioLayout = snapshotMode;
+	if (!snapshotMode)
+	{
+		QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+		useInitialStudioLayout = !settings.contains("windowState");
+	}
+	if (useInitialStudioLayout)
+		QTimer::singleShot(0, this, [this]() {
+			resizeDocks({ui->analysisDockWidget}, {GUIHelper::scale(300)}, Qt::Vertical);
+			QTimer::singleShot(0, ui->graphicsView, &FrequencyPlotView::resetView);
+		});
 }
 
 MainWindow::~MainWindow()
@@ -1243,6 +1332,7 @@ void MainWindow::showWorkspaceStatus(const QString& text, const char* level, int
 	workspaceStatusRevision++;
 	const quint64 revision = workspaceStatusRevision;
 	workspaceStatusLabel->setText(text);
+	StudioMotion::feedback(workspaceStatusLabel);
 	workspaceStatusLabel->setAccessibleDescription(text);
 	setStatusLevel(workspaceStatusLabel, level);
 	workspaceStatusLabel->setToolTip(text);
@@ -4495,6 +4585,14 @@ bool MainWindow::snapshotLayoutIsValid() const
 	if (autoPreampButton == NULL
 		|| !fitsInsideContainer(autoPreampButton->parentWidget(), autoPreampButton))
 		return false;
+	const QList<QWidget*> analysisControls = {
+		ui->startFromLabel, ui->startFromComboBox,
+		ui->analysisChannelLabel, ui->analysisChannelComboBox,
+		ui->resolutionLabel, ui->resolutionSpinBox, ui->resetAnalysisViewButton
+	};
+	for (QWidget* control : analysisControls)
+		if (!fitsInsideContainer(ui->groupBox, control))
+			return false;
 	const QStringList simpleGuiObjectNames = denseScenario ? QStringList{
 		QStringLiteral("DeviceFilterGUI"),
 		QStringLiteral("PreampFilterGUI"),

@@ -22,6 +22,7 @@
 #include <QEasingCurve>
 #include <QStyle>
 #include <QVariantAnimation>
+#include "StudioMotion.h"
 
 #ifdef Q_OS_WIN
 #define WIN32_LEAN_AND_MEAN
@@ -119,6 +120,8 @@ const vector<FilterNode>& AnalysisPlotScene::getNodes() const
 
 bool AnalysisPlotScene::responseAnimationAllowed() const
 {
+	if (!StudioMotion::allowed())
+		return false;
 	// Visual-regression captures and explicit test runs must settle on the
 	// target response immediately.
 	if (UiSnapshot::requested()

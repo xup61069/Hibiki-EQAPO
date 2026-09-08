@@ -19,6 +19,7 @@
 
 #include <algorithm>
 #include <QApplication>
+#include <QLinearGradient>
 
 #include "helpers/GainIterator.h"
 #include "Editor/helpers/GUIHelper.h"
@@ -70,6 +71,7 @@ void AnalysisPlotView::drawBackground(QPainter* painter, const QRectF& rect)
 		}
 	}
 
+	const QPainterPath responsePath = path;
 	path.lineTo(rect.right() + 1, rect.bottom() + 1);
 	path.lineTo(rect.left() - 1, rect.bottom() + 1);
 
@@ -78,6 +80,21 @@ void AnalysisPlotView::drawBackground(QPainter* painter, const QRectF& rect)
 		&& qApp->property("eqapoModernThemeHighContrast").toBool();
 	const bool dark = plotPalette.color(QPalette::Window).lightnessF() < 0.5;
 	double thresholdY = s->dbToY(0);
+	if (!highContrast)
+	{
+		QColor tint = plotPalette.color(QPalette::Highlight);
+		tint.setAlpha(dark ? 38 : 25);
+		QLinearGradient fill(0, rect.top(), 0, rect.bottom());
+		fill.setColorAt(0, tint);
+		tint.setAlpha(0);
+		fill.setColorAt(1, tint);
+		painter->fillPath(path, fill);
+		QColor glow = plotPalette.color(QPalette::Highlight);
+		glow.setAlpha(dark ? 25 : 14);
+		painter->setPen(QPen(glow, GUIHelper::scale(6.0), Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
+		painter->setBrush(Qt::NoBrush);
+		painter->drawPath(responsePath);
+	}
 	if (rect.top() < thresholdY)
 	{
 		QPainterPath rectPath;
@@ -100,5 +117,5 @@ void AnalysisPlotView::drawBackground(QPainter* painter, const QRectF& rect)
 		Qt::SolidLine,
 		Qt::RoundCap,
 		Qt::RoundJoin));
-	painter->drawPath(path);
+	painter->drawPath(responsePath);
 }

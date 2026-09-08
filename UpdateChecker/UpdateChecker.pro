@@ -24,6 +24,7 @@ SOURCES += \
 	UpdateChecker.cpp \
 	AutoSizeTextEdit.cpp \
 	../Editor/ModernTheme.cpp \
+	../Editor/StudioMotion.cpp \
 	../Editor/helpers/GUIHelper.cpp \
 	../helpers/StringHelper.cpp \
 	../helpers/TaskSchedulerHelper.cpp \
@@ -33,6 +34,7 @@ HEADERS += \
 	UpdateChecker.h \
 	AutoSizeTextEdit.h \
 	../Editor/ModernTheme.h \
+	../Editor/StudioMotion.h \
 	../Editor/helpers/GUIHelper.h \
 	../helpers/StringHelper.h \
 	../helpers/TaskSchedulerHelper.h \

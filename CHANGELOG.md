@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Redesigned the Qt workspace with a Hibiki studio masthead, rounded signal modules, layered light/dark surfaces, engraved rotary controls and softly filled response plots. Added finite header, module, menu, profile, button, focus, status and dial animations without delaying input or audio processing; high contrast, Windows reduced motion, snapshots and `EQAPO_DISABLE_ANIMATIONS` disable motion. Existing profiles, A/B recovery and audio routing remain compatible.
+
 ## 3.1.1
 
 - Fixed formula loudness contours using endpoint dB instead of the selected Linear/Squared follow attenuation; initialization, scalar-only updates and Studio previews now agree with calibration. Added explicit APO target-dB/source readouts, unambiguous amplitude-curve labels, manual dB guidance and guarded Single-endpoint rebinding when leaving manual mode. Windows volume remains read-only; automatic full-volume takeover is not implemented.

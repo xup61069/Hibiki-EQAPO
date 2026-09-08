@@ -227,18 +227,18 @@ void FilterTableRow::paintEvent(QPaintEvent*)
 
 	painter.setPen(Qt::NoPen);
 	painter.setBrush(surface);
-	painter.drawRect(card);
+	painter.drawRoundedRect(card, 9, 9);
 
 	if ((selected || focused) && !highContrast)
 	{
 		QColor overlay = selected ? accent : rowPalette.color(QPalette::AlternateBase);
 		overlay.setAlpha(selected ? 38 : 90);
 		painter.setBrush(overlay);
-		painter.drawRect(card);
+		painter.drawRoundedRect(card, 9, 9);
 	}
 
 	QPainterPath clip;
-	clip.addRect(card);
+	clip.addRoundedRect(card, 9, 9);
 	painter.save();
 	painter.setClipPath(clip);
 	QRectF rail = card;
@@ -246,7 +246,7 @@ void FilterTableRow::paintEvent(QPaintEvent*)
 	if (!highContrast)
 	{
 		QColor railColor = accent;
-		railColor.setAlpha(selected ? 72 : 27);
+		railColor.setAlpha(selected ? 62 : 12);
 		painter.fillRect(rail, railColor);
 	}
 	QColor railEdge = accent;
@@ -270,7 +270,7 @@ void FilterTableRow::paintEvent(QPaintEvent*)
 	painter.setPen(QPen(
 		border,
 		GUIHelper::scale(selected && focused ? 2.0 : 1.0)));
-	painter.drawRect(card);
+	painter.drawRoundedRect(card, 9, 9);
 }
 
 void FilterTableRow::updateModel()

@@ -1,4 +1,29 @@
-# AI 交接快照：Hibiki EQAPO／透明 ASIO proxy
+# AI 交接快照：Hibiki EQAPO／Studio UI
+
+最後更新：2026-09-08（Asia/Taipei）
+
+## 本輪交付
+
+- UI 改版已完成，無 active WIP。使用原生 Qt：Hibiki 品牌標頭、訊號鏈空白引導、圓角模組、刻度旋鈕、橫向分析設定列與曲線光暈。一般新視窗為 1280×900；1024×768 仍有回歸覆蓋，已保存的視窗配置繼續沿用。
+- 介面包含標頭、模組、選單、設定檔切換、按鈕、焦點、狀態通知、旋鈕及響應曲線等短動畫。動畫不延後控制項的實際數值或訊號，不使用永久更新計時器；高對比、Windows 減少動畫、快照模式或 `EQAPO_DISABLE_ANIMATIONS` 會停用。
+- 正式審閱工作樹為 `G:\AICODE\iso226_2023\Hibiki-EQAPO-studio-ui`，分支 `codex/studio-ui-review`，基底為 `8a477f2666b3`。此分支沒有 DSP 變更。
+- 原工作樹 `Hibiki-EQAPO` 的安裝測試修改與後續另一批 DSP 修改全部保留；其中亦保留本輪早期 UI 修改。請以本獨立分支審閱／整合 UI，避免把原工作樹混合提交。
+- 沒有推送、建立 PR、tag 或 GitHub Release；沒有執行實機安裝／升級／卸載。產品版本未升版，產物是本機 UI 預覽建置。
+
+## 驗證與產物
+
+- 本獨立工作樹的 Python 全套：390 tests，0 failures，1 skipped。略過的是 `test_built_host_cold_starts_and_hands_off`，原因為建立 Windows global mapping 時得到 Win32 error 5；不代表該測試通過。
+- `scripts/test-ui-motion.ps1`：10 passed，0 failed，0 skipped，驗證立即輸入、快速重入、隱藏／刪除與減少動畫。
+- `scripts/build-installer-x64.ps1 -Configuration Release` 與 `scripts/test-runtime-loudness.ps1 -Configuration Release`：通過；`git diff --check`：通過。
+- 相同 UI 原始碼完成 90 張 Windows 原生回歸圖（3 個程式、3 種色彩、100–200% DPI、150% 文字），並另檢查英文、zh_CN、zh_TW 的 9 張響度介面。圖與 manifest 保存在 `artifacts/studio-ui-regression/` 及 `artifacts/studio-languages/`。
+- 專屬安裝檔：`artifacts/Hibiki-EQAPO-studio-ui-preview.exe`，16,118,988 bytes，SHA-256 `f7b68722a6c8376277d54501211be065eca3870ad1358442dcdb34a1c08e10eb`。此檔從獨立工作樹重新建置，沒有混入另一批 DSP 修改。
+- 建置／測試紀錄在 `_build/studio-installer.log`、`_build/studio-runtime.log`、`_build/studio-tests.log`、`_build/studio-motion-tests.log`。第三方已安裝工具與套件使用本機共用 junction，專案的原始碼、中間產物、DSP libraries 與安裝檔則在本工作樹獨立建置。
+
+---
+
+以下是前輪歷史快照；本輪狀態以上文為準。
+
+# 前輪紀錄：透明 ASIO proxy
 
 最後更新：2026-09-07（Asia/Taipei）
 
