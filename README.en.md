@@ -291,6 +291,8 @@ The Configuration Editor, Device Selector, device-test dialog, and Update Checke
 
 ### Configuration profiles and search
 
+The workspace uses a Hibiki masthead, signal-chain modules and engraved rotary controls. Hovering, pressing controls, opening menus, switching profiles and status notifications have brief animations that stop when idle. The header lines are decorative, not an audio meter or APO status indicator. Dial values update immediately; only the pointer is interpolated, and dragging tracks input directly. High contrast, Windows reduced motion or the `EQAPO_DISABLE_ANIMATIONS=1` environment variable shows the final state immediately.
+
 - The **Profile** list shows readable top-level `.txt` files in the Hibiki EQAPO `config` directory and refreshes when that directory changes. Opening an item only opens it for editing. The audio engine still starts at `config.txt`; another profile affects audio only when `config.txt` or its `Include` chain references that file.
 - The **Profiles** menu can duplicate, rename, import, or export one `.txt` file. Import/export does not bundle files referenced through `Include`, VST plug-ins, or convolution impulses. `config.txt` cannot be renamed, and renaming another profile does not update `Include` statements in other files.
 - Search the current filter list with `Ctrl+F`; use `F3` and `Shift+F3` for the next and previous match, and `Esc` to clear the search.

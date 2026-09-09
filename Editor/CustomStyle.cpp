@@ -24,6 +24,8 @@
 #include <QApplication>
 #include <QAbstractSlider>
 #include <QPainter>
+#include <QLinearGradient>
+#include "StudioMotion.h"
 #include <QStyleOptionSlider>
 
 CustomStyle::CustomStyle(QStyle* style)
@@ -89,7 +91,32 @@ void CustomStyle::drawComplexControl(
 		dial->palette.color(QPalette::Disabled, QPalette::Text);
 	const QColor centerColor = dial->palette.color(QPalette::Button);
 
-	const qreal trackWidth = GUIHelper::scale(4.0);
+	const bool highContrast = qApp && qApp->property("eqapoModernThemeHighContrast").toBool();
+	const qreal bodyRadius = diameter * 0.36;
+	// Concentric body, directional light and engraved scale retain native QDial input.
+	if (!highContrast)
+	{
+		QColor shadow = dial->palette.color(QPalette::Shadow);
+		shadow.setAlpha(100);
+		painter->setPen(Qt::NoPen);
+		painter->setBrush(shadow);
+		painter->drawEllipse(center + QPointF(0, 2), bodyRadius + 1, bodyRadius + 1);
+	}
+	QLinearGradient body(center.x(), center.y() - bodyRadius, center.x(), center.y() + bodyRadius);
+	body.setColorAt(0, centerColor.lighter(highContrast ? 100 : 135));
+	body.setColorAt(1, centerColor.darker(highContrast ? 100 : 115));
+	painter->setPen(QPen(track, 1));
+	painter->setBrush(body);
+	painter->drawEllipse(center, bodyRadius, bodyRadius);
+	for (int tick = 0; tick <= 10; ++tick)
+	{
+		const qreal a = (225.0 - tick * 27.0) * 3.14159265358979323846 / 180.0;
+		const QPointF direction(std::cos(a), -std::sin(a));
+		painter->setPen(QPen(track, 1));
+		painter->drawLine(center + direction * (diameter / 2 + 4),
+			center + direction * (diameter / 2 + (tick % 5 == 0 ? 7 : 5)));
+	}
+	const qreal trackWidth = GUIHelper::scale(3.0);
 	painter->setBrush(Qt::NoBrush);
 	painter->setPen(QPen(track, trackWidth, Qt::SolidLine, Qt::RoundCap));
 	painter->drawArc(arcRect, 225 * 16, -270 * 16);
@@ -99,7 +126,9 @@ void CustomStyle::drawComplexControl(
 	const int position = QStyle::sliderPositionFromValue(
 		dial->minimum,
 		dial->maximum,
-		dial->sliderPosition,
+		widget && slider && StudioMotion::allowed() && !slider->isSliderDown()
+			&& widget->property("studioDialValue").isValid()
+			? qRound(widget->property("studioDialValue").toReal()) : dial->sliderPosition,
 		1000,
 		invertedAppearance);
 	const qreal progress = position / 1000.0;
@@ -122,7 +151,9 @@ void CustomStyle::drawComplexControl(
 
 	painter->setPen(QPen(track, GUIHelper::scale(1.0)));
 	painter->setBrush(centerColor);
-	painter->drawEllipse(center, GUIHelper::scale(4.0), GUIHelper::scale(4.0));
+	painter->setPen(QPen(accent, GUIHelper::scale(2.0), Qt::SolidLine, Qt::RoundCap));
+	const QPointF needle(std::cos(angle), -std::sin(angle));
+	painter->drawLine(center + needle * bodyRadius * 0.45, center + needle * bodyRadius * 0.82);
 
 	if (dial->state & QStyle::State_HasFocus)
 	{

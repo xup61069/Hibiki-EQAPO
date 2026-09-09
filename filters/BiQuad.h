@@ -133,6 +133,12 @@ public:
 	double gainAt(double freq, double srate);
 	void getCoefficients(double(&out_coeffs)[4], double& out_a0) const;
 	bool isValid() const noexcept { return valid; }
+	__forceinline
+	bool isStateFinite() const noexcept
+	{
+		return std::isfinite(x1) && std::isfinite(x2) &&
+			std::isfinite(y1) && std::isfinite(y2);
+	}
 
 private:
 	__declspec(align(16)) double a[4];

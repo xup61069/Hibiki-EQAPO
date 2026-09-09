@@ -2333,6 +2333,18 @@ Alexander Walch</source>
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Build your signal chain</source>
+        <translation>建立你的訊號鏈</translation>
+    </message>
+    <message>
+        <source>Open a configuration file or start with a new profile.</source>
+        <translation>開啟設定檔，或從新的設定檔開始。</translation>
+    </message>
+    <message>
+        <source>Signal chain</source>
+        <translation>訊號鏈</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.ui" line="56"/>
         <source>File</source>
         <translation>檔案</translation>

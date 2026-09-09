@@ -2309,6 +2309,18 @@ Alexander Walch</translation>
 <context>
     <name>MainWindow</name>
     <message>
+        <source>Build your signal chain</source>
+        <translation>Créer votre chaîne de signal</translation>
+    </message>
+    <message>
+        <source>Open a configuration file or start with a new profile.</source>
+        <translation>Ouvrez un fichier de configuration ou créez un nouveau profil.</translation>
+    </message>
+    <message>
+        <source>Signal chain</source>
+        <translation>Chaîne de signal</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.ui" line="56"/>
         <source>File</source>
         <translation>Fichier</translation>

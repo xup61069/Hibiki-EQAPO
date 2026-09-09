@@ -25,6 +25,7 @@ Add checks according to the files and behavior changed:
 | C++, DSP, project wiring, or installer | `.\scripts\build-installer-x64.ps1 -Configuration Release` followed by `.\scripts\test-runtime-loudness.ps1 -Configuration Release` |
 | Out-of-process VST host | `python -m unittest discover -s .\tests -p "test_outproc_vst_lifecycle.py" -v` |
 | UI | `.\scripts\capture-ui-regression.ps1 -Configuration Release`, then inspect the generated matrix |
+| UI motion | `.\scripts\test-ui-motion.ps1` checks input delivery, cancellation, bounded animation lifetime and reduced motion in a native Qt harness |
 | PR or release preparation | `.\scripts\test-public-history.ps1 -Revision HEAD` |
 
 The expanded C++/DSP sequence is:

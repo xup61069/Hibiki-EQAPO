@@ -343,6 +343,8 @@ public:
 		FilterParameters::VolumeFollowMode mode,
 		double currentVolumeDb,
 		double currentVolumeScalar);
+	static void resetCrossoverHandoffRegistry();
+	struct LiveCrossoverSlot;
 
 private:
 	friend class LoudnessCorrectionFilterTestAccess;
@@ -551,5 +553,12 @@ private:
 	unsigned _volumeFollowRampLength;
 	std::atomic<bool> _volumeFollowUpdated;
 	std::atomic<bool> _coeffsUpdated;
+	static LiveCrossoverSlot* acquireCrossoverHandoffSlot(
+		const std::wstring& key,
+		float sampleRate,
+		size_t channelCount);
+	LiveCrossoverSlot* _handoffSlot;
+	bool tryAdoptLiveCrossoverHistory();
+	void publishLiveCrossoverHistory();
 };
 #pragma AVRT_VTABLES_END

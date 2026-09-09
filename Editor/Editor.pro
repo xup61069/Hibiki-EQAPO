@@ -89,6 +89,7 @@ SOURCES += main.cpp\
 	guis/IncludeFilterGUIFactory.cpp \
 	helpers/GUIHelper.cpp \
 	ModernTheme.cpp \
+	StudioMotion.cpp \
 	widgets/ResizingLineEdit.cpp \
 	widgets/ChannelGraphScene.cpp \
 	widgets/ChannelGraphItem.cpp \
@@ -178,6 +179,8 @@ HEADERS  += \
 	IFilterGUIFactory.h \
 	helpers/GUIHelper.h \
 	ModernTheme.h \
+	StudioMotion.h \
+	widgets/StudioSignature.h \
 	stable.h \
 	IFilterGUI.h \
 	guis/PreampFilterGUI.h \

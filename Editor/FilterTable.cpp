@@ -315,7 +315,7 @@ namespace
 			margin,
 			GUIHelper::scale(13));
 		layout->setHorizontalSpacing(0);
-		layout->setVerticalSpacing(GUIHelper::scale(5));
+		layout->setVerticalSpacing(GUIHelper::scale(9));
 		layout->setColumnStretch(0, 1);
 		layout->setColumnStretch(1, 0);
 	}

@@ -1,0 +1,9 @@
+QT += widgets testlib
+CONFIG += console testcase c++17
+CONFIG -= app_bundle
+TEMPLATE = app
+TARGET = ui-motion
+win32:LIBS += -luser32
+INCLUDEPATH += ../..
+SOURCES += ui-motion.cpp ../../Editor/StudioMotion.cpp
+HEADERS += ../../Editor/StudioMotion.h ../../Editor/widgets/StudioSignature.h

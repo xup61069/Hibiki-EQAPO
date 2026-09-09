@@ -9,6 +9,7 @@
 */
 
 #include "ModernTheme.h"
+#include "StudioMotion.h"
 
 #include "Editor/helpers/GUIHelper.h"
 
@@ -186,29 +187,29 @@ namespace
 
 	ThemeColors colorsForMode(bool dark, const QColor& requestedAccent)
 	{
-		const QColor canvas(dark ? QStringLiteral("#202020") : QStringLiteral("#F3F3F3"));
+		const QColor canvas(dark ? QStringLiteral("#17191C") : QStringLiteral("#EFF1F4"));
 		const QColor accent = ensureContrast(
 			requestedAccent.isValid() ? requestedAccent : QColor(QStringLiteral("#0067C0")),
 			canvas,
 			dark);
 		const QColor accentText = contrastingText(accent);
 		const QColor accentHover = blend(accent, dark ? QColor(Qt::white) : QColor(Qt::black), 0.12);
-		const QColor surface(dark ? QStringLiteral("#272727") : QStringLiteral("#FFFFFF"));
+		const QColor surface(dark ? QStringLiteral("#22252A") : QStringLiteral("#FFFFFF"));
 		const QColor accentSoft = blend(surface, accent, dark ? 0.24 : 0.14);
 
 		if (dark)
 		{
 			return {
-				canvas.name(), surface.name(), "#323232", "#3D3D3D",
-				"#626262", "#F5F5F5", "#B5B5B5", "#9A9A9A",
+				canvas.name(), surface.name(), "#2B2F35", "#363C44",
+				"#626C78", "#F2F4F7", "#B7BFC9", "#A1AAB6",
 				accent.name(), accentHover.name(), accentSoft.name(), accentText.name(),
 				"#F2C879", "#FF8A86", "#111111"
 			};
 		}
 
 		return {
-			canvas.name(), surface.name(), "#ECECEC", "#D8D8D8",
-			"#A8A8A8", "#1A1A1A", "#666666", "#6F6F6F",
+			canvas.name(), surface.name(), "#E8ECF1", "#D3D9E2",
+			"#97A2B2", "#202630", "#536071", "#6F6F6F",
 			accent.name(), accentHover.name(), accentSoft.name(), accentText.name(),
 			"#8A5A00", "#B3261E", "#B8B8B8"
 		};
@@ -370,6 +371,50 @@ QMainWindow#MainWindow, QDialog {
 	color: @text;
 }
 
+QFrame#studioHeader {
+    background: @canvas;
+    border: none;
+    border-bottom: 1px solid @border;
+}
+QLabel#studioWordmark {
+    color: @text;
+    font-size: 22pt;
+    font-weight: 700;
+    letter-spacing: 3px;
+}
+QLabel#studioEdition {
+    color: @accent;
+    font-size: 8pt;
+    font-weight: 600;
+    letter-spacing: 2px;
+}
+QLabel#studioSection {
+    color: @muted;
+    font-weight: 600;
+    padding-left: 16px;
+    border-left: 1px solid @borderStrong;
+}
+QFrame#studioEmptyState {
+    background: @canvas;
+    border: none;
+}
+QLabel#studioEmptyTitle {
+    color: @text;
+    font-size: 18pt;
+    font-weight: 600;
+}
+QLabel#studioEmptyHint {
+    color: @muted;
+}
+QLabel#analysisStateLabel {
+    color: @muted;
+    padding: 5px 0;
+}
+QLabel#headroomValueLabel {
+    font-family: "Cascadia Mono";
+    font-weight: 700;
+    color: @accent;
+}
 QWidget#centralWidget {
 	background-color: @canvas;
 }
@@ -394,6 +439,7 @@ QMenuBar::item:selected, QMenuBar::item:pressed {
 }
 
 QMenu {
+	border-radius: 10px;
 	background-color: @surface;
 	color: @text;
 	border: 1px solid @border;
@@ -401,6 +447,7 @@ QMenu {
 }
 
 QMenu::item {
+	border-radius: 5px;
 	padding: 6px 28px 6px 10px;
 	margin: 1px;
 }
@@ -435,6 +482,7 @@ QToolBar#mainToolBar::separator {
 }
 
 QToolBar#mainToolBar QToolButton {
+	border-radius: 6px;
 	background-color: transparent;
 	color: @text;
 	border: 1px solid transparent;
@@ -459,6 +507,7 @@ QToolBar#mainToolBar QToolButton:checked {
 }
 
 QToolBar#mainToolBar QLabel#workspaceBrand {
+	border-radius: 6px;
 	background-color: @accent;
 	color: @accentText;
 	border: 1px solid transparent;
@@ -499,6 +548,7 @@ QToolBar#workspaceToolBar::separator {
 }
 
 QToolBar#workspaceToolBar QToolButton {
+	border-radius: 6px;
 	background-color: transparent;
 	color: @text;
 	border: 1px solid transparent;
@@ -544,6 +594,8 @@ QTabWidget#tabWidget::pane {
 }
 
 QTabBar::tab {
+	border-top-left-radius: 7px;
+	border-top-right-radius: 7px;
 	background-color: transparent;
 	color: @muted;
 	border: none;
@@ -578,6 +630,7 @@ QDockWidget#analysisDockWidget QWidget#dockWidgetContents {
 }
 
 QDockWidget#analysisDockWidget QGroupBox {
+	border-radius: 8px;
 	background-color: @surface;
 	border: 1px solid @border;
 	margin-top: 11px;
@@ -683,6 +736,7 @@ FilterTableRow QToolBar {
 }
 
 FilterTableRow QToolButton {
+	border-radius: 4px;
 	background: transparent;
 	border: 1px solid transparent;
 	min-width: @compactButtonSizepx;
@@ -712,6 +766,7 @@ QToolBar#filterAddBar QToolButton:pressed {
 }
 
 QPushButton {
+	border-radius: 6px;
 	background-color: @raised;
 	color: @text;
 	border: 1px solid @borderStrong;
@@ -750,6 +805,7 @@ QPushButton:disabled {
 }
 
 QLineEdit, QComboBox, QAbstractSpinBox {
+	border-radius: 5px;
 	background-color: @raised;
 	color: @text;
 	border: 1px solid @border;
@@ -926,6 +982,7 @@ QScrollBar:horizontal {
 }
 
 QScrollBar::handle:vertical, QScrollBar::handle:horizontal {
+	border-radius: 3px;
 	background: @borderStrong;
 	min-height: 24px;
 	min-width: 24px;
@@ -1005,7 +1062,7 @@ QToolTip {
 		};
 
 		// Applying even a geometry-only stylesheet makes Qt stop drawing parts of
-		// the native Windows controls. Build the complete square-cornered theme
+		// the native Windows controls. Build the complete studio theme
 		// from the active system high-contrast palette so button frames, group
 		// boundaries and check indicators remain visible at every DPI.
 		const ThemeColors colors = {
@@ -1152,6 +1209,7 @@ void ModernTheme::install(QApplication& application)
 
 	application.setProperty("eqapoModernThemeInstalled", true);
 	new ThemeMonitor(application);
+	StudioMotion::install(application);
 	apply(application);
 }
 

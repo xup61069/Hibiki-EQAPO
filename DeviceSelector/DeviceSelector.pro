@@ -28,6 +28,7 @@ SOURCES += \
 	OpacityIconEngine.cpp \
 	ReceiveThread.cpp \
 	../Editor/ModernTheme.cpp \
+	../Editor/StudioMotion.cpp \
 	../Editor/helpers/GUIHelper.cpp \
 	../helpers/ServiceHelper.cpp \
 	stdafx.cpp
@@ -39,6 +40,7 @@ HEADERS += \
 	OpacityIconEngine.h \
 	ReceiveThread.h \
 	../Editor/ModernTheme.h \
+	../Editor/StudioMotion.h \
 	../Editor/helpers/GUIHelper.h \
 	../helpers/ServiceHelper.h \
 	resource.h \

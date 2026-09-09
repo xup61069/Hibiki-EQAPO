@@ -662,7 +662,7 @@ class UiProductizationTests(unittest.TestCase):
                 self.assertIn(token, reset_button_style)
         self.assertNotIn("border-radius", reset_button_style)
 
-    def test_product_ui_has_no_decorative_rounded_corners(self) -> None:
+    def test_studio_theme_uses_bounded_control_radii(self) -> None:
         ui_sources = []
         for app in ("Editor", "DeviceSelector", "UpdateChecker"):
             for suffix in ("*.cpp", "*.h", "*.ui", "*.qss"):
@@ -674,7 +674,11 @@ class UiProductizationTests(unittest.TestCase):
             for match in radius_pattern.finditer(text):
                 value = match.group(1).strip()
                 with self.subTest(path=path.relative_to(ROOT), value=value):
-                    self.assertIn(value, {"0", "0px", "@radioRadiuspx"})
+                    # The studio redesign intentionally replaces the previous
+                    # square-only art direction. Keep compact controls usable.
+                    if value != "@radioRadiuspx":
+                        self.assertRegex(value, r"^\d+(?:px)?$")
+                        self.assertLessEqual(int(value.removesuffix("px")), 10)
 
     def test_every_designer_ui_file_is_valid_xml(self) -> None:
         ui_files = []
