@@ -51,6 +51,14 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("updateModel();", method)
         self.assertNotIn("QSettings", method)
 
+    def test_header_switch_tracks_text_edits(self):
+        window = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
+        slot = window.split("void MainWindow::linesChanged()", 1)[1].split(
+            "bool MainWindow::on_tabWidget_tabCloseRequested(", 1
+        )[0]
+        self.assertIn("refreshWorkspaceActionState()", slot)
+        self.assertIn("currentFilterTable()", slot)
+
 
 if __name__ == "__main__":
     unittest.main()

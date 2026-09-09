@@ -3841,13 +3841,17 @@ void MainWindow::linesChanged()
 	{
 		if (tabText.endsWith('*'))
 			ui->tabWidget->setTabText(tabIndex, tabText.left(tabText.length() - 1));
-		return;
 	}
-	if (!tabText.endsWith('*'))
+	else if (!tabText.endsWith('*'))
 	{
 		tabText += '*';
 		ui->tabWidget->setTabText(tabIndex, tabText);
 	}
+	// The header precision switch is always visible, unlike the Settings menu
+	// action which refreshes when the menu opens. Keep it in sync with text
+	// edits such as a hand-typed ProcessingPrecision or Include line.
+	if (filterTable == currentFilterTable())
+		refreshWorkspaceActionState();
 }
 
 bool MainWindow::on_tabWidget_tabCloseRequested(int index)
