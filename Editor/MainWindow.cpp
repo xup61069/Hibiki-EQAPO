@@ -18,6 +18,7 @@
 */
 
 #include <algorithm>
+#include <array>
 #include <cstdio>
 #include <sstream>
 #include <cmath>
@@ -76,10 +77,13 @@
 #include "FilterTable.h"
 #include "MainWindow.h"
 #include "StudioMotion.h"
-#include "widgets/StudioSignature.h"
 #include <QFrame>
 #include <QHBoxLayout>
 #include <QVBoxLayout>
+#if defined(_M_AMD64)
+#include "HibikiEQAPODriver/AsioProxyIdentity.h"
+#include "HibikiEQAPODriver/AsioTargetStore.h"
+#endif
 #include "filters/loudnessCorrection/VolumeController.h"
 #include "ui_MainWindow.h"
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
@@ -793,8 +797,8 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	QFrame* studioHeader = new QFrame(ui->centralWidget);
 	studioHeader->setObjectName(QStringLiteral("studioHeader"));
 	auto* headerLayout = new QHBoxLayout(studioHeader);
-	headerLayout->setContentsMargins(12, 8, 12, 12);
-	headerLayout->setSpacing(22);
+	headerLayout->setContentsMargins(10, 5, 10, 7);
+	headerLayout->setSpacing(16);
 	auto* identity = new QVBoxLayout;
 	identity->setSpacing(0);
 	auto* wordmark = new QLabel(QStringLiteral("HIBIKI"), studioHeader);
@@ -808,7 +812,34 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	section->setObjectName(QStringLiteral("studioSection"));
 	headerLayout->addWidget(section);
 	headerLayout->addStretch();
-	headerLayout->addWidget(new StudioSignature(studioHeader));
+	doublePrecisionCheckBox = new QCheckBox(tr("Double precision"), studioHeader);
+	doublePrecisionCheckBox->setObjectName(QStringLiteral("doublePrecisionCheckBox"));
+	doublePrecisionCheckBox->setChecked(true);
+	doublePrecisionCheckBox->setToolTip(doublePrecisionAction->toolTip());
+	doublePrecisionCheckBox->setAccessibleName(tr("Double precision signal path"));
+	connect(doublePrecisionCheckBox, &QCheckBox::clicked,
+		doublePrecisionAction, &QAction::setChecked);
+	headerLayout->addWidget(doublePrecisionCheckBox);
+
+	auto* asioDeviceLabel = new QLabel(tr("ASIO device:"), studioHeader);
+	asioDeviceLabel->setProperty("toolbarRole", "context");
+	headerLayout->addWidget(asioDeviceLabel);
+	asioDeviceComboBox = new QComboBox(studioHeader);
+	asioDeviceComboBox->setObjectName(QStringLiteral("asioDeviceComboBox"));
+	asioDeviceComboBox->setMinimumWidth(GUIHelper::scale(180));
+	asioDeviceComboBox->setMaximumWidth(GUIHelper::scale(300));
+	asioDeviceComboBox->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+	asioDeviceComboBox->setMinimumContentsLength(18);
+	asioDeviceComboBox->setProperty("compactAudioControl", true);
+	asioDeviceLabel->setBuddy(asioDeviceComboBox);
+	QString asioAccessibleName = asioDeviceLabel->text();
+	if (asioAccessibleName.endsWith(':') || asioAccessibleName.endsWith(QChar(0xFF1A)))
+		asioAccessibleName.chop(1);
+	asioDeviceComboBox->setAccessibleName(asioAccessibleName);
+	connect(asioDeviceComboBox, SIGNAL(activated(int)),
+		this, SLOT(asioDeviceSelected(int)));
+	headerLayout->addWidget(asioDeviceComboBox);
+	refreshAsioDeviceControl();
 	ui->gridLayout->removeWidget(ui->tabWidget);
 	ui->gridLayout->addWidget(studioHeader, 0, 0);
 	ui->gridLayout->addWidget(ui->tabWidget, 1, 0);
@@ -902,28 +933,29 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	ui->mainToolBar->setFloatable(false);
 	ui->tabWidget->setElideMode(Qt::ElideMiddle);
 	ui->gridLayout->setContentsMargins(
-		GUIHelper::scale(9),
-		GUIHelper::scale(8),
-		GUIHelper::scale(9),
-		GUIHelper::scale(9));
+		GUIHelper::scale(6),
+		GUIHelper::scale(6),
+		GUIHelper::scale(6),
+		GUIHelper::scale(6));
+	ui->gridLayout->setSpacing(GUIHelper::scale(5));
 	ui->gridLayout_2->setContentsMargins(
-		GUIHelper::scale(9),
-		GUIHelper::scale(8),
-		GUIHelper::scale(9),
-		GUIHelper::scale(9));
-	ui->gridLayout_2->setSpacing(GUIHelper::scale(8));
+		GUIHelper::scale(6),
+		GUIHelper::scale(6),
+		GUIHelper::scale(6),
+		GUIHelper::scale(6));
+	ui->gridLayout_2->setSpacing(GUIHelper::scale(5));
 	ui->gridLayout_3->setContentsMargins(
-		GUIHelper::scale(10),
-		GUIHelper::scale(10),
-		GUIHelper::scale(10),
-		GUIHelper::scale(9));
-	ui->gridLayout_3->setSpacing(GUIHelper::scale(5));
+		GUIHelper::scale(7),
+		GUIHelper::scale(7),
+		GUIHelper::scale(7),
+		GUIHelper::scale(7));
+	ui->gridLayout_3->setSpacing(GUIHelper::scale(4));
 	ui->gridLayout_4->setContentsMargins(
-		GUIHelper::scale(10),
-		GUIHelper::scale(10),
-		GUIHelper::scale(10),
-		GUIHelper::scale(9));
-	ui->gridLayout_4->setSpacing(GUIHelper::scale(5));
+		GUIHelper::scale(7),
+		GUIHelper::scale(7),
+		GUIHelper::scale(7),
+		GUIHelper::scale(7));
+	ui->gridLayout_4->setSpacing(GUIHelper::scale(4));
 
 	LogHelper::set(stderr, true, false, false);
 
@@ -1106,7 +1138,7 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	}
 	if (useInitialStudioLayout)
 		QTimer::singleShot(0, this, [this]() {
-			resizeDocks({ui->analysisDockWidget}, {GUIHelper::scale(300)}, Qt::Vertical);
+			resizeDocks({ui->analysisDockWidget}, {GUIHelper::scale(250)}, Qt::Vertical);
 			QTimer::singleShot(0, ui->graphicsView, &FrequencyPlotView::resetView);
 		});
 }
@@ -1276,6 +1308,151 @@ void MainWindow::setupWorkspaceTools()
 	connect(profileWatcher, &QFileSystemWatcher::directoryChanged, this, [this](const QString&) {
 		refreshProfiles();
 	});
+}
+
+void MainWindow::refreshAsioDeviceControl()
+{
+	if (asioDeviceComboBox == NULL)
+		return;
+	QSignalBlocker blocker(asioDeviceComboBox);
+	asioDeviceComboBox->clear();
+	const QString guidance = tr(
+		"Chooses the hardware driver behind Hibiki EQAPO. Reopen the DAW audio device after changing it.");
+	asioDeviceComboBox->setToolTip(guidance);
+	if (UiSnapshot::requested())
+	{
+		asioDeviceComboBox->addItem(tr("ASIO device unavailable"));
+		asioDeviceComboBox->setEnabled(false);
+		return;
+	}
+
+#if defined(_M_AMD64)
+	const QString proxyPath = QDir(QCoreApplication::applicationDirPath()).filePath(
+		QString::fromWCharArray(HibikiAsio::kDriverDllName));
+	const HibikiAsio::AsioTargetControlState state =
+		HibikiAsio::inspectAsioTargets(proxyPath.toStdWString());
+	if (!state.proxyInstalled)
+	{
+		asioDeviceComboBox->addItem(tr("ASIO proxy not installed"));
+		asioDeviceComboBox->setEnabled(false);
+		return;
+	}
+	if (state.candidates.empty())
+	{
+		asioDeviceComboBox->addItem(tr("No compatible x64 ASIO driver"));
+		asioDeviceComboBox->setEnabled(false);
+		return;
+	}
+
+	auto candidateName = [&state](const CLSID& clsid) -> QString {
+		for (const HibikiAsio::AsioDriverCandidate& candidate : state.candidates)
+			if (InlineIsEqualGUID(candidate.clsid, clsid) != FALSE)
+				return QString::fromStdWString(candidate.name);
+		return {};
+	};
+	QString automaticLabel = tr("Automatic / installer default");
+	if (state.machineDefault.present && state.machineDefault.valid)
+	{
+		const QString name = candidateName(state.machineDefault.clsid);
+		if (!name.isEmpty())
+			automaticLabel += QStringLiteral(" — ") + name;
+		else
+			automaticLabel += QStringLiteral(" — ") + tr("unavailable");
+	}
+	else if (!state.machineDefault.present && state.candidates.size() == 1)
+	{
+		automaticLabel += QStringLiteral(" — ") +
+			QString::fromStdWString(state.candidates.front().name);
+	}
+	else
+	{
+		automaticLabel += QStringLiteral(" — ") + tr("unavailable");
+	}
+	asioDeviceComboBox->addItem(automaticLabel, QStringLiteral("default"));
+
+	int selectedIndex = state.userOverride.present ? -1 : 0;
+	for (const HibikiAsio::AsioDriverCandidate& candidate : state.candidates)
+	{
+		std::array<wchar_t, 40> clsidText{};
+		if (StringFromGUID2(candidate.clsid, clsidText.data(),
+			static_cast<int>(clsidText.size())) == 0)
+		{
+			continue;
+		}
+		const int index = asioDeviceComboBox->count();
+		asioDeviceComboBox->addItem(
+			QString::fromStdWString(candidate.name),
+			QString::fromWCharArray(clsidText.data()));
+		asioDeviceComboBox->setItemData(
+			index, QString::fromStdWString(candidate.dllPath), Qt::ToolTipRole);
+		if (state.userOverride.present && state.userOverride.valid &&
+			InlineIsEqualGUID(candidate.clsid, state.userOverride.clsid) != FALSE)
+		{
+			selectedIndex = index;
+		}
+	}
+	if (selectedIndex < 0)
+	{
+		asioDeviceComboBox->insertItem(
+			0, tr("Current ASIO device unavailable"), QStringLiteral("unavailable"));
+		selectedIndex = 0;
+	}
+	asioDeviceComboBox->setCurrentIndex(selectedIndex);
+	asioDeviceComboBox->setEnabled(true);
+#else
+	asioDeviceComboBox->addItem(tr("Available in the x64 editor only"));
+	asioDeviceComboBox->setEnabled(false);
+#endif
+}
+
+void MainWindow::asioDeviceSelected(int index)
+{
+	if (asioDeviceComboBox == NULL || index < 0)
+		return;
+#if defined(_M_AMD64)
+	const QString selection = asioDeviceComboBox->itemData(index).toString();
+	if (selection == QStringLiteral("unavailable") || selection.isEmpty())
+	{
+		refreshAsioDeviceControl();
+		return;
+	}
+	const QString proxyPath = QDir(QCoreApplication::applicationDirPath()).filePath(
+		QString::fromWCharArray(HibikiAsio::kDriverDllName));
+	LONG win32Error = ERROR_SUCCESS;
+	HibikiAsio::AsioTargetUpdateStatus result;
+	if (selection == QStringLiteral("default"))
+	{
+		result = HibikiAsio::clearUserAsioTarget(
+			proxyPath.toStdWString(), &win32Error);
+	}
+	else
+	{
+		CLSID clsid{};
+		if (CLSIDFromString(selection.toStdWString().c_str(), &clsid) != S_OK)
+		{
+			refreshAsioDeviceControl();
+			return;
+		}
+		result = HibikiAsio::setUserAsioTarget(
+			proxyPath.toStdWString(), clsid, &win32Error);
+	}
+	if (result == HibikiAsio::AsioTargetUpdateStatus::Updated)
+	{
+		showWorkspaceStatus(tr("ASIO device saved. Reopen the DAW audio device to apply."));
+	}
+	else
+	{
+		showWorkspaceStatus(
+			win32Error == ERROR_SUCCESS
+				? tr("Could not change the ASIO device.")
+				: tr("Could not change the ASIO device (Windows error %1).")
+					.arg(win32Error),
+			"warning");
+	}
+	refreshAsioDeviceControl();
+#else
+	Q_UNUSED(index);
+#endif
 }
 
 bool MainWindow::restoreWindowLayoutState(const QByteArray& state)
@@ -3124,6 +3301,7 @@ void MainWindow::refreshWorkspaceActionState()
 	if (doublePrecisionAction)
 	{
 		QSignalBlocker blocker(doublePrecisionAction);
+		QSignalBlocker checkBoxBlocker(doublePrecisionCheckBox);
 		bool doublePrecision = true;
 		int directives = 0;
 		bool validPrecision = true;
@@ -3145,12 +3323,21 @@ void MainWindow::refreshWorkspaceActionState()
 			? tr("Processing precision (see configuration)")
 			: tr("Double precision (64-bit signal path)"));
 		doublePrecisionAction->setEnabled(editable && !hasTemporaryState && validPrecision && directives <= 1);
+		if (doublePrecisionCheckBox != NULL)
+		{
+			doublePrecisionCheckBox->setChecked(
+				doublePrecision && (!hasTable || editable));
+			doublePrecisionCheckBox->setEnabled(
+				editable && !hasTemporaryState && validPrecision && directives <= 1);
+		}
 		if (hasTable && !unambiguous)
 			doublePrecisionAction->setToolTip(tr("Could not change precision. Check for duplicate or invalid ProcessingPrecision entries."));
 		else if (hasTable && !editable)
 			doublePrecisionAction->setToolTip(tr("This configuration contains scopes or included files. Edit ProcessingPrecision in the configuration text to choose the effective signal-path format."));
 		else
 			doublePrecisionAction->setToolTip(tr("Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off."));
+		if (doublePrecisionCheckBox != NULL)
+			doublePrecisionCheckBox->setToolTip(doublePrecisionAction->toolTip());
 	}
 	ui->actionSave->setEnabled(hasTable && !hasTemporaryState);
 	ui->actionSaveAs->setEnabled(hasTable && !hasTemporaryState);

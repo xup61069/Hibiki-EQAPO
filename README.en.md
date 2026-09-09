@@ -71,8 +71,9 @@ After a successful commit, cleanup can remain deferred while Windows still has a
 
 Hibiki EQAPO is compatible with ASIO® technology. The x64 installer can
 register **Hibiki EQAPO** as a separate ASIO proxy driver and lets you choose the
-underlying audio-interface vendor driver during setup. It does not replace the
-vendor CLSID or driver files.
+underlying audio-interface vendor driver during setup. After installation, the
+x64 editor header also provides an ASIO-device drop-down for changing that
+target. It does not replace the vendor CLSID or driver files.
 
 > **Experimental:** automated and fake-vendor tests pass, but the real
 > audio-interface ASIO driver and DAW validation required by
@@ -135,8 +136,11 @@ touch the ambiguous buffer, so actual hardware output is vendor-defined. ASIO
 `outputReady()` contains no buffer index or generation; if a broken host delays an old duplicate
 until after the next valid token has been published, the proxy cannot distinguish
 it from that token's real completion. Such host behavior is outside the supported
-contract. Rerun setup to select another underlying driver after changing audio
-interfaces.
+contract. To change the underlying driver, choose another validated entry in the
+x64 editor's ASIO-device drop-down. The selection writes only the current-user
+`HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID` override and takes effect
+only after reopening the DAW audio device or restarting the host; active streams
+are never hot-switched.
 
 Only one Hibiki EQAPO driver instance may have buffers prepared in a single DAW
 process. Separate DAW processes still depend on the vendor driver's multi-client
@@ -315,11 +319,15 @@ A/B and bypass require a saved profile with no unsaved edits, cannot run at the 
 
 View offers a persistent 75–200% interface scale (editor restart required) and an animation switch. Interface scale multiplies Windows display scaling; cancelling the close prompt for unsaved edits also cancels the scale change. Smooth wheel scrolling yields to native trackpad momentum and plot zoom gestures. Settings opens Device Selector from the editor’s installation folder.
 
-Settings → Double precision controls the current configuration’s entire signal path. Enabled is the existing default. Disabled writes `ProcessingPrecision: 32`; enabled writes `ProcessingPrecision: 64`. Instant mode uses the existing save workflow; otherwise, save the configuration to apply. A configuration may contain at most one active precision directive across included files. Missing means 64; invalid or duplicate values reject the new configuration and retain the active one.
+The editor tightens filter rows, loudness-correction controls, and the analysis dock by removing unused padding while preserving responsive resizing and analysis-panel docking.
+
+The header's **Double precision** switch controls the current configuration's entire signal path. Enabled is the existing default. Disabled writes `ProcessingPrecision: 32`; enabled writes `ProcessingPrecision: 64`. Instant mode uses the existing save workflow; otherwise, save the configuration to apply. A configuration may contain at most one active precision directive across included files. Missing means 64; invalid or duplicate values reject the new configuration and retain the active one.
 
 The 32-bit path uses float buffers between every module and native single-precision kernels where available. Specialized and legacy kernels retain their internal precision through preallocated conversion buffers. Coefficients, calibration, FFT, plug-ins and loudness internals are not promised to use float arithmetic; CPU and memory savings are not guaranteed. Precision changes use the existing configuration crossfade and are also honored by offline analysis. This does not change the Windows device’s output bit depth.
 
-For configurations with included files or device/conditional scopes, the precision menu is disabled and directs users to edit `ProcessingPrecision` in the configuration text. It does not infer an effective format from a single tab or insert potentially conflicting declarations.
+For configurations with included files or device/conditional/stage scopes, the header switch is disabled and directs users to edit `ProcessingPrecision` in the configuration text. It does not infer an effective format from a single tab or insert potentially conflicting declarations.
+
+The x64 editor also exposes an **ASIO device** drop-down in the header. It reuses the proxy's shared safe discovery path to list only validated x64 vendor drivers without loading vendor code. A selection writes only the current user's `HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID` override; vendor registry keys, CLSIDs, and files are never changed. Selection is not a hot switch: reopen the DAW audio device, or restart the host, before the new target takes effect.
 
 ### Analysis panel, response animation, and Auto preamp
 

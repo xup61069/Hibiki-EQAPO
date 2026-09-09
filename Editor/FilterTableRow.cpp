@@ -86,9 +86,9 @@ namespace
 		body->setLayout(gui->layout());
 		auto* root = new QVBoxLayout(gui);
 		root->setContentsMargins(0, 0, 0, 0);
-		root->setSpacing(GUIHelper::scale(10));
+		root->setSpacing(GUIHelper::scale(5));
 		title->setProperty("studioModuleTitle", true);
-		title->setMinimumHeight(GUIHelper::scale(32));
+		title->setMinimumHeight(GUIHelper::scale(28));
 		title->setSizePolicy(title->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
 		if (auto* label = qobject_cast<QLabel*>(title))
 		{
@@ -178,12 +178,12 @@ FilterTableRow::FilterTableRow(FilterTable* table, int number, FilterTable::Item
 	setAttribute(Qt::WA_StyledBackground, false);
 	ui->labelNumber->setMinimumWidth(GUIHelper::scale(38));
 	ui->labelNumber->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
-	ui->labelNumber->setContentsMargins(0, GUIHelper::scale(12), 0, 0);
+	ui->labelNumber->setContentsMargins(0, GUIHelper::scale(6), 0, 0);
 	ui->horizontalLayout->setContentsMargins(
 		0,
-		GUIHelper::scale(12),
 		GUIHelper::scale(6),
-		GUIHelper::scale(8));
+		GUIHelper::scale(6),
+		GUIHelper::scale(4));
 	QFont numberFont = font();
 	numberFont.setWeight(QFont::DemiBold);
 	ui->labelNumber->setFont(numberFont);
@@ -204,10 +204,10 @@ FilterTableRow::FilterTableRow(FilterTable* table, int number, FilterTable::Item
 	ui->horizontalLayout->setAlignment(ui->toolBar, Qt::AlignTop);
 
 	ui->stackedWidget->setContentsMargins(
-		GUIHelper::scale(4),
-		GUIHelper::scale(4),
+		GUIHelper::scale(3),
 		GUIHelper::scale(2),
-		GUIHelper::scale(4));
+		GUIHelper::scale(2),
+		GUIHelper::scale(2));
 
 	if (gui != NULL)
 	{
@@ -261,8 +261,8 @@ QSize FilterTableRow::minimumSizeHint() const
 	{
 		QSize childSize = current->minimumSizeHint().expandedTo(current->sizeHint()).expandedTo(current->minimumSize());
 		QMargins margins = ui->horizontalLayout->contentsMargins() + ui->stackedWidget->contentsMargins();
-		childSize.rheight() += margins.top() + margins.bottom() + GUIHelper::scale(10);
-		size.setHeight(std::max(size.height(), std::max(childSize.height(), ui->toolBar->maximumHeight() + GUIHelper::scale(10))));
+		childSize.rheight() += margins.top() + margins.bottom() + GUIHelper::scale(4);
+		size.setHeight(std::max(size.height(), std::max(childSize.height(), ui->toolBar->maximumHeight() + GUIHelper::scale(4))));
 	}
 	return size;
 }

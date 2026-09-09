@@ -309,14 +309,14 @@ namespace
 
 	void configureFilterLayout(QGridLayout* layout)
 	{
-		const int margin = GUIHelper::scale(9);
+		const int margin = GUIHelper::scale(7);
 		layout->setContentsMargins(
 			margin,
 			margin,
 			margin,
-			GUIHelper::scale(13));
+			GUIHelper::scale(9));
 		layout->setHorizontalSpacing(0);
-		layout->setVerticalSpacing(GUIHelper::scale(9));
+		layout->setVerticalSpacing(GUIHelper::scale(5));
 		layout->setColumnStretch(0, 1);
 		layout->setColumnStretch(1, 0);
 	}

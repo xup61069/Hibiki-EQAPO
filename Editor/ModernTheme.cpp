@@ -376,6 +376,13 @@ QFrame#studioHeader {
     border: none;
     border-bottom: 1px solid @border;
 }
+
+QFrame#studioHeader QComboBox[compactAudioControl="true"] {
+	min-height: 24px;
+	padding-top: 2px;
+	padding-bottom: 2px;
+}
+
 QFrame#referenceContourCard, QFrame#offsetContourCard, QFrame#strengthContourCard,
 QFrame#listeningCard {
     background: @surface;

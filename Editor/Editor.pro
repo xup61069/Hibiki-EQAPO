@@ -170,6 +170,14 @@ SOURCES += main.cpp\
 	widgets/MiddleClickTabBar.cpp \
 	widgets/VerticalDragDial.cpp
 
+contains(QT_ARCH, x86_64) {
+	SOURCES += ../HibikiEQAPODriver/AsioTargetSelection.cpp \
+		../HibikiEQAPODriver/AsioTargetStore.cpp
+	HEADERS += ../HibikiEQAPODriver/AsioProxyIdentity.h \
+		../HibikiEQAPODriver/AsioTargetSelection.h \
+		../HibikiEQAPODriver/AsioTargetStore.h
+}
+
 HEADERS  += \
 	../helpers/LogHelper.h \
 	../helpers/FFTWHelper.h \
@@ -437,4 +445,3 @@ TRANSLATIONS += translations/Editor_de.ts \
 RC_FILE = Editor.rc
 
 DISTFILES += ../uncrustify.cfg
-

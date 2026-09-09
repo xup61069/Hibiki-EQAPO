@@ -69,7 +69,7 @@ Get-Content .\Hibiki-EQAPO-x64-*.exe.sha256
 
 ## ASIO® 監聽校正
 
-Hibiki EQAPO is compatible with ASIO® technology. x64 安裝程式可將 **Hibiki EQAPO** 登錄為一個獨立的 ASIO proxy driver，並讓你當場選擇底層的音訊介面原廠 driver。它不會改寫原廠 CLSID 或 driver 檔案。
+Hibiki EQAPO is compatible with ASIO® technology. x64 安裝程式可將 **Hibiki EQAPO** 登錄為一個獨立的 ASIO proxy driver，並讓你在安裝時選擇底層的音訊介面原廠 driver；安裝後也可從 Configuration Editor 標頭列的 ASIO 裝置下拉選單切換。它不會改寫原廠 CLSID 或 driver 檔案。
 
 > **實驗性功能：** 目前自動化與 fake-vendor 測試已通過，但 [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 要求的真實音訊介面 ASIO driver 與 DAW 驗證尚未完成。不能據此推定相容性、故障時必定靜音，或校正一定不會進入 export；只應以低音量、可復原的非正式專案測試。通過該發布門檻前，不能視為 production-ready；正式發行若未完成驗證，必須停用或排除 proxy。
 
@@ -91,7 +91,7 @@ ASIO callback 採較嚴格的安全設定。啟用中的 `VSTPlugin:`、`OutProc
 
 為了讓 `directProcess=false` 的 DAW worker 不會和硬體 DMA 同時改到同一塊記憶體，proxy 讓 DAW 寫入自己擁有的 output buffers，完成校正後在下一次原廠 callback 才提交。因此固定增加一個 DAW 所選的 ASIO buffer block；啟動時先送出一個靜音 block，再依序播放已完成的資料。`getLatencies` 與支援的 internal-buffer 查詢都會回報這一層；`Delay:`、`Convolution:` 等濾鏡本身再增加的延遲與 tail 仍不會自動加入 host compensation。
 
-目前實作明確限於 x64 DAW、mono/stereo PCM、原廠 driver 依序且不重入的 callbacks，以及 host 對每個非同步 block **恰好一次、依 FIFO 順序**送出的 `outputReady()` completion。第一版只向 DAW 暴露原廠 driver 的前一或兩個 output channels，作為主監聽 mono/stereo pair；其他硬體輸出 pair 尚不能在 proxy 內選擇。DSD 與三聲道以上 output 會拒絕。若 worker 未在下一個 block 前完成、沒有待處理 token 時又收到 completion、queue 溢位或 callback 重入，可觀測到的錯序會使 stream 維持 terminal fail-safe；仍能證明目前 vendor half 可寫時會把它清成靜音，若真正同時重入而 ownership 不可證，proxy 則完全不碰該 buffer，實際硬體輸出由原廠 driver 決定。ASIO 的 `outputReady()` 不帶 buffer index 或 generation；若有問題的 host 把舊 duplicate 精準延遲到下一個有效 token 已發佈之後，proxy 無法把它與真正的新 completion 區分，因此這種 host 行為不在支援契約內。若更換音訊介面，重新執行安裝程式選擇底層 driver。
+目前實作明確限於 x64 DAW、mono/stereo PCM、原廠 driver 依序且不重入的 callbacks，以及 host 對每個非同步 block **恰好一次、依 FIFO 順序**送出的 `outputReady()` completion。第一版只向 DAW 暴露原廠 driver 的前一或兩個 output channels，作為主監聽 mono/stereo pair；其他硬體輸出 pair 尚不能在 proxy 內選擇。DSD 與三聲道以上 output 會拒絕。若 worker 未在下一個 block 前完成、沒有待處理 token 時又收到 completion、queue 溢位或 callback 重入，可觀測到的錯序會使 stream 維持 terminal fail-safe；仍能證明目前 vendor half 可寫時會把它清成靜音，若真正同時重入而 ownership 不可證，proxy 則完全不碰該 buffer，實際硬體輸出由原廠 driver 決定。ASIO 的 `outputReady()` 不帶 buffer index 或 generation；若有問題的 host 把舊 duplicate 精準延遲到下一個有效 token 已發佈之後，proxy 無法把它與真正的新 completion 區分，因此這種 host 行為不在支援契約內。若更換音訊介面，請在 x64 編輯器標頭列的 ASIO 裝置下拉選擇另一個已驗證的原廠 driver；切換後必須讓 DAW 重新開啟音訊裝置，或重啟 host 才會生效，執行中的串流不會熱切換。
 
 同一個 DAW process 一次只能有一個已建立 buffers 的 Hibiki EQAPO driver instance；不同 DAW process 能否同時使用，仍取決於原廠 driver 的 multi-client 能力。若原廠 driver 無法完成 stop，proxy 會停止碰觸所有權不明的 buffers，實際硬體輸出由原廠 driver 決定；成功重試 stop 後再 start，或由 DAW 重開音訊裝置，才會建立新的安全邊界。若 `directProcess=false` worker 在 start 失敗或 stop 後仍未結束，該次 prepared allocation 不會重用；dispose 會把整個 arena 與 module 固定保留到 process 結束，避免舊 worker 寫入已釋放記憶體，此時需完整重開 DAW。底層 `outputReady()` 只是可選提示；若原廠 driver 拒絕或丟出例外，proxy 會停用提示並繼續送音訊。音訊介面的 hardware direct monitoring、內建 mixer/DSP 與類比輸出不會經過 proxy；ASIO 也沒有通用的硬體音量 API，因此響度校正應使用與實際監聽聲壓一致的手動音量。
 
@@ -207,10 +207,12 @@ A/B 與旁路都要求設定檔已儲存且沒有未儲存變更，兩者不能�
 - 「檢視 → 介面縮放」提供 75%～200%，重新啟動編輯器後套用；遇到未儲存的設定可取消切換。此設定會與 Windows 顯示縮放相乘。
 - 「檢視 → 介面動畫」可停用短動畫與平滑捲動。精密觸控板保留原生捲動，頻率圖仍使用自己的縮放手勢。
 - 「設定 → 裝置選擇器」可開啟同資料夾的 DeviceSelector。
-- 「設定 → 雙精度」控制目前設定檔的整條訊號鏈。預設開啟；關閉會寫入 `ProcessingPrecision: 32`，開啟則寫入 `ProcessingPrecision: 64`。即時模式會依既有流程儲存；否則儲存設定檔後才生效。
+- 編輯器會縮減濾鏡列、響度校正控制與分析面板的內距及無意義空白；視窗調整大小與分析面板停駐行為維持不變。
+- 標頭列的「雙精度」開關控制目前設定檔的整條訊號鏈。預設開啟；關閉會寫入 `ProcessingPrecision: 32`，開啟則寫入 `ProcessingPrecision: 64`。即時模式會依既有流程儲存；否則儲存設定檔後才生效。
 - 32 位元模式在每個元件之間使用 `float` 緩衝，支援的元件使用原生單精度核心；其他元件由預先配置的轉換緩衝銜接原有雙精度核心。係數、校準、FFT、外掛或響度元件內部不保證使用單精度，因此不保證降低 CPU 或記憶體用量。64 位元模式保留原有音訊路徑。
-- 包含引入檔案（`Include`）、裝置或條件作用域的複雜設定，選單會停用並提示以文字編輯 `ProcessingPrecision`，避免從單一分頁推測精度或產生重複宣告。
+- 包含引入檔案（`Include`）、裝置或條件作用域的複雜設定，標頭開關會停用並提示以文字編輯 `ProcessingPrecision`，避免從單一分頁推測精度或產生重複宣告。
 - 精度指令在整份展開後的有效設定中最多出現一次，包含 `Include` 檔案；只接受 `32` 或 `64`。省略時為 64 位元，重複或無效值會拒絕新設定，保留正在使用的設定。切換使用原有交叉淡化，離線分析也讀取同一個精度設定；不會更改 Windows 裝置的輸出位元深度。
+- x64 編輯器標頭列也提供「ASIO 裝置」下拉選單。它使用與 proxy 相同的安全 discovery，只列出通過檢查且不載入原廠 DLL 的 x64 原廠 driver；選取後只寫入目前使用者的 `HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID` override，不改寫 vendor key、CLSID 或檔案。切換不會熱切換正在執行的串流，必須讓 DAW 重新開啟音訊裝置，或重啟 host 後才生效。
 
 ### 分析面板、響應動畫與自動前級
 

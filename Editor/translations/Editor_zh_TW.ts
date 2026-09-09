@@ -3591,6 +3591,62 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <source>Processing precision (see configuration)</source>
         <translation>處理精度（請查看設定文字）</translation>
     </message>
+    <message>
+        <source>Double precision</source>
+        <translation>雙精度</translation>
+    </message>
+    <message>
+        <source>Double precision signal path</source>
+        <translation>雙精度訊號鏈</translation>
+    </message>
+    <message>
+        <source>ASIO device:</source>
+        <translation>ASIO 裝置：</translation>
+    </message>
+    <message>
+        <source>Chooses the hardware driver behind Hibiki EQAPO. Reopen the DAW audio device after changing it.</source>
+        <translation>選擇 Hibiki EQAPO 背後使用的硬體驅動程式。變更後請重新開啟 DAW 音訊裝置。</translation>
+    </message>
+    <message>
+        <source>ASIO device unavailable</source>
+        <translation>ASIO 裝置無法使用</translation>
+    </message>
+    <message>
+        <source>ASIO proxy not installed</source>
+        <translation>ASIO 代理驅動未安裝</translation>
+    </message>
+    <message>
+        <source>No compatible x64 ASIO driver</source>
+        <translation>找不到相容的 x64 ASIO 驅動程式</translation>
+    </message>
+    <message>
+        <source>Automatic / installer default</source>
+        <translation>自動／安裝程式預設</translation>
+    </message>
+    <message>
+        <source>unavailable</source>
+        <translation>無法使用</translation>
+    </message>
+    <message>
+        <source>Current ASIO device unavailable</source>
+        <translation>目前的 ASIO 裝置無法使用</translation>
+    </message>
+    <message>
+        <source>Available in the x64 editor only</source>
+        <translation>僅 x64 編輯器可用</translation>
+    </message>
+    <message>
+        <source>ASIO device saved. Reopen the DAW audio device to apply.</source>
+        <translation>ASIO 裝置已儲存。請重新開啟 DAW 音訊裝置以套用。</translation>
+    </message>
+    <message>
+        <source>Could not change the ASIO device.</source>
+        <translation>無法變更 ASIO 裝置。</translation>
+    </message>
+    <message>
+        <source>Could not change the ASIO device (Windows error %1).</source>
+        <translation>無法變更 ASIO 裝置（Windows 錯誤 %1）。</translation>
+    </message>
 </context>
 <context>
     <name>OriginalLoudnessCorrectionCalibrationDialog</name>

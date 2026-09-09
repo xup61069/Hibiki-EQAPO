@@ -3,6 +3,9 @@
 ## Unreleased
 
 - Redesigned the Qt workspace with a Hibiki studio masthead, rounded signal modules, layered light/dark surfaces, engraved rotary controls and softly filled response plots. Added finite header, module, menu, profile, button, focus, status and dial animations without delaying input or audio processing; high contrast, Windows reduced motion, snapshots and `EQAPO_DISABLE_ANIMATIONS` disable motion. Existing profiles, A/B recovery and audio routing remain compatible.
+- Tightened the Configuration Editor layout by removing unused space from filter rows, loudness-correction controls, and the analysis dock while retaining responsive resizing and docking behavior.
+- Added a visible top-header **Double precision** switch. It continues to serialize `ProcessingPrecision: 32` when off and `ProcessingPrecision: 64` when on; configurations whose effective value depends on an `Include` or scoped `Device`/`If`/`Stage` context disable the switch and require text editing.
+- Added a visible x64-only top-header **ASIO device** selector. It reuses the shared safe, non-loading discovery path to list validated x64 vendor drivers, writes only the current-user `HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID` override, and never changes vendor registry keys, CLSIDs, or files. A selection takes effect only after the DAW reopens its audio device or the host is restarted; running streams are not hot-switched.
 
 ## 3.1.1
 

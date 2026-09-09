@@ -113,6 +113,7 @@ private slots:
 	void captureComparisonA();
 	void comparisonToggled(bool showA);
 	void bypassToggled(bool enabled);
+	void asioDeviceSelected(int index);
 	void closeToTrayToggled(bool enabled);
 
 	void on_mainToolBar_visibilityChanged(bool visible);
@@ -134,6 +135,7 @@ private:
 	void savePreferences();
 	void updateRecentFiles();
 	void setupWorkspaceTools();
+	void refreshAsioDeviceControl();
 	bool restoreWindowLayoutState(const QByteArray& state);
 	QByteArray saveWindowLayoutState() const;
 	void setupTrayIcon();
@@ -185,8 +187,10 @@ private:
 
 	QDir configDir;
 	QCheckBox* instantModeCheckBox;
+	QCheckBox* doublePrecisionCheckBox = NULL;
 	QComboBox* deviceComboBox;
 	QComboBox* channelConfigurationComboBox;
+	QComboBox* asioDeviceComboBox = NULL;
 	QToolBar* workspaceToolBar = NULL;
 	QComboBox* profileComboBox = NULL;
 	QLineEdit* searchLineEdit = NULL;

@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <array>
 #include <cstdint>
+#include <cwchar>
 #include <cwctype>
 #include <optional>
 #include <utility>
@@ -25,6 +26,11 @@ struct RegistryClsid
 	bool valid = false;
 	CLSID value{};
 };
+
+bool isEqual(const CLSID& left, const CLSID& right) noexcept
+{
+	return InlineIsEqualGUID(left, right) != FALSE;
+}
 
 enum class RegistryStringStatus
 {
@@ -50,6 +56,9 @@ std::vector<AsioDriverCandidate> enumerateCandidates(
 std::wstring modulePath(HMODULE module);
 std::optional<std::wstring> inprocPathFor(
 	HKEY root, const std::wstring& prefix, const CLSID& clsid);
+bool installedProxyMatches(const std::wstring& proxyPath);
+std::vector<AsioDriverCandidate> controllableCandidates(
+	const std::wstring& proxyPath);
 
 ResolvedAsioTarget resolveWithRegistry(HMODULE proxyModule)
 {
@@ -270,6 +279,56 @@ std::vector<AsioDriverCandidate> enumerateCandidates(
 	return candidates;
 }
 
+bool installedProxyMatches(const std::wstring& proxyPath)
+{
+	if (proxyPath.empty() || !is64BitDll(proxyPath))
+		return false;
+	const RegistryString registeredClsid = readRegistryString(
+		HKEY_LOCAL_MACHINE, kAsioRegistryKey, L"CLSID", false);
+	CLSID asioClsid{};
+	if (registeredClsid.status != RegistryStringStatus::Value ||
+		CLSIDFromString(registeredClsid.value.c_str(), &asioClsid) != S_OK ||
+		!isEqual(asioClsid, kDriverClsid))
+	{
+		return false;
+	}
+	const std::optional<std::wstring> machinePath = inprocPathFor(
+		HKEY_LOCAL_MACHINE, L"Software\\Classes\\CLSID\\", kDriverClsid);
+	const std::optional<std::wstring> effectivePath = inprocPathFor(
+		HKEY_CLASSES_ROOT, L"CLSID\\", kDriverClsid);
+	return machinePath.has_value() && effectivePath.has_value() &&
+		samePhysicalFile(proxyPath, *machinePath) &&
+		samePhysicalFile(proxyPath, *effectivePath);
+}
+
+std::vector<AsioDriverCandidate> controllableCandidates(
+	const std::wstring& proxyPath)
+{
+	std::vector<AsioDriverCandidate> result;
+	for (AsioDriverCandidate& candidate : enumerateCandidates(proxyPath))
+	{
+		if (!candidate.is64Bit || candidate.isSamePhysicalFile ||
+			isEqual(candidate.clsid, kDriverClsid))
+		{
+			continue;
+		}
+		const std::optional<std::wstring> effectivePath = inprocPathFor(
+			HKEY_CLASSES_ROOT, L"CLSID\\", candidate.clsid);
+		if (!effectivePath.has_value() ||
+			!samePhysicalFile(candidate.dllPath, *effectivePath))
+		{
+			continue;
+		}
+		const bool duplicate = std::any_of(
+			result.begin(), result.end(), [&candidate](const AsioDriverCandidate& prior) {
+				return isEqual(prior.clsid, candidate.clsid);
+			});
+		if (!duplicate)
+			result.push_back(std::move(candidate));
+	}
+	return result;
+}
+
 std::wstring modulePath(HMODULE module)
 {
 	if (module == nullptr)
@@ -388,5 +447,131 @@ bool samePhysicalFile(
 ResolvedAsioTarget resolveAsioTarget(HMODULE proxyModule)
 {
 	return resolveWithRegistry(proxyModule);
+}
+
+AsioTargetControlState inspectAsioTargets(const std::wstring& proxyPath)
+{
+	AsioTargetControlState state;
+	state.proxyInstalled = installedProxyMatches(proxyPath);
+	if (!state.proxyInstalled)
+		return state;
+
+	const RegistryClsid user = readConfiguredClsid(HKEY_CURRENT_USER);
+	const RegistryClsid machine = readConfiguredClsid(HKEY_LOCAL_MACHINE);
+	state.userOverride = {user.present, user.valid, user.value};
+	state.machineDefault = {machine.present, machine.valid, machine.value};
+	state.candidates = controllableCandidates(proxyPath);
+	if ((user.present && !user.valid) ||
+		(!user.present && machine.present && !machine.valid))
+	{
+		state.status = TargetSelectionStatus::ConfiguredUnavailable;
+		return state;
+	}
+
+	const TargetSelection selection = selectTarget(
+		kDriverClsid,
+		user.present ? std::optional<CLSID>(user.value) : std::nullopt,
+		machine.present ? std::optional<CLSID>(machine.value) : std::nullopt,
+		state.candidates);
+	state.status = selection.status;
+	if (selection.status == TargetSelectionStatus::Selected &&
+		selection.candidateIndex < state.candidates.size())
+	{
+		state.selectedClsid = state.candidates[selection.candidateIndex].clsid;
+	}
+	return state;
+}
+
+AsioTargetUpdateStatus setUserAsioTarget(
+	const std::wstring& proxyPath,
+	const CLSID& target,
+	LONG* win32Error)
+{
+	if (win32Error != nullptr)
+		*win32Error = ERROR_SUCCESS;
+	const AsioTargetControlState state = inspectAsioTargets(proxyPath);
+	if (!state.proxyInstalled)
+		return AsioTargetUpdateStatus::ProxyUnavailable;
+	const bool allowed = std::any_of(
+		state.candidates.begin(), state.candidates.end(), [&target](const AsioDriverCandidate& candidate) {
+			return isEqual(candidate.clsid, target);
+		});
+	if (!allowed)
+		return AsioTargetUpdateStatus::InvalidTarget;
+
+	std::array<wchar_t, 40> clsidText{};
+	if (StringFromGUID2(target, clsidText.data(),
+		static_cast<int>(clsidText.size())) == 0)
+	{
+		return AsioTargetUpdateStatus::InvalidTarget;
+	}
+	HKEY key = nullptr;
+	LONG result = RegCreateKeyExW(
+		HKEY_CURRENT_USER,
+		kTargetRegistryKey,
+		0,
+		nullptr,
+		REG_OPTION_NON_VOLATILE,
+		KEY_SET_VALUE | KEY_QUERY_VALUE | KEY_WOW64_64KEY,
+		nullptr,
+		&key,
+		nullptr);
+	if (result == ERROR_SUCCESS)
+	{
+		result = RegSetValueExW(
+			key,
+			kTargetClsidValue,
+			0,
+			REG_SZ,
+			reinterpret_cast<const BYTE*>(clsidText.data()),
+			static_cast<DWORD>((std::wcslen(clsidText.data()) + 1) * sizeof(wchar_t)));
+		RegCloseKey(key);
+	}
+	if (result != ERROR_SUCCESS)
+	{
+		if (win32Error != nullptr)
+			*win32Error = result;
+		return AsioTargetUpdateStatus::RegistryError;
+	}
+	const RegistryClsid verified = readConfiguredClsid(HKEY_CURRENT_USER);
+	if (!verified.present || !verified.valid || !isEqual(verified.value, target))
+		return AsioTargetUpdateStatus::VerificationFailed;
+	return AsioTargetUpdateStatus::Updated;
+}
+
+AsioTargetUpdateStatus clearUserAsioTarget(
+	const std::wstring& proxyPath,
+	LONG* win32Error)
+{
+	if (win32Error != nullptr)
+		*win32Error = ERROR_SUCCESS;
+	if (!installedProxyMatches(proxyPath))
+		return AsioTargetUpdateStatus::ProxyUnavailable;
+	HKEY key = nullptr;
+	LONG result = RegOpenKeyExW(
+		HKEY_CURRENT_USER,
+		kTargetRegistryKey,
+		0,
+		KEY_SET_VALUE | KEY_QUERY_VALUE | KEY_WOW64_64KEY,
+		&key);
+	if (result == ERROR_FILE_NOT_FOUND || result == ERROR_PATH_NOT_FOUND)
+		return AsioTargetUpdateStatus::Updated;
+	if (result != ERROR_SUCCESS)
+	{
+		if (win32Error != nullptr)
+			*win32Error = result;
+		return AsioTargetUpdateStatus::RegistryError;
+	}
+	result = RegDeleteValueW(key, kTargetClsidValue);
+	RegCloseKey(key);
+	if (result != ERROR_SUCCESS && result != ERROR_FILE_NOT_FOUND)
+	{
+		if (win32Error != nullptr)
+			*win32Error = result;
+		return AsioTargetUpdateStatus::RegistryError;
+	}
+	if (readConfiguredClsid(HKEY_CURRENT_USER).present)
+		return AsioTargetUpdateStatus::VerificationFailed;
+	return AsioTargetUpdateStatus::Updated;
 }
 }

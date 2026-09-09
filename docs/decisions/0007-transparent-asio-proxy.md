@@ -22,6 +22,8 @@ DAW
 
 安裝程式只列舉 64-bit machine ASIO entries，排除自身。只有一個有效候選時可預選；有多個時由使用者明確選擇。無聲安裝可提供有效 `/ASIOCLSID={...}`、沿用既有有效 machine default、接受唯一候選，或以 `/NOASIOPROXY` 明確停用；若多個候選仍有歧義且未提供選擇，既有 silent install 仍可完成，但 proxy 保持未登錄，不能猜測或留下半設定的 driver。
 
+Configuration Editor 的 x64 版本在頂端標頭提供 ASIO 原廠 driver 下拉選單。它與 proxy runtime 共用安全的 discovery／驗證路徑：只列出通過 x64 PE、有效 COM registration 與實體檔案一致性檢查的候選，且不載入或啟用原廠 DLL；自身 proxy 永遠排除。編輯器只會把使用者選定的 target CLSID 寫入目前使用者的 `HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID`；選擇「Automatic／installer default」則只清除這個 user override，回到 installer 寫入的 machine default。這個控制面不改寫 vendor 的 `Software\ASIO`、CLSID、`InprocServer32` 或檔案。proxy 只在下一次 `IASIO::init` 讀取新選擇，因此下拉切換不是 hot switch；使用者必須讓 DAW 重新開啟音訊裝置，若舊的 host instance 仍持有 buffers 則完整重啟 host。非 x64 編輯器停用此控制。
+
 每個 DAW 第一次將 audio driver 切換為 `Hibiki EQAPO` 後，DAW 自己保存的全域裝置設定會套用到後續專案。這不是每個專案都要插入的效果器。
 
 ## Callback 與 buffer 所有權

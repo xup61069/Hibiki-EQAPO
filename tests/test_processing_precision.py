@@ -35,6 +35,16 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("if (!processingPrecisionEditable()) return false;", table)
         self.assertIn("filterTable->processingPrecisionEditable()", window)
         self.assertIn("table->setDoublePrecision(enabled)", window)
+        self.assertIn('QStringLiteral("doublePrecisionCheckBox")', window)
+        self.assertIn(
+            "doublePrecisionCheckBox->setToolTip(doublePrecisionAction->toolTip())",
+            window,
+        )
+        self.assertIn(
+            "doublePrecisionCheckBox, &QCheckBox::clicked,\n"
+            "\t\tdoublePrecisionAction, &QAction::setChecked",
+            window,
+        )
         method = table.split("bool FilterTable::setDoublePrecision(", 1)[1].split(
             "bool FilterTable::setLines(", 1
         )[0]
