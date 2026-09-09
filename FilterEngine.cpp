@@ -703,6 +703,8 @@ bool FilterEngine::loadConfig(const wstring& customPath)
 		lastChannelNames.clear();
 		lastNewChannelNames.clear();
 		lastInPlace = true;
+		loadingSinglePrecision = false;
+		precisionDirectiveSeen = false;
 		RegistryWatchSetTransaction watchTransaction(watchRegistryKeys);
 		parser->ClearVar();
 
@@ -957,6 +959,18 @@ void FilterEngine::loadConfigFile(const wstring& path)
 					addFilters(newFilters);
 					break;
 				}
+			}
+			if (key == L"ProcessingPrecision")
+			{
+				const wstring precision = StringHelper::trim(value);
+				if (precisionDirectiveSeen || (precision != L"32" && precision != L"64"))
+				{
+					LogF(L"ProcessingPrecision must occur once and contain 32 or 64");
+					throw ConfigurationFileLoadError();
+				}
+				precisionDirectiveSeen = true;
+				loadingSinglePrecision = precision == L"32";
+				key.clear();
 			}
 			// Device/If/Stage and the other control factories must see the line
 			// first: an inactive scope clears key and is safe to ignore. If an

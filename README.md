@@ -5,7 +5,7 @@
 [![建置](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml)
 [![最新版本](https://img.shields.io/github/v/release/xup61069/Hibiki-EQAPO)](https://github.com/xup61069/Hibiki-EQAPO/releases/latest)
 
-**Hibiki EQAPO** 是直接 fork 自 [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) 的 Windows x64 專案，沿用其系統層級雙精度音訊管線與 x64 VST2／VST3 音訊效果流程，並維護彼此獨立的公式響度校正與原版棚架響度校正、各自的校準工具、完整 Mixomo `exp` 功能線及繁體中文介面。
+**Hibiki EQAPO** 是直接 fork 自 [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) 的 Windows x64 專案，預設沿用其系統層級雙精度音訊管線與 x64 VST2／VST3 音訊效果流程，並維護彼此獨立的公式響度校正與原版棚架響度校正、各自的校準工具、完整 Mixomo `exp` 功能線及繁體中文介面。
 
 原始碼關係：[Equalizer APO](https://sourceforge.net/projects/equalizerapo/) → [TheFireKahuna/equalizerAPO64](https://github.com/TheFireKahuna/equalizerAPO64) → [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) → 本儲存庫。
 
@@ -201,6 +201,16 @@ A/B 與旁路都要求設定檔已儲存且沒有未儲存變更，兩者不能�
 
 - 若希望關閉視窗後只隱藏編輯器，請啟用**設定 → 繼續在通知區域執行**。通知區域選單可重新顯示編輯器、開啟設定檔供編輯、切換即時模式、旁路／還原目前設定檔及退出；真正退出前會先復原暫時 A/B 或旁路狀態。
 - 裝置測試會重新啟動 Windows Audio；初次失敗時也可能嘗試其他 APO 註冊模式，因此音訊可能中斷多次。取消採合作式停止：若替代安裝模式的註冊交易已開始，視窗會先完成該交易與必要的 Windows Audio 重新啟動，不會留下只套用一半的裝置狀態。
+
+### 介面縮放、動畫與處理精度
+
+- 「檢視 → 介面縮放」提供 75%～200%，重新啟動編輯器後套用；遇到未儲存的設定可取消切換。此設定會與 Windows 顯示縮放相乘。
+- 「檢視 → 介面動畫」可停用短動畫與平滑捲動。精密觸控板保留原生捲動，頻率圖仍使用自己的縮放手勢。
+- 「設定 → 裝置選擇器」可開啟同資料夾的 DeviceSelector。
+- 「設定 → 雙精度」控制目前設定檔的整條訊號鏈。預設開啟；關閉會寫入 `ProcessingPrecision: 32`，開啟則寫入 `ProcessingPrecision: 64`。即時模式會依既有流程儲存；否則儲存設定檔後才生效。
+- 32 位元模式在每個元件之間使用 `float` 緩衝，支援的元件使用原生單精度核心；其他元件由預先配置的轉換緩衝銜接原有雙精度核心。係數、校準、FFT、外掛或響度元件內部不保證使用單精度，因此不保證降低 CPU 或記憶體用量。64 位元模式保留原有音訊路徑。
+- 包含引入檔案（`Include`）、裝置或條件作用域的複雜設定，選單會停用並提示以文字編輯 `ProcessingPrecision`，避免從單一分頁推測精度或產生重複宣告。
+- 精度指令在整份展開後的有效設定中最多出現一次，包含 `Include` 檔案；只接受 `32` 或 `64`。省略時為 64 位元，重複或無效值會拒絕新設定，保留正在使用的設定。切換使用原有交叉淡化，離線分析也讀取同一個精度設定；不會更改 Windows 裝置的輸出位元深度。
 
 ### 分析面板、響應動畫與自動前級
 

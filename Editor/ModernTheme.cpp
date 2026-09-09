@@ -376,6 +376,15 @@ QFrame#studioHeader {
     border: none;
     border-bottom: 1px solid @border;
 }
+QFrame#referenceContourCard, QFrame#offsetContourCard, QFrame#strengthContourCard,
+QFrame#listeningCard {
+    background: @surface;
+    border: 1px solid @border;
+    border-radius: 6px;
+}
+QFrame#listeningCard QLabel#volumeSourceLabel {
+    color: @muted;
+}
 QLabel#studioWordmark {
     color: @text;
     font-size: 22pt;

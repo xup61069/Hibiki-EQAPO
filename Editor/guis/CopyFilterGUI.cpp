@@ -243,7 +243,8 @@ int CopyFilterGUI::preferredHeight() const
 	const int contentHeight = ui->scrollArea ? ui->scrollArea->height() : boundedScaledHeight(DEFAULT_HEIGHT);
 	const int labelHeight = ui->copyLabel ? ui->copyLabel->sizeHint().height() : GUIHelper::scale(20);
 	const int spacing = ui->gridLayout ? ui->gridLayout->verticalSpacing() : GUIHelper::scale(4);
-	return contentHeight + labelHeight + spacing + GUIHelper::scale(8);
+	return qMax(contentHeight + labelHeight + spacing + GUIHelper::scale(8),
+		layout()->totalSizeHint().height());
 }
 
 QSize CopyFilterGUI::sizeHint() const

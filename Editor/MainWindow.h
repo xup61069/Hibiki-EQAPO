@@ -141,6 +141,7 @@ private:
 	void refreshProfileMenus();
 	void syncProfileSelection();
 	void refreshWorkspaceActionState();
+	QAction* doublePrecisionAction = nullptr;
 	void invalidateAnalysisResult();
 	void refreshAutoPreampActionState();
 	bool analysisResultCanAdjustPreamp() const;

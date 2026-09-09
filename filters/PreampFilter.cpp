@@ -114,4 +114,12 @@ void PreampFilter::process(double** output, double** input, unsigned frameCount)
         }
     }
 }
+bool PreampFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	const float multiplier = static_cast<float>(gain);
+	for (size_t channel = 0; channel < channelCount; ++channel)
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+			output[channel][frame] = input[channel][frame] * multiplier;
+	return true;
+}
 #pragma AVRT_CODE_END

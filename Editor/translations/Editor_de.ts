@@ -444,7 +444,7 @@
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
         <source>Chorus</source>
-        <translation type="unfinished"></translation>
+        <translation>Chorus</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
@@ -819,7 +819,7 @@ Change the file permissions or copy the file to the config directory.</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
         <source>Crossfeed</source>
-        <translation type="unfinished"></translation>
+        <translation>Crossfeed</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
@@ -3508,6 +3508,46 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
         <source>Calibration contour is temporarily bypassed</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Device Selector…</source>
+        <translation>Geräteauswahl…</translation>
+    </message>
+    <message>
+        <source>Interface scale (restart)</source>
+        <translation>Oberflächenskalierung (Neustart)</translation>
+    </message>
+    <message>
+        <source>Interface animations</source>
+        <translation>Oberflächenanimationen</translation>
+    </message>
+    <message>
+        <source>Device Selector</source>
+        <translation>Geräteauswahl</translation>
+    </message>
+    <message>
+        <source>Could not open Device Selector. Check that DeviceSelector.exe is installed beside the editor.</source>
+        <translation>Die Geräteauswahl konnte nicht geöffnet werden. Prüfen Sie, ob DeviceSelector.exe im selben Ordner wie der Editor installiert ist.</translation>
+    </message>
+    <message>
+        <source>Double precision (64-bit signal path)</source>
+        <translation>Doppelte Genauigkeit (64-Bit-Signalweg)</translation>
+    </message>
+    <message>
+        <source>Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off.</source>
+        <translation>Gilt für die aktuelle Konfiguration. Aus: 32-Bit-Audio zwischen Modulen; spezielle Filter können intern doppelte Genauigkeit behalten. Ohne Sofortmodus zum Anwenden speichern.</translation>
+    </message>
+    <message>
+        <source>Could not change precision. Check for duplicate or invalid ProcessingPrecision entries.</source>
+        <translation>Genauigkeit konnte nicht geändert werden. Prüfen Sie ProcessingPrecision auf doppelte oder ungültige Einträge.</translation>
+    </message>
+    <message>
+        <source>This configuration contains scopes or included files. Edit ProcessingPrecision in the configuration text to choose the effective signal-path format.</source>
+        <translation>Diese Konfiguration enthält Geltungsbereiche oder eingebundene Dateien. Bearbeiten Sie ProcessingPrecision im Konfigurationstext, um das Signalformat festzulegen.</translation>
+    </message>
+    <message>
+        <source>Processing precision (see configuration)</source>
+        <translation>Verarbeitungsgenauigkeit (siehe Konfiguration)</translation>
+    </message>
 </context>
 <context>
     <name>OriginalLoudnessCorrectionCalibrationDialog</name>
@@ -3800,7 +3840,7 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
         <source>Pan</source>
-        <translation type="unfinished"></translation>
+        <translation>Panorama</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
@@ -3881,6 +3921,11 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
         <source>Parametric equalizer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="../FilterTableRow.cpp" line="74"/>
+        <source>Parametric EQ</source>
+        <translation>Parametrischer EQ</translation>
+    </message>
 </context>
 <context>
     <name>PreampFilterGUI</name>
@@ -3923,7 +3968,7 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
         <source>Reverb</source>
-        <translation type="unfinished"></translation>
+        <translation>Hall</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
@@ -3978,7 +4023,7 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
         <source>Tone generator</source>
-        <translation type="unfinished"></translation>
+        <translation>Tongenerator</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
@@ -4648,7 +4693,7 @@ Change the file permissions or copy the files to the config directory.</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>
         <source>VU meter</source>
-        <translation type="unfinished"></translation>
+        <translation>VU-Meter</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>

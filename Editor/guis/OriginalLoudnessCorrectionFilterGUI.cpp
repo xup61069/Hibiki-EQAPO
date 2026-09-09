@@ -102,7 +102,7 @@ OriginalLoudnessCorrectionFilterGUI::OriginalLoudnessCorrectionFilterGUI(
 	QGridLayout* root = new QGridLayout(this);
 	root->setContentsMargins(0, 0, 0, 0);
 	root->setHorizontalSpacing(GUIHelper::scale(10));
-	root->setVerticalSpacing(GUIHelper::scale(5));
+	root->setVerticalSpacing(GUIHelper::scale(12));
 
 	headerLayout = new QGridLayout;
 	headerLayout->setContentsMargins(0, 0, 0, 0);
@@ -113,6 +113,11 @@ OriginalLoudnessCorrectionFilterGUI::OriginalLoudnessCorrectionFilterGUI(
 	titleLabel = new QLabel(
 		tr("Loudness correction (original):"), this);
 	titleLabel->setObjectName(QStringLiteral("originalLoudnessTitle"));
+	titleLabel->setMinimumHeight(GUIHelper::scale(32));
+	titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont titleFont = titleLabel->font();
+	titleFont.setWeight(QFont::DemiBold);
+	titleLabel->setFont(titleFont);
 	enabledCheckBox = new QCheckBox(tr("Enabled"), this);
 	enabledCheckBox->setChecked(state);
 	enabledCheckBox->setToolTip(tr(

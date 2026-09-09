@@ -1,5 +1,6 @@
 <RCC>
     <qresource prefix="/">
+        <file>icons/hibiki-editor.ico</file>
         <file>translations/Editor_de.qm</file>
         <file>translations/qtbase_de.qm</file>
         <file>sounds/pinkNoise.flac</file>

@@ -45,7 +45,7 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 
 	// The original single-row form had a minimum width well above a narrow
 	// Editor viewport once translated text or Windows text scaling was active.
-	// Keep the same controls, but arrange them as a compact two-by-two grid.
+	// Keep a dedicated identity row above three aligned parameter columns.
 	while (QLayoutItem* item = ui->gridLayout->takeAt(0))
 		delete item;
 
@@ -81,15 +81,16 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 	ui->gridLayout->setContentsMargins(0, 0, 0, 0);
 	ui->gridLayout->setHorizontalSpacing(compactSpacing);
 	ui->gridLayout->setVerticalSpacing(GUIHelper::scale(6));
-	ui->gridLayout->addLayout(typeLayout, 0, 0);
+	ui->gridLayout->addLayout(typeLayout, 0, 0, 1, 3);
 	ui->gridLayout->addLayout(parameterLayout(
-		ui->freqDial, ui->freqComboBox, ui->freqSpinBox), 0, 1);
+		ui->freqDial, ui->freqComboBox, ui->freqSpinBox), 1, 0);
 	ui->gridLayout->addLayout(parameterLayout(
-		ui->gainDial, ui->gainLabel, ui->gainSpinBox), 1, 0);
+		ui->gainDial, ui->gainLabel, ui->gainSpinBox), 1, 1);
 	ui->gridLayout->addLayout(parameterLayout(
-		ui->qDial, ui->qComboBox, ui->qSpinBox), 1, 1);
+		ui->qDial, ui->qComboBox, ui->qSpinBox), 1, 2);
 	ui->gridLayout->setColumnStretch(0, 1);
 	ui->gridLayout->setColumnStretch(1, 1);
+	ui->gridLayout->setColumnStretch(2, 1);
 	setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 	setMinimumWidth(0);
 

@@ -28,6 +28,8 @@
 #include <QFile>
 #include <QDir>
 #include <QTextStream>
+#include <QVBoxLayout>
+#include <QMap>
 #include <algorithm>
 
 #include "Editor/helpers/GUIHelper.h"
@@ -36,6 +38,69 @@
 
 namespace
 {
+	void detachFromLayout(QLayout* layout, QWidget* widget)
+	{
+		layout->removeWidget(widget);
+		for (int i = 0; i < layout->count(); ++i)
+			if (QLayout* child = layout->itemAt(i)->layout())
+				detachFromLayout(child, widget);
+	}
+
+	void normalizeModuleHeader(IFilterGUI* gui)
+	{
+		if (gui->property("studioHeaderNormalized").toBool()) return;
+		gui->setProperty("studioHeaderNormalized", true);
+		for (auto* child : gui->findChildren<IFilterGUI*>())
+			normalizeModuleHeader(child);
+		// Explicit identities avoid mistaking parameter labels for module titles.
+		const QMap<QString, QString> titles = {
+			{"PreampFilterGUI", "label"}, {"DelayFilterGUI", "delayLabel"},
+			{"ChannelFilterGUI", "label"}, {"DeviceFilterGUI", "label"},
+			{"StageFilterGUI", "label"}, {"GraphicEQFilterGUI", "label"},
+			{"IncludeFilterGUI", "includeLabel"}, {"CopyFilterGUI", "copyLabel"},
+			{"ConvolutionFilterGUI", "convolutionLabel"}, {"VSTPluginFilterGUI", "label"},
+			{"LoudnessCorrectionFilterGUI", "label"}, {"BiQuadFilterGUI", "typeComboBox"}
+		};
+		const QString name = titles.value(QString::fromLatin1(gui->metaObject()->className()));
+		if (!gui->layout()) return;
+		QWidget* title = name.isEmpty() ? nullptr : gui->findChild<QWidget*>(name);
+		const QMap<QString, QPair<const char*, const char*>> generatedTitles = {
+			{"PanFilterGUI", {"PanFilterGUIFactory", QT_TRANSLATE_NOOP("PanFilterGUIFactory", "Pan")}},
+			{"CrossfeedFilterGUI", {"CrossfeedFilterGUIFactory", QT_TRANSLATE_NOOP("CrossfeedFilterGUIFactory", "Crossfeed")}},
+			{"ChorusFilterGUI", {"ChorusFilterGUIFactory", QT_TRANSLATE_NOOP("ChorusFilterGUIFactory", "Chorus")}},
+			{"ReverbFilterGUI", {"ReverbFilterGUIFactory", QT_TRANSLATE_NOOP("ReverbFilterGUIFactory", "Reverb")}},
+			{"ToneGeneratorFilterGUI", {"ToneGeneratorFilterGUIFactory", QT_TRANSLATE_NOOP("ToneGeneratorFilterGUIFactory", "Tone generator")}},
+			{"VUMeterFilterGUI", {"VUMeterFilterGUIFactory", QT_TRANSLATE_NOOP("VUMeterFilterGUIFactory", "VU meter")}},
+			{"ParametricEQFilterGUI", {"ParametricEQFilterGUIFactory", QT_TRANSLATE_NOOP("ParametricEQFilterGUIFactory", "Parametric EQ")}}
+		};
+		if (!title && generatedTitles.contains(gui->objectName()))
+		{
+			const auto text = generatedTitles.value(gui->objectName());
+			title = new QLabel(QCoreApplication::translate(text.first, text.second), gui);
+			title->setObjectName(QStringLiteral("studioGeneratedTitle"));
+		}
+		if (!title) return;
+		detachFromLayout(gui->layout(), title);
+		auto* body = new QWidget(gui);
+		body->setObjectName(QStringLiteral("studioModuleBody"));
+		body->setLayout(gui->layout());
+		auto* root = new QVBoxLayout(gui);
+		root->setContentsMargins(0, 0, 0, 0);
+		root->setSpacing(GUIHelper::scale(10));
+		title->setProperty("studioModuleTitle", true);
+		title->setMinimumHeight(GUIHelper::scale(32));
+		title->setSizePolicy(title->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
+		if (auto* label = qobject_cast<QLabel*>(title))
+		{
+			label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+			QFont font = label->font();
+			font.setWeight(QFont::DemiBold);
+			label->setFont(font);
+		}
+		root->addWidget(title, 0, Qt::AlignLeft);
+		root->addWidget(body);
+	}
+
 	class ElidingCommandLabel final : public QLabel
 	{
 	public:
@@ -112,11 +177,13 @@ FilterTableRow::FilterTableRow(FilterTable* table, int number, FilterTable::Item
 	ui->actionEditText->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::Edit));
 	setAttribute(Qt::WA_StyledBackground, false);
 	ui->labelNumber->setMinimumWidth(GUIHelper::scale(38));
+	ui->labelNumber->setAlignment(Qt::AlignHCenter | Qt::AlignTop);
+	ui->labelNumber->setContentsMargins(0, GUIHelper::scale(12), 0, 0);
 	ui->horizontalLayout->setContentsMargins(
 		0,
-		GUIHelper::scale(1),
+		GUIHelper::scale(12),
 		GUIHelper::scale(6),
-		0);
+		GUIHelper::scale(8));
 	QFont numberFont = font();
 	numberFont.setWeight(QFont::DemiBold);
 	ui->labelNumber->setFont(numberFont);
@@ -144,6 +211,7 @@ FilterTableRow::FilterTableRow(FilterTable* table, int number, FilterTable::Item
 
 	if (gui != NULL)
 	{
+		normalizeModuleHeader(gui);
 		connect(gui, SIGNAL(updateModel()), this, SLOT(updateModel()));
 		ui->stackedWidget->addWidget(gui);
 	}

@@ -87,6 +87,7 @@ public:
 	unsigned getChannelMask() const {return channelMask;}
 	float getSampleRate() const {return sampleRate;}
 	unsigned getMaxFrameCount() const {return maxFrameCount;}
+	bool getLoadingSinglePrecision() const {return loadingSinglePrecision;}
 	bool hasActiveConfiguration() const noexcept
 	{
 		return currentConfig.load(std::memory_order_acquire) != nullptr;
@@ -145,6 +146,8 @@ private:
 	unsigned maxFrameCount;
 
 	// only used during loading
+	bool loadingSinglePrecision = false;
+	bool precisionDirectiveSeen = false;
 	std::vector<FilterInfo*> filterInfos;
 	std::vector<std::wstring> currentChannelNames;
 	std::vector<std::wstring> lastChannelNames;

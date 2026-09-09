@@ -1,5 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include <QApplication>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QWheelEvent>
 #include <QDial>
 #include <QPointer>
 #include <QPushButton>
@@ -126,6 +129,62 @@ private slots:
 		QTest::qWait(220);
 		QCOMPARE(dial.property("studioDialValue").toReal(), 200.0);
 		QCOMPARE(changes.count(), 2);
+	}
+
+	void smoothScrollAccumulatesAndYieldsToNavigation()
+	{
+		QScrollArea area;
+		auto* content = new QWidget;
+		content->resize(240, 4000);
+		area.setWidget(content);
+		area.resize(300, 200);
+		area.show();
+		QTest::qWait(20);
+		auto wheel = [&area](int delta) {
+			QWheelEvent event(QPointF(20, 20), QPointF(20, 20), QPoint(), QPoint(0, delta),
+				Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+			QApplication::sendEvent(area.viewport(), &event);
+		};
+		auto* bar = area.verticalScrollBar();
+		wheel(-120);
+		QCOMPARE(bar->value(), 0);
+		QTest::qWait(60);
+		QVERIFY(bar->value() > 0);
+		wheel(-120);
+		QTest::qWait(280);
+		const int twoSteps = bar->value();
+		QVERIFY(twoSteps > QApplication::wheelScrollLines() * area.fontMetrics().height());
+		wheel(-120);
+		bar->setValue(700);
+		QTest::qWait(280);
+		QCOMPARE(bar->value(), 700);
+		wheel(-120);
+		area.hide();
+		for (auto* animation : area.findChildren<QVariantAnimation*>())
+			QCOMPARE(animation->state(), QAbstractAnimation::Stopped);
+	}
+
+	void smoothScrollHonorsReducedMotionAndBounds()
+	{
+		QScrollArea area;
+		auto* content = new QWidget;
+		content->resize(240, 1000);
+		area.setWidget(content);
+		area.resize(300, 200);
+		area.show();
+		QTest::qWait(20);
+		qApp->setProperty("eqapoDisableAnimations", true);
+		QWheelEvent event(QPointF(20, 20), QPointF(20, 20), QPoint(), QPoint(0, -120),
+			Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false);
+		QApplication::sendEvent(area.viewport(), &event);
+		QVERIFY(area.verticalScrollBar()->value() > 0);
+		for (auto* animation : area.findChildren<QVariantAnimation*>())
+			QCOMPARE(animation->state(), QAbstractAnimation::Stopped);
+		qApp->setProperty("eqapoDisableAnimations", false);
+		area.verticalScrollBar()->setValue(area.verticalScrollBar()->maximum());
+		QApplication::sendEvent(area.viewport(), &event);
+		QTest::qWait(280);
+		QCOMPARE(area.verticalScrollBar()->value(), area.verticalScrollBar()->maximum());
 	}
 
 	void signatureStopsWhenHidden()

@@ -58,9 +58,22 @@ int main(int argc, char* argv[])
 	qputenv("QT_PLUGIN_PATH", QDir::toNativeSeparators(qtPluginDir).toLocal8Bit());
 
 	bool restart;
+	const QByteArray platformScale = qgetenv("QT_SCALE_FACTOR");
 	do
 	{
+		int interfaceScale = 100;
+		if (!UiSnapshot::requested())
+		{
+			QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+			interfaceScale = qBound(75, settings.value("interfaceScale", 100).toInt(), 200);
+			bool valid = false;
+			const double externalScale = platformScale.toDouble(&valid);
+			qputenv("QT_SCALE_FACTOR", QByteArray::number(
+				(valid && externalScale > 0 ? externalScale : 1.0) * interfaceScale / 100.0));
+		}
 		QApplication application(argc, argv);
+		application.setProperty("studioInterfaceScale", interfaceScale);
+		application.setWindowIcon(QIcon(QStringLiteral(":/icons/hibiki-editor.ico")));
 		application.setStyle("fusion");
 		application.setStyle(new CustomStyle(application.style()));
 		ModernTheme::install(application);

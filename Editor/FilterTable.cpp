@@ -20,6 +20,7 @@
 #include <QDrag>
 #include <QMimeData>
 #include <QApplication>
+#include <QSignalBlocker>
 #include <QClipboard>
 #include <QCursor>
 #include <QLabel>
@@ -721,6 +722,47 @@ bool FilterTable::applyPreampReduction(const PreampAdjustmentPlan& plan)
 		QStringLiteral("Preamp: %1 dB").arg(plan.targetDbGain, 0, 'f', 2),
 		before);
 	updateGuis();
+	return true;
+}
+
+bool FilterTable::processingPrecisionEditable() const
+{
+	// Do not infer the effective engine format from one tab when scopes or
+	// included files can contribute another active declaration.
+	for (const Item* item : items)
+	{
+		const QString key = item->text.section(':', 0, 0).trimmed();
+		if (key == "Include" || key == "Device" || key == "Stage"
+			|| key == "If" || key == "ElseIf" || key == "Else" || key == "EndIf"
+			|| key == "Eval" || key == "Expression") return false;
+	}
+	return true;
+}
+
+bool FilterTable::setDoublePrecision(bool enabled)
+{
+	if (!processingPrecisionEditable()) return false;
+	Item* precisionItem = nullptr;
+	for (Item* item : items)
+	{
+		const QString text = item->text.trimmed();
+		if (text.section(':', 0, 0).trimmed() != QStringLiteral("ProcessingPrecision")) continue;
+		const QString value = text.mid(text.indexOf(':') + 1).trimmed();
+		if (precisionItem || (value != "32" && value != "64")) return false;
+		precisionItem = item;
+	}
+	const QString line = QStringLiteral("ProcessingPrecision: %1").arg(enabled ? 64 : 32);
+	if (precisionItem)
+	{
+		if (!replaceItemText(precisionItem, line)) return false;
+	}
+	else
+	{
+		QSignalBlocker blocker(this);
+		addLine(line, items.isEmpty() ? nullptr : items.first());
+	}
+	updateGuis();
+	updateModel();
 	return true;
 }
 

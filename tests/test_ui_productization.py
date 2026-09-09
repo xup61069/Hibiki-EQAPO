@@ -180,7 +180,7 @@ class UiProductizationTests(unittest.TestCase):
             "resetRect.intersects(editorRect)",
             "resetRect.intersects(titleRect)",
             "tabsRect.right() < resetRect.right()",
-            "title->alignment() & Qt::AlignTop",
+            "title->alignment() & Qt::AlignVCenter",
         ):
             with self.subTest(runtime_geometry_contract=token):
                 self.assertIn(token, snapshot_validation)

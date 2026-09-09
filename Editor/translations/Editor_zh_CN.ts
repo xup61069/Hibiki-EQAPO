@@ -444,7 +444,7 @@
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
         <source>Chorus</source>
-        <translation type="unfinished"></translation>
+        <translation>合唱</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1096"/>
@@ -819,7 +819,7 @@ Change the file permissions or copy the file to the config directory.</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
         <source>Crossfeed</source>
-        <translation type="unfinished"></translation>
+        <translation>交叉馈送</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1086"/>
@@ -3507,6 +3507,46 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <source>Calibration contour is temporarily bypassed</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <source>Device Selector…</source>
+        <translation>设备选择器…</translation>
+    </message>
+    <message>
+        <source>Interface scale (restart)</source>
+        <translation>界面缩放（重新启动）</translation>
+    </message>
+    <message>
+        <source>Interface animations</source>
+        <translation>界面动画</translation>
+    </message>
+    <message>
+        <source>Device Selector</source>
+        <translation>设备选择器</translation>
+    </message>
+    <message>
+        <source>Could not open Device Selector. Check that DeviceSelector.exe is installed beside the editor.</source>
+        <translation>无法打开设备选择器。请确认 DeviceSelector.exe 与编辑器安装在同一个文件夹。</translation>
+    </message>
+    <message>
+        <source>Double precision (64-bit signal path)</source>
+        <translation>双精度（64 位信号链）</translation>
+    </message>
+    <message>
+        <source>Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off.</source>
+        <translation>应用于当前配置。关闭后，模块之间使用 32 位音频；特殊滤波器内部仍可能使用双精度。未启用即时模式时，保存后才会应用。</translation>
+    </message>
+    <message>
+        <source>Could not change precision. Check for duplicate or invalid ProcessingPrecision entries.</source>
+        <translation>无法更改精度。请检查 ProcessingPrecision 是否重复或包含无效值。</translation>
+    </message>
+    <message>
+        <source>This configuration contains scopes or included files. Edit ProcessingPrecision in the configuration text to choose the effective signal-path format.</source>
+        <translation>此配置包含作用域或引入文件。请在配置文本中编辑 ProcessingPrecision，选择实际使用的信号链精度。</translation>
+    </message>
+    <message>
+        <source>Processing precision (see configuration)</source>
+        <translation>处理精度（请查看配置文本）</translation>
+    </message>
 </context>
 <context>
     <name>OriginalLoudnessCorrectionCalibrationDialog</name>
@@ -3799,7 +3839,7 @@ Do you want to run the Device Selector application to fix the problem?</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
         <source>Pan</source>
-        <translation type="unfinished"></translation>
+        <translation>声像</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1076"/>
@@ -3880,6 +3920,11 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <source>Parametric equalizer</source>
         <translation type="unfinished"></translation>
     </message>
+    <message>
+        <location filename="../FilterTableRow.cpp" line="74"/>
+        <source>Parametric EQ</source>
+        <translation>参数均衡器</translation>
+    </message>
 </context>
 <context>
     <name>PreampFilterGUI</name>
@@ -3922,7 +3967,7 @@ Do you want to run the Device Selector application to fix the problem?</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
         <source>Reverb</source>
-        <translation type="unfinished"></translation>
+        <translation>混响</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1106"/>
@@ -3977,7 +4022,7 @@ Do you want to run the Device Selector application to fix the problem?</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
         <source>Tone generator</source>
-        <translation type="unfinished"></translation>
+        <translation>音调发生器</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1066"/>
@@ -4647,7 +4692,7 @@ Change the file permissions or copy the files to the config directory.</source>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>
         <source>VU meter</source>
-        <translation type="unfinished"></translation>
+        <translation>VU 表</translation>
     </message>
     <message>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="1116"/>

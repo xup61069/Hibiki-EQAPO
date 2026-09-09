@@ -83,6 +83,8 @@ public:
 		QList<QString>* lines) const;
 	bool planPreampReduction(double reductionDb, PreampAdjustmentPlan* plan) const;
 	bool applyPreampReduction(const PreampAdjustmentPlan& plan);
+	bool setDoublePrecision(bool enabled);
+	bool processingPrecisionEditable() const;
 	bool setLines(const QString& configPath, const QList<QString>& lines);
 	bool prepareDeleteAllItems();
 	bool commitDeleteAllItems();

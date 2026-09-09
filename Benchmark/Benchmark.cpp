@@ -49,6 +49,7 @@
 #include "../filters/ConvolutionFilter.h"
 #include "../filters/GraphicEQFilter.h"
 #include "../filters/BiQuadFilterFactory.h"
+#include "../filters/BiQuadFilter.h"
 #include "../filters/CopyFilterFactory.h"
 #include "../filters/DelayFilter.h"
 #include "../filters/DelayFilterFactory.h"
@@ -2943,6 +2944,151 @@ namespace
 		return succeeded;
 	}
 
+	bool runProcessingPrecisionTests()
+	{
+		wchar_t directory[MAX_PATH] = {}, filename[MAX_PATH] = {};
+		if (!GetTempPathW(MAX_PATH, directory) || !GetTempFileNameW(directory, L"EPP", 0, filename))
+			return false;
+		const std::wstring path(filename);
+		bool passed = true;
+		const double input = 0.123456789123456;
+		const double gain = std::pow(10.0, -3.0 / 20.0);
+		const float gain32 = static_cast<float>(gain);
+		const double expected32 = (static_cast<float>(input) * gain32) * gain32;
+		const double expected64 = input * gain * gain;
+		for (const char* directive : {"", "ProcessingPrecision: 64\r\n", "ProcessingPrecision: 32\r\n"})
+		{
+			const std::string configuration = std::string(directive) + "Preamp: -3 dB\r\nPreamp: -3 dB\r\n";
+			passed = writeFilterEngineTestConfig(path, configuration.c_str()) && passed;
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = input, output = 0;
+			engine.process(&output, &sample, 1);
+			const bool single = std::string(directive).find("32") != std::string::npos;
+			passed = engine.hasActiveConfiguration() && output == (single ? expected32 : expected64) && passed;
+		}
+		// Single precision is a bus format, including empty chains and virtual
+		// channel routing through a double-only compatibility kernel.
+		passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 32\r\nCopy: L=R R=L\r\nPreamp: -3 dB\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 2, 2, 2, 3, 16, path);
+			double inputChannels[2] = {input, -input * 0.731};
+			double outputChannels[2] = {};
+			engine.process(outputChannels, inputChannels, 1);
+			passed = outputChannels[0] == static_cast<float>(inputChannels[1]) * gain32
+				&& outputChannels[1] == static_cast<float>(inputChannels[0]) * gain32 && passed;
+		}
+		// Exercise unequal route counts, compressed input mappings after Copy,
+		// and virtual channels across alternating banks and changing block sizes.
+		for (const char* route : {
+			"Copy: R=L\r\nChannel: R\r\nPreamp: -3 dB\r\n",
+			"Channel: R\r\nCopy: R=L\r\nPreamp: -3 dB\r\n",
+			"Copy: X=L\r\nChannel: X\r\nPreamp: -3 dB\r\nCopy: R=X\r\n"})
+		{
+			const std::string configuration = std::string("ProcessingPrecision: 32\r\n") + route;
+			passed = writeFilterEngineTestConfig(path, configuration.c_str()) && passed;
+			FilterEngine engine;
+			engine.initialize(48000.0f, 2, 2, 2, 3, 16, path);
+			passed = engine.hasActiveConfiguration() && passed;
+			for (unsigned block = 0; block < 12; ++block)
+			{
+				const unsigned frameCount = 1 + (block * 7) % 16;
+				double inputChannels[32] = {}, outputChannels[32] = {};
+				for (unsigned frame = 0; frame < frameCount; ++frame)
+				{
+					inputChannels[2 * frame] = input * (1 + block) - 0.031 * frame;
+					inputChannels[2 * frame + 1] = -input * (2 + frame) + 0.019 * block;
+				}
+				engine.process(outputChannels, inputChannels, frameCount);
+				for (unsigned frame = 0; frame < frameCount; ++frame)
+				{
+					const float left = static_cast<float>(inputChannels[2 * frame]);
+					const float right = left * gain32;
+					passed = outputChannels[2 * frame] == left
+						&& outputChannels[2 * frame + 1] == right && passed;
+				}
+			}
+		}
+		// Inactive scopes must neither reject unknown values nor consume the
+		// one effective precision declaration. They must also preserve default 64.
+		struct ScopedPrecisionCase
+		{
+			const char* configuration;
+			bool single;
+		};
+		for (const ScopedPrecisionCase& scoped : {
+			ScopedPrecisionCase{"If: 0\r\nProcessingPrecision: invalid\r\nEndIf:\r\nProcessingPrecision: 32\r\nPreamp: -3 dB\r\n", true},
+			ScopedPrecisionCase{"Device: precision-test-nonmatching-device\r\nProcessingPrecision: invalid\r\nDevice: all\r\nProcessingPrecision: 32\r\nPreamp: -3 dB\r\n", true},
+			ScopedPrecisionCase{"If: 0\r\nProcessingPrecision: 32\r\nEndIf:\r\nPreamp: -3 dB\r\n", false}})
+		{
+			passed = writeFilterEngineTestConfig(path, scoped.configuration) && passed;
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = input, output = 0;
+			engine.process(&output, &sample, 1);
+			const double expected = scoped.single ? static_cast<float>(input) * gain32 : input * gain;
+			passed = engine.hasActiveConfiguration() && output == expected && passed;
+		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nPreamp: -3 dB\r\nFilter: ON PK Fc 1000 Hz Gain 3 dB Q 1\r\nFilter: ON PK Fc 2000 Hz Gain -2 dB Q 0.7\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			BiQuadFilter first(BiQuad::PEAKING, 3, 1000, 1, false, false);
+			BiQuadFilter second(BiQuad::PEAKING, -2, 2000, 0.7, false, false);
+			first.initialize(48000.0f, 16, {L"L"});
+			second.initialize(48000.0f, 16, {L"L"});
+			for (unsigned frame = 0; frame < 80; ++frame)
+			{
+				double sample = frame == 0 ? input : 0.0, output = 0.0;
+				double expected = static_cast<float>(sample) * gain32;
+				double* pointer = &expected;
+				first.process(&pointer, &pointer, 1);
+				expected = static_cast<float>(expected);
+				second.process(&pointer, &pointer, 1);
+				expected = static_cast<float>(expected);
+				engine.process(&output, &sample, 1);
+				passed = output == expected && passed;
+			}
+		}
+		passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 32\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = input, output = 0;
+			engine.process(&output, &sample, 1);
+			passed = output == static_cast<float>(input) && passed;
+			// Invalid reloads keep the existing configuration; valid precision
+			// changes use the same pending/retired ownership protocol as filters.
+			for (const char* invalid : {"ProcessingPrecision: 16\r\n", "ProcessingPrecision: 32\r\nProcessingPrecision: 64\r\n"})
+			{
+				passed = writeFilterEngineTestConfig(path, invalid) && passed;
+				passed = !engine.loadConfig(path) && passed;
+				engine.process(&output, &sample, 1);
+				passed = output == static_cast<float>(input) && passed;
+			}
+			passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 64\r\nPreamp: -3 dB\r\n") && passed;
+			passed = engine.loadConfig(path) && passed;
+			const unsigned transitionLength = FilterEngineTestAccess::transitionLength(engine);
+			passed = transitionLength == 480 && passed;
+			for (unsigned frame = 0; frame < 500; ++frame)
+			{
+				engine.process(&output, &sample, 1);
+				const double factor = frame < transitionLength && transitionLength != 0
+					? 0.5 * (1.0 - std::cos(frame * std::acos(-1.0) / transitionLength)) : 1.0;
+				const double expected = static_cast<double>(static_cast<float>(input)) * (1.0 - factor)
+					+ input * gain * factor;
+				passed = std::isfinite(output) && std::abs(output - expected) < 1e-14 && passed;
+			}
+			passed = !FilterEngineTestAccess::hasPendingConfiguration(engine)
+				&& output == input * gain && passed;
+		}
+		DeleteFileW(filename);
+		printf("FilterEngine 32/64-bit signal path and reload: %s\n", passed ? "PASS" : "FAIL");
+		return passed;
+	}
+
 	bool runFilterEngineFailedReloadTransactionTests()
 	{
 		wchar_t tempDirectory[MAX_PATH] = {};
@@ -4150,6 +4296,7 @@ namespace
 		passed = runLoudnessOfflineAnalysisTests() && passed;
 		passed = runFilterEngineDeviceInfoReuseTests() && passed;
 		passed = runFilterEngineFailedReloadTransactionTests() && passed;
+		passed = runProcessingPrecisionTests() && passed;
 		passed = runLoudnessCrossoverCoefficientTests() && passed;
 		passed = runLoudnessResponseAggregationTests() && passed;
 		for (LoudnessCorrectionFilter::FilterParameters::EngineMode engine : {
@@ -4493,6 +4640,8 @@ int main(int argc, char** argv)
 		TCLAP::SwitchArg loudnessTransitionTestArg(
 			"", "loudness-transition-test",
 			"Run native loudness coefficient-transition safety regressions", cmd);
+		TCLAP::SwitchArg processingPrecisionTestArg(
+			"", "processing-precision-test", "Run 32/64-bit signal-path regressions", cmd);
 		TCLAP::SwitchArg loudnessPerformanceArg(
 			"", "loudness-performance",
 			"Measure native loudness initialization, update, and callback cost", cmd);
@@ -4529,6 +4678,8 @@ int main(int argc, char** argv)
 		}
 		if (loudnessTransitionTestArg.getValue())
 			return runLoudnessTransitionTests();
+		if (processingPrecisionTestArg.getValue())
+			return runProcessingPrecisionTests() ? 0 : 1;
 		if (loudnessPerformanceArg.getValue())
 			return runLoudnessPerformanceBenchmark();
 		if (batchsizeArg.getValue() == 0)

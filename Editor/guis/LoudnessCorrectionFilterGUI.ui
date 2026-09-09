@@ -19,7 +19,7 @@
   <property name="windowTitle">
    <string notr="true" />
   </property>
-  <layout class="QGridLayout" name="gridLayout" rowstretch="0,0,0,0">
+  <layout class="QVBoxLayout" name="gridLayout">
    <property name="leftMargin">
     <number>0</number>
    </property>
@@ -32,398 +32,500 @@
    <property name="bottomMargin">
     <number>0</number>
    </property>
-   <property name="horizontalSpacing">
-    <number>10</number>
+   <property name="spacing">
+    <number>12</number>
    </property>
-   <property name="verticalSpacing">
-    <number>4</number>
-   </property>
-   <item row="0" column="0">
-    <layout class="QHBoxLayout" name="identityLayout">
-     <property name="spacing">
-      <number>8</number>
+   <item>
+    <widget class="QLabel" name="label">
+     <property name="text">
+      <string>Loudness correction:</string>
      </property>
-     <item>
-      <widget class="QLabel" name="label">
-       <property name="text">
-        <string>Loudness correction:</string>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="alignment">
-        <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
-       </property>
-      </widget>
-     </item>
-     <item>
-      <spacer name="identitySpacer">
-       <property name="orientation">
-        <enum>Qt::Horizontal</enum>
-       </property>
-       <property name="sizeHint" stdset="0">
-        <size>
-         <width>0</width>
-         <height>0</height>
-        </size>
-       </property>
-      </spacer>
-     </item>
-    </layout>
-   </item>
-   <item row="1" column="0">
-    <layout class="QHBoxLayout" name="parameterLayout" stretch="1,1,1">
-     <property name="spacing">
-      <number>12</number>
+     <property name="sizePolicy">
+      <sizepolicy hsizetype="Preferred" vsizetype="Fixed">
+       <horstretch>0</horstretch>
+       <verstretch>0</verstretch>
+      </sizepolicy>
      </property>
-     <item>
-      <layout class="QHBoxLayout" name="referenceLevelLayout">
-       <property name="spacing">
-        <number>8</number>
-       </property>
-       <item alignment="Qt::AlignLeft|Qt::AlignVCenter">
-        <widget class="VerticalDragDial" name="refLevelDial">
-         <property name="minimum">
-          <number>1</number>
-         </property>
-         <property name="maximum">
-          <number>100</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QVBoxLayout" name="refLevelSubLayout">
-         <property name="spacing">
-          <number>2</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="refLevelLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Reference level:</string>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-           <property name="buddy">
-            <cstring>refLevelSpinBox</cstring>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="refLevelSpinBox">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="suffix">
-            <string notr="true"> phon</string>
-           </property>
-           <property name="minimum">
-            <number>1</number>
-           </property>
-           <property name="maximum">
-            <number>100</number>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="referenceOffsetLayout">
-       <property name="spacing">
-        <number>8</number>
-       </property>
-       <item alignment="Qt::AlignLeft|Qt::AlignVCenter">
-        <widget class="VerticalDragDial" name="refOffsetDial">
-         <property name="minimum">
-          <number>-100</number>
-         </property>
-         <property name="maximum">
-          <number>100</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QVBoxLayout" name="refOffsetSubLayout">
-         <property name="spacing">
-          <number>2</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="refOffsetLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Reference offset:</string>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-           <property name="buddy">
-            <cstring>refOffsetSpinBox</cstring>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QSpinBox" name="refOffsetSpinBox">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="suffix">
-            <string notr="true"> dB</string>
-           </property>
-           <property name="minimum">
-            <number>-100</number>
-           </property>
-           <property name="maximum">
-            <number>100</number>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </item>
-     <item>
-      <layout class="QHBoxLayout" name="attenuationLayout">
-       <property name="spacing">
-        <number>8</number>
-       </property>
-       <item alignment="Qt::AlignLeft|Qt::AlignVCenter">
-        <widget class="VerticalDragDial" name="attDial">
-         <property name="minimum">
-          <number>0</number>
-         </property>
-         <property name="maximum">
-          <number>100</number>
-         </property>
-         <property name="value">
-          <number>100</number>
-         </property>
-        </widget>
-       </item>
-       <item>
-        <layout class="QVBoxLayout" name="attSubLayout">
-         <property name="spacing">
-          <number>2</number>
-         </property>
-         <item>
-          <widget class="QLabel" name="attLabel">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="text">
-            <string>Attenuation:</string>
-           </property>
-           <property name="wordWrap">
-            <bool>true</bool>
-           </property>
-           <property name="buddy">
-            <cstring>attSpinBox</cstring>
-           </property>
-          </widget>
-         </item>
-         <item>
-          <widget class="QDoubleSpinBox" name="attSpinBox">
-           <property name="sizePolicy">
-            <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-             <horstretch>0</horstretch>
-             <verstretch>0</verstretch>
-            </sizepolicy>
-           </property>
-           <property name="maximum">
-            <double>1.000000000000000</double>
-           </property>
-           <property name="singleStep">
-            <double>0.010000000000000</double>
-           </property>
-           <property name="value">
-            <double>1.000000000000000</double>
-           </property>
-          </widget>
-         </item>
-        </layout>
-       </item>
-      </layout>
-     </item>
-    </layout>
+     <property name="alignment">
+      <set>Qt::AlignLeading|Qt::AlignLeft|Qt::AlignVCenter</set>
+     </property>
+    </widget>
    </item>
-   <item row="2" column="0">
-    <layout class="QGridLayout" name="listeningLayout" columnstretch="1,1">
-     <property name="horizontalSpacing">
+   <item>
+    <layout class="QHBoxLayout" name="parameterLayout">
+     <property name="leftMargin">
+      <number>0</number>
+     </property>
+     <property name="topMargin">
+      <number>0</number>
+     </property>
+     <property name="rightMargin">
+      <number>0</number>
+     </property>
+     <property name="bottomMargin">
+      <number>0</number>
+     </property>
+     <property name="spacing">
       <number>10</number>
      </property>
-     <property name="verticalSpacing">
-      <number>3</number>
-     </property>
-     <item row="0" column="0">
-      <widget class="QLabel" name="bindingLabel">
-       <property name="text">
-        <string>Volume binding:</string>
+     <item>
+      <widget class="QFrame" name="referenceContourCard">
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
        </property>
-       <property name="buddy">
-        <cstring>bindingComboBox</cstring>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="0">
-      <widget class="QComboBox" name="bindingComboBox">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="toolTip">
-        <string>Single follows the current APO playback endpoint. Global follows the Windows default Multimedia playback volume across all instances; use Global only when that master volume is the intended shared control. If a Matrix endpoint is muted or fixed, use Single or manual volume.</string>
-       </property>
-       <property name="minimumContentsLength">
-        <number>14</number>
-       </property>
-       <property name="sizeAdjustPolicy">
-        <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
-       </property>
-       <item>
-        <property name="text">
-         <string>Single endpoint</string>
+       <layout class="QVBoxLayout" name="referenceCardLayout">
+        <property name="spacing">
+         <number>8</number>
         </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Global (Windows default)</string>
+        <property name="leftMargin">
+         <number>12</number>
         </property>
-       </item>
-      </widget>
-     </item>
-     <item row="0" column="1">
-      <widget class="QCheckBox" name="manualVolumeCheckBox">
-       <property name="toolTip">
-        <string>Use this when a DAC or amplifier hardware knob controls the real listening level.</string>
-       </property>
-       <property name="text">
-        <string>Manual volume:</string>
-       </property>
-      </widget>
-     </item>
-     <item row="1" column="1">
-      <widget class="QDoubleSpinBox" name="volumeSpinBox">
-       <property name="enabled">
-        <bool>false</bool>
-       </property>
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="suffix">
-        <string notr="true"> dB</string>
-       </property>
-       <property name="minimum">
-        <double>-100.000000000000000</double>
-       </property>
-       <property name="maximum">
-        <double>0.000000000000000</double>
-       </property>
-       <property name="decimals">
-        <number>1</number>
-       </property>
-       <property name="singleStep">
-        <double>0.500000000000000</double>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="0">
-      <widget class="QLabel" name="volumeFollowLabel">
-       <property name="text">
-        <string>APO volume-follow attenuation:</string>
-       </property>
-       <property name="buddy">
-        <cstring>volumeFollowComboBox</cstring>
-       </property>
-      </widget>
-     </item>
-     <item row="2" column="1">
-      <widget class="QComboBox" name="volumeFollowComboBox">
-       <property name="sizePolicy">
-        <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
-         <horstretch>0</horstretch>
-         <verstretch>0</verstretch>
-        </sizepolicy>
-       </property>
-       <property name="toolTip">
-        <string>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</string>
-       </property>
-       <item>
-        <property name="text">
-         <string>Off</string>
+        <property name="topMargin">
+         <number>12</number>
         </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Linear amplitude</string>
+        <property name="rightMargin">
+         <number>12</number>
         </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Squared amplitude</string>
+        <property name="bottomMargin">
+         <number>12</number>
         </property>
-       </item>
-       <item>
-        <property name="text">
-         <string>Follow dB</string>
-        </property>
-       </item>
+        <item>
+         <widget class="QLabel" name="refLevelLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Reference level:</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+          <property name="buddy">
+           <cstring>refLevelSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="referenceValueLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <item>
+           <widget class="VerticalDragDial" name="refLevelDial">
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="refLevelSpinBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="suffix">
+             <string notr="true"> phon</string>
+            </property>
+            <property name="minimum">
+             <number>1</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
       </widget>
      </item>
-     <item row="3" column="0" colspan="2">
-      <widget class="QLabel" name="volumeFollowStatusLabel">
-       <property name="text"><string notr="true"/></property>
-       <property name="wordWrap"><bool>true</bool></property>
-       <property name="font"><font><bold>true</bold></font></property>
-      </widget>
-     </item>
-     <item row="4" column="0" colspan="2">
-      <widget class="QLabel" name="volumeSourceLabel">
-       <property name="text"><string notr="true"/></property>
-       <property name="wordWrap"><bool>true</bool></property>
-      </widget>
-     </item>
-     <item row="5" column="0" colspan="2">
-      <widget class="QCheckBox" name="fastEngineCheckBox">
-       <property name="toolTip">
-        <string>Experimental two-filter approximation. Uses less CPU but may differ noticeably from Full, especially at very low listening levels.</string>
+     <item>
+      <widget class="QFrame" name="offsetContourCard">
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
        </property>
-       <property name="text">
-        <string>Experimental fast engine:</string>
+       <layout class="QVBoxLayout" name="offsetCardLayout">
+        <property name="spacing">
+         <number>8</number>
+        </property>
+        <property name="leftMargin">
+         <number>12</number>
+        </property>
+        <property name="topMargin">
+         <number>12</number>
+        </property>
+        <property name="rightMargin">
+         <number>12</number>
+        </property>
+        <property name="bottomMargin">
+         <number>12</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="refOffsetLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Reference offset:</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+          <property name="buddy">
+           <cstring>refOffsetSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="offsetValueLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <item>
+           <widget class="VerticalDragDial" name="refOffsetDial">
+            <property name="minimum">
+             <number>-100</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QSpinBox" name="refOffsetSpinBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="suffix">
+             <string notr="true"> dB</string>
+            </property>
+            <property name="minimum">
+             <number>-100</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
+      </widget>
+     </item>
+     <item>
+      <widget class="QFrame" name="strengthContourCard">
+       <property name="frameShape">
+        <enum>QFrame::StyledPanel</enum>
        </property>
+       <layout class="QVBoxLayout" name="strengthCardLayout">
+        <property name="spacing">
+         <number>8</number>
+        </property>
+        <property name="leftMargin">
+         <number>12</number>
+        </property>
+        <property name="topMargin">
+         <number>12</number>
+        </property>
+        <property name="rightMargin">
+         <number>12</number>
+        </property>
+        <property name="bottomMargin">
+         <number>12</number>
+        </property>
+        <item>
+         <widget class="QLabel" name="attLabel">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="text">
+           <string>Attenuation:</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+          <property name="buddy">
+           <cstring>attSpinBox</cstring>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <layout class="QHBoxLayout" name="strengthValueLayout">
+          <property name="leftMargin">
+           <number>0</number>
+          </property>
+          <property name="topMargin">
+           <number>0</number>
+          </property>
+          <property name="rightMargin">
+           <number>0</number>
+          </property>
+          <property name="bottomMargin">
+           <number>0</number>
+          </property>
+          <property name="spacing">
+           <number>8</number>
+          </property>
+          <item>
+           <widget class="VerticalDragDial" name="attDial">
+            <property name="minimum">
+             <number>0</number>
+            </property>
+            <property name="maximum">
+             <number>100</number>
+            </property>
+            <property name="value">
+             <number>100</number>
+            </property>
+           </widget>
+          </item>
+          <item>
+           <widget class="QDoubleSpinBox" name="attSpinBox">
+            <property name="sizePolicy">
+             <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+              <horstretch>0</horstretch>
+              <verstretch>0</verstretch>
+             </sizepolicy>
+            </property>
+            <property name="maximum">
+             <double>1.000000000000000</double>
+            </property>
+            <property name="singleStep">
+             <double>0.010000000000000</double>
+            </property>
+            <property name="value">
+             <double>1.000000000000000</double>
+            </property>
+           </widget>
+          </item>
+         </layout>
+        </item>
+       </layout>
       </widget>
      </item>
     </layout>
    </item>
-   <item row="3" column="0">
+   <item>
+    <widget class="QFrame" name="listeningCard">
+     <property name="frameShape">
+      <enum>QFrame::StyledPanel</enum>
+     </property>
+     <layout class="QGridLayout" name="listeningLayout" columnstretch="1,1">
+      <property name="spacing">
+       <number>10</number>
+      </property>
+      <property name="leftMargin">
+       <number>12</number>
+      </property>
+      <property name="topMargin">
+       <number>12</number>
+      </property>
+      <property name="rightMargin">
+       <number>12</number>
+      </property>
+      <property name="bottomMargin">
+       <number>12</number>
+      </property>
+      <item row="0" column="0" colspan="1">
+       <widget class="QLabel" name="bindingLabel">
+        <property name="text">
+         <string>Volume binding:</string>
+        </property>
+        <property name="buddy">
+         <cstring>bindingComboBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1" colspan="1">
+       <widget class="QCheckBox" name="manualVolumeCheckBox">
+        <property name="toolTip">
+         <string>Use this when a DAC or amplifier hardware knob controls the real listening level.</string>
+        </property>
+        <property name="text">
+         <string>Manual volume:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="1">
+       <widget class="QComboBox" name="bindingComboBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Single follows the current APO playback endpoint. Global follows the Windows default Multimedia playback volume across all instances; use Global only when that master volume is the intended shared control. If a Matrix endpoint is muted or fixed, use Single or manual volume.</string>
+        </property>
+        <property name="minimumContentsLength">
+         <number>14</number>
+        </property>
+        <property name="sizeAdjustPolicy">
+         <enum>QComboBox::AdjustToMinimumContentsLengthWithIcon</enum>
+        </property>
+        <item>
+         <property name="text">
+          <string>Single endpoint</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Global (Windows default)</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="1" column="1" colspan="1">
+       <widget class="QDoubleSpinBox" name="volumeSpinBox">
+        <property name="enabled">
+         <bool>false</bool>
+        </property>
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="suffix">
+         <string notr="true"> dB</string>
+        </property>
+        <property name="minimum">
+         <double>-100.000000000000000</double>
+        </property>
+        <property name="maximum">
+         <double>0.000000000000000</double>
+        </property>
+        <property name="decimals">
+         <number>1</number>
+        </property>
+        <property name="singleStep">
+         <double>0.500000000000000</double>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QLabel" name="volumeFollowLabel">
+        <property name="text">
+         <string>APO volume-follow attenuation:</string>
+        </property>
+        <property name="buddy">
+         <cstring>volumeFollowComboBox</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0" colspan="2">
+       <widget class="QComboBox" name="volumeFollowComboBox">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="toolTip">
+         <string>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</string>
+        </property>
+        <item>
+         <property name="text">
+          <string>Off</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Linear amplitude</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Squared amplitude</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Follow dB</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="4" column="0" colspan="2">
+       <widget class="QLabel" name="volumeFollowStatusLabel">
+        <property name="text">
+         <string notr="true" />
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+        <property name="font">
+         <font>
+          <bold>true</bold>
+         </font>
+        </property>
+       </widget>
+      </item>
+      <item row="5" column="0" colspan="2">
+       <widget class="QLabel" name="volumeSourceLabel">
+        <property name="text">
+         <string notr="true" />
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="0" colspan="2">
+       <widget class="QCheckBox" name="fastEngineCheckBox">
+        <property name="toolTip">
+         <string>Experimental two-filter approximation. Uses less CPU but may differ noticeably from Full, especially at very low listening levels.</string>
+        </property>
+        <property name="text">
+         <string>Experimental fast engine:</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="actionsLayout">
      <property name="spacing">
       <number>8</number>

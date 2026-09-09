@@ -27,7 +27,8 @@
 using namespace std;
 
 FilterConfiguration::FilterConfiguration(FilterEngine* engine, const vector<FilterInfo*>& filterInfos, unsigned allChannelCount)
-	: realChannelCount(engine->getRealChannelCount()),
+	: singlePrecision(engine->getLoadingSinglePrecision()),
+	  realChannelCount(engine->getRealChannelCount()),
 	  outputChannelCount(engine->getOutputChannelCount()),
 	  allChannelCount(allChannelCount),
 	  allSamples(NULL),
@@ -59,6 +60,48 @@ FilterConfiguration::FilterConfiguration(FilterEngine* engine, const vector<Filt
 	}
 	for (size_t i = 0; i < filterCount; i++)
 		this->filterInfos[i] = filterInfos[i];
+	if (singlePrecision)
+	{
+		// The double path compresses unchanged mappings into null arrays. Expand
+		// them once before publication: native float and bridged double kernels
+		// need complete channel lists on every call, including after bank swaps.
+		const size_t* inputRoute = nullptr;
+		const size_t* outputRoute = nullptr;
+		size_t inputCount = 0, outputCount = 0;
+		for (size_t index = 0; index < filterCount; ++index)
+		{
+			FilterInfo* info = this->filterInfos[index];
+			if (info->inChannels)
+			{
+				inputRoute = info->inChannels;
+				inputCount = info->inChannelCount;
+			}
+			else if (inputCount)
+			{
+				info->inChannels = static_cast<size_t*>(MemoryHelper::allocArray(inputCount, sizeof(size_t)));
+				if (!info->inChannels) return;
+				info->inChannelCount = inputCount;
+				memcpy(info->inChannels, inputRoute, inputCount * sizeof(size_t));
+			}
+			if (info->outChannels)
+			{
+				outputRoute = info->outChannels;
+				outputCount = info->outChannelCount;
+			}
+			else if (outputCount)
+			{
+				info->outChannels = static_cast<size_t*>(MemoryHelper::allocArray(outputCount, sizeof(size_t)));
+				if (!info->outChannels) return;
+				info->outChannelCount = outputCount;
+				memcpy(info->outChannels, outputRoute, outputCount * sizeof(size_t));
+			}
+			if (!info->inPlace)
+			{
+				swap(inputRoute, outputRoute);
+				swap(inputCount, outputCount);
+			}
+		}
+	}
 
 	allSamples = static_cast<double**>(MemoryHelper::allocArray(
 		allChannelCount, sizeof(double*)));
@@ -97,11 +140,36 @@ FilterConfiguration::FilterConfiguration(FilterEngine* engine, const vector<Filt
 	if (currentSamples2 == NULL)
 		return;
 
+	if (singlePrecision)
+	{
+		samples32 = static_cast<float**>(MemoryHelper::allocArray(allChannelCount, sizeof(float*)));
+		samples32Alternate = static_cast<float**>(MemoryHelper::allocArray(allChannelCount, sizeof(float*)));
+		current32 = static_cast<float**>(MemoryHelper::allocArray(allChannelCount, sizeof(float*)));
+		output32 = static_cast<float**>(MemoryHelper::allocArray(allChannelCount, sizeof(float*)));
+		if (!samples32 || !samples32Alternate || !current32 || !output32) return;
+		for (unsigned channel = 0; channel < allChannelCount; ++channel)
+		{
+			samples32[channel] = static_cast<float*>(MemoryHelper::allocArray(maxFrameCount, sizeof(float)));
+			if (!samples32[channel]) return;
+			++allocated32;
+			samples32Alternate[channel] = static_cast<float*>(MemoryHelper::allocArray(maxFrameCount, sizeof(float)));
+			if (!samples32Alternate[channel]) return;
+			++allocated32Alternate;
+		}
+	}
 	valid = true;
 }
 
 FilterConfiguration::~FilterConfiguration()
 {
+	for (size_t channel = 0; channel < allocated32; ++channel)
+		MemoryHelper::free(samples32[channel]);
+	for (size_t channel = 0; channel < allocated32Alternate; ++channel)
+		MemoryHelper::free(samples32Alternate[channel]);
+	MemoryHelper::free(samples32);
+	MemoryHelper::free(samples32Alternate);
+	MemoryHelper::free(current32);
+	MemoryHelper::free(output32);
 	if (currentSamples2 != NULL)
 		MemoryHelper::free(currentSamples2);
 	if (currentSamples != NULL)
@@ -178,6 +246,11 @@ void FilterConfiguration::read(double** input, unsigned frameCount)
 
 void FilterConfiguration::process(unsigned frameCount)
 {
+	if (singlePrecision)
+	{
+		processSingle(frameCount);
+		return;
+	}
 	for (unsigned c = realChannelCount; c < allChannelCount; c++)
 		memset(allSamples[c], 0, frameCount * sizeof(double));
 
@@ -210,6 +283,51 @@ void FilterConfiguration::process(unsigned frameCount)
 			swap(currentSamples, currentSamples2);
 		}
 	}
+}
+
+void FilterConfiguration::processSingle(unsigned frameCount)
+{
+	for (unsigned channel = 0; channel < allChannelCount; ++channel)
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+			samples32[channel][frame] = channel < realChannelCount
+				? static_cast<float>(allSamples[channel][frame]) : 0.0f;
+	if (realChannelCount == 1 && outputChannelCount >= 2)
+		memcpy(samples32[1], samples32[0], frameCount * sizeof(float));
+	for (size_t index = 0; index < filterCount; ++index)
+	{
+		FilterInfo* info = filterInfos[index];
+		for (size_t channel = 0; channel < info->inChannelCount; ++channel)
+			current32[channel] = samples32[info->inChannels[channel]];
+		for (size_t channel = 0; channel < info->outChannelCount; ++channel)
+			output32[channel] = info->inPlace ? samples32[info->outChannels[channel]]
+				: samples32Alternate[info->outChannels[channel]];
+		if (!info->filter->processSingle(output32, current32, frameCount))
+		{
+			// Legacy/specialized kernels retain their internal precision. Every
+			// module boundary still stores float; scratch is allocated at load.
+			for (size_t channel = 0; channel < info->inChannelCount; ++channel)
+			{
+				currentSamples[channel] = allSamples[info->inChannels[channel]];
+				for (unsigned frame = 0; frame < frameCount; ++frame)
+					currentSamples[channel][frame] = current32[channel][frame];
+			}
+			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
+				currentSamples2[channel] = info->inPlace ? allSamples[info->outChannels[channel]]
+					: allSamples2[info->outChannels[channel]];
+			info->filter->process(currentSamples2, currentSamples, frameCount);
+			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
+				for (unsigned frame = 0; frame < frameCount; ++frame)
+					output32[channel][frame] = static_cast<float>(currentSamples2[channel][frame]);
+		}
+		if (!info->inPlace)
+			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
+				swap(samples32[info->outChannels[channel]], samples32Alternate[info->outChannels[channel]]);
+	}
+	// Share the existing double transition/output boundary so old and new
+	// configurations can safely crossfade even when their bus formats differ.
+	for (unsigned channel = 0; channel < outputChannelCount; ++channel)
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+			allSamples[channel][frame] = samples32[channel][frame];
 }
 
 unsigned FilterConfiguration::doTransition(FilterConfiguration* nextConfig, unsigned frameCount, unsigned transitionCounter, unsigned transitionLength)
@@ -278,5 +396,5 @@ void FilterConfiguration::write(double** output, unsigned frameCount)
 
 bool FilterConfiguration::isEmpty()
 {
-	return filterCount == 0;
+	return filterCount == 0 && !singlePrecision;
 }

@@ -2,6 +2,11 @@
 #include "StudioMotion.h"
 
 #include <QAbstractButton>
+#include <QScrollArea>
+#include <QScrollBar>
+#include <QWheelEvent>
+#include <QComboBox>
+#include <QAbstractSpinBox>
 #include <QApplication>
 #include <QDial>
 #include <QEvent>
@@ -22,6 +27,63 @@
 
 namespace
 {
+	// Only ordinary scroll areas participate. Plot wheel gestures retain zoom,
+	// and precision trackpads retain their own native momentum.
+	class SmoothScroll final : public QObject
+	{
+	public:
+		explicit SmoothScroll(QScrollArea* owner) : QObject(owner), area(owner), tween(this)
+		{
+			setObjectName(QStringLiteral("studioSmoothScroll"));
+			owner->viewport()->installEventFilter(this);
+			owner->installEventFilter(this);
+			bar = owner->verticalScrollBar();
+			bar->installEventFilter(this);
+			tween.setDuration(210);
+			tween.setEasingCurve(QEasingCurve::OutCubic);
+			connect(&tween, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+				if (!StudioMotion::allowed() || !area->isVisible()) { tween.stop(); return; }
+				writing = true;
+				bar->setValue(value.toInt());
+				writing = false;
+			});
+			connect(bar, &QScrollBar::valueChanged, this, [this](int) {
+				if (!writing) tween.stop(); // Keyboard, dragging and programmatic navigation win.
+			});
+			connect(bar, &QScrollBar::rangeChanged, this, [this](int, int) { tween.stop(); });
+		}
+	protected:
+		bool eventFilter(QObject* object, QEvent* event) override
+		{
+			if (event->type() == QEvent::Hide || event->type() == QEvent::MouseButtonPress
+				|| event->type() == QEvent::KeyPress)
+				tween.stop();
+			if (event->type() != QEvent::Wheel || object != area->viewport()) return false;
+			auto* wheel = static_cast<QWheelEvent*>(event);
+			if (!StudioMotion::allowed() || !wheel->pixelDelta().isNull()
+				|| wheel->modifiers() != Qt::NoModifier || wheel->angleDelta().y() == 0)
+			{ tween.stop(); return false; }
+			const int start = bar->value();
+			const int previous = tween.state() == QAbstractAnimation::Running ? destination : start;
+			const int distance = qRound(wheel->angleDelta().y() / 120.0
+				* QApplication::wheelScrollLines() * qMax(bar->singleStep(), area->fontMetrics().height()));
+			destination = qBound(bar->minimum(), previous - distance, bar->maximum());
+			if (destination == start && tween.state() != QAbstractAnimation::Running) return false;
+			tween.stop();
+			tween.setStartValue(start);
+			tween.setEndValue(destination);
+			tween.start();
+			wheel->accept();
+			return true;
+		}
+	private:
+		QScrollArea* area;
+		QScrollBar* bar;
+		QVariantAnimation tween;
+		int destination = 0;
+		bool writing = false;
+	};
+
 	// One bounded animation per visible control; no permanent frame timer.
 	// A child overlay keeps native input, focus, layout and accessibility intact.
 	class MotionOverlay final : public QWidget
@@ -152,6 +214,16 @@ namespace
 				if (widget->property("studioMotionConnected").toBool())
 					return false;
 				widget->setProperty("studioMotionConnected", true);
+				if (auto* area = qobject_cast<QScrollArea*>(widget))
+					new SmoothScroll(area);
+				if (auto* button = qobject_cast<QAbstractButton*>(widget))
+					connect(button, &QAbstractButton::toggled, button, [button](bool) {
+						StudioMotion::feedback(button);
+					});
+				if (auto* combo = qobject_cast<QComboBox*>(widget))
+					connect(combo, &QComboBox::activated, combo, [combo](int) {
+						StudioMotion::feedback(combo);
+					});
 				if (auto* tabs = qobject_cast<QTabBar*>(widget))
 					connect(tabs, &QTabBar::currentChanged, tabs, [tabs](int) {
 						StudioMotion::feedback(tabs);
@@ -197,6 +269,7 @@ namespace
 					QTimer::singleShot(0, widget, [widget]() { StudioMotion::reveal(widget); });
 			}
 			else if (qobject_cast<QAbstractButton*>(widget) || qobject_cast<QDial*>(widget)
+				|| qobject_cast<QComboBox*>(widget) || qobject_cast<QAbstractSpinBox*>(widget)
 				|| (type == QEvent::FocusIn && qobject_cast<QLineEdit*>(widget)))
 			{
 				const QPointF point = type == QEvent::MouseButtonPress

@@ -18,10 +18,12 @@
 */
 
 #include <algorithm>
+#include <cstdio>
 #include <sstream>
 #include <cmath>
 #include <limits>
 #include <QAction>
+#include <QActionGroup>
 #include <QAbstractScrollArea>
 #include <QAccessible>
 #include <QAccessibleWidget>
@@ -727,6 +729,67 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	}
 
 	ui->setupUi(this);
+	connect(ui->menuSettings, &QMenu::aboutToShow,
+		this, &MainWindow::refreshWorkspaceActionState);
+	doublePrecisionAction = ui->menuSettings->addAction(tr("Double precision (64-bit signal path)"));
+	doublePrecisionAction->setObjectName(QStringLiteral("actionDoublePrecision"));
+	doublePrecisionAction->setCheckable(true);
+	doublePrecisionAction->setChecked(true);
+	doublePrecisionAction->setToolTip(tr(
+		"Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off."));
+	connect(doublePrecisionAction, &QAction::toggled, this, [this](bool enabled) {
+		FilterTable* table = currentFilterTable();
+		if (!table || !table->setDoublePrecision(enabled))
+			showWorkspaceStatus(tr("Could not change precision. Check for duplicate or invalid ProcessingPrecision entries."), "warning");
+		refreshWorkspaceActionState();
+	});
+	auto* deviceSelectorAction = ui->menuSettings->addAction(
+		GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::Route), tr("Device Selector…"));
+	deviceSelectorAction->setObjectName(QStringLiteral("actionDeviceSelector"));
+	connect(deviceSelectorAction, &QAction::triggered, this, &MainWindow::runDeviceSelector);
+	auto* scaleMenu = ui->menuView->addMenu(tr("Interface scale (restart)"));
+	scaleMenu->setObjectName(QStringLiteral("interfaceScaleMenu"));
+	auto* scaleGroup = new QActionGroup(scaleMenu);
+	const int currentScale = qApp->property("studioInterfaceScale").toInt();
+	for (int percent : {75, 90, 100, 110, 125, 150, 175, 200})
+	{
+		auto* action = scaleMenu->addAction(QStringLiteral("%1%").arg(percent));
+		action->setCheckable(true);
+		action->setData(percent);
+		action->setChecked(percent == currentScale);
+		scaleGroup->addAction(action);
+		connect(action, &QAction::triggered, this, [this, percent, scaleGroup, currentScale]() {
+			if (percent == currentScale) return;
+			restart = true;
+			if (close())
+			{
+				QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+				settings.setValue("interfaceScale", percent);
+			}
+			else
+				for (QAction* choice : scaleGroup->actions())
+					choice->setChecked(choice->data().toInt() == currentScale);
+		});
+	}
+	auto* animationsAction = ui->menuView->addAction(tr("Interface animations"));
+	animationsAction->setObjectName(QStringLiteral("actionInterfaceAnimations"));
+	animationsAction->setCheckable(true);
+	bool animationsEnabled = true;
+	if (!snapshotMode)
+	{
+		QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+		animationsEnabled = settings.value("interfaceAnimations", true).toBool();
+	}
+	animationsAction->setChecked(animationsEnabled);
+	qApp->setProperty("eqapoDisableAnimations", !animationsEnabled);
+	connect(animationsAction, &QAction::toggled, this, [snapshotMode](bool enabled) {
+		qApp->setProperty("eqapoDisableAnimations", !enabled);
+		if (!snapshotMode)
+		{
+			QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+			settings.setValue("interfaceAnimations", enabled);
+		}
+	});
 	QFrame* studioHeader = new QFrame(ui->centralWidget);
 	studioHeader->setObjectName(QStringLiteral("studioHeader"));
 	auto* headerLayout = new QHBoxLayout(studioHeader);
@@ -3054,10 +3117,41 @@ bool MainWindow::restoreTemporaryProcessingState()
 
 void MainWindow::refreshWorkspaceActionState()
 {
-	const FilterTable* filterTable = currentFilterTable();
+	FilterTable* filterTable = currentFilterTable();
 	const bool hasTable = filterTable != NULL;
 	const bool hasSavedProfile = hasTable && !filterTable->getConfigPath().isEmpty();
 	const bool hasTemporaryState = showingComparisonA || !bypassTable.isNull();
+	if (doublePrecisionAction)
+	{
+		QSignalBlocker blocker(doublePrecisionAction);
+		bool doublePrecision = true;
+		int directives = 0;
+		bool validPrecision = true;
+		if (filterTable)
+			for (const QString& line : filterTable->getLines())
+			{
+				const QString text = line.trimmed();
+				if (text.section(':', 0, 0).trimmed() != QStringLiteral("ProcessingPrecision")) continue;
+				++directives;
+				const QString value = text.mid(text.indexOf(':') + 1).trimmed();
+				validPrecision = validPrecision && (value == "32" || value == "64");
+				doublePrecision = value != "32";
+			}
+		const bool unambiguous = validPrecision && directives <= 1;
+		const bool editable = hasTable && unambiguous && filterTable->processingPrecisionEditable();
+		doublePrecisionAction->setCheckable(!hasTable || editable);
+		doublePrecisionAction->setChecked(doublePrecision && (!hasTable || editable));
+		doublePrecisionAction->setText(hasTable && !editable
+			? tr("Processing precision (see configuration)")
+			: tr("Double precision (64-bit signal path)"));
+		doublePrecisionAction->setEnabled(editable && !hasTemporaryState && validPrecision && directives <= 1);
+		if (hasTable && !unambiguous)
+			doublePrecisionAction->setToolTip(tr("Could not change precision. Check for duplicate or invalid ProcessingPrecision entries."));
+		else if (hasTable && !editable)
+			doublePrecisionAction->setToolTip(tr("This configuration contains scopes or included files. Edit ProcessingPrecision in the configuration text to choose the effective signal-path format."));
+		else
+			doublePrecisionAction->setToolTip(tr("Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off."));
+	}
 	ui->actionSave->setEnabled(hasTable && !hasTemporaryState);
 	ui->actionSaveAs->setEnabled(hasTable && !hasTemporaryState);
 	if (captureComparisonAction != NULL)
@@ -3204,7 +3298,10 @@ void MainWindow::runDeviceSelector()
 	wstring file = (QDir::toNativeSeparators(QCoreApplication::applicationDirPath() + "/DeviceSelector.exe")).toStdWString();
 	unsigned long long result = (unsigned long long)ShellExecuteW(NULL, L"open", file.c_str(), NULL, NULL, SW_SHOWNORMAL);
 	if (result == SE_ERR_ACCESSDENIED)
-		ShellExecuteW(NULL, L"runas", file.c_str(), NULL, NULL, SW_SHOWNORMAL);
+		result = (unsigned long long)ShellExecuteW(NULL, L"runas", file.c_str(), NULL, NULL, SW_SHOWNORMAL);
+	if (result <= 32)
+		QMessageBox::warning(this, tr("Device Selector"),
+			tr("Could not open Device Selector. Check that DeviceSelector.exe is installed beside the editor."));
 }
 
 bool MainWindow::load(QString path)
@@ -4188,11 +4285,15 @@ FilterTable* MainWindow::addTab(QString title, QString tooltip, QString configPa
 bool MainWindow::loadSnapshotScenario(const QString& scenario)
 {
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
+	const auto invalid = [](int line) {
+		std::fprintf(stderr, "UI snapshot scenario failed at MainWindow.cpp:%d\n", line);
+		return false;
+	};
 	const bool volumeScenario = scenario == QStringLiteral("volume-follow");
 	const bool denseScenario = scenario == QStringLiteral("dense") || volumeScenario;
 	const bool restoredToolsScenario = scenario == QStringLiteral("restored-tools");
 	if ((!denseScenario && !restoredToolsScenario) || !isEmpty())
-		return false;
+		return invalid(__LINE__);
 
 	if (restoredToolsScenario)
 	{
@@ -4204,15 +4305,15 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 		removeToolBarBreak(workspaceToolBar);
 		const QByteArray legacyMergedToolbarState = saveState(0);
 		if (toolBarBreak(workspaceToolBar))
-			return false;
+			return invalid(__LINE__);
 		if (!restoreWindowLayoutState(currentWindowState))
-			return false;
+			return invalid(__LINE__);
 		if (!toolBarBreak(workspaceToolBar))
-			return false;
+			return invalid(__LINE__);
 		if (restoreWindowLayoutState(legacyMergedToolbarState))
-			return false;
+			return invalid(__LINE__);
 		if (!toolBarBreak(workspaceToolBar))
-			return false;
+			return invalid(__LINE__);
 	}
 
 	// Keep this representative configuration entirely in memory. In
@@ -4324,7 +4425,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			complete = complete && objectCount(objectName) == 1;
 	}
 	if (!complete)
-		return false;
+		return invalid(__LINE__);
 
 	if (denseScenario)
 	{
@@ -4343,7 +4444,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 				overriddenLines.size() != lines.size() ||
 				overriddenLines.count(overrideMarker + ": " + objectName) != 1)
 			{
-				return false;
+				return invalid(__LINE__);
 			}
 		}
 	}
@@ -4374,7 +4475,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 		expectedRuntimeState.insert(
 			QStringLiteral("outProcFinalStateCommitted"), false);
 		if (oldVstGui == NULL)
-			return false;
+			return invalid(__LINE__);
 		oldVstGui->restoreRuntimeState(expectedRuntimeState);
 		filterTable->updateGuis();
 		QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
@@ -4382,10 +4483,10 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			QStringLiteral("VSTPluginFilterGUI"));
 		QVariantMap actualRuntimeState;
 		if (rebuiltVstGui == NULL || rebuiltVstGui == oldVstGui)
-			return false;
+			return invalid(__LINE__);
 		rebuiltVstGui->takeRuntimeState(actualRuntimeState);
 		if (actualRuntimeState != expectedRuntimeState)
-			return false;
+			return invalid(__LINE__);
 
 		FilterTable cloneProbe(this);
 		FilterTable::Item* outProcProbe = cloneProbe.addLine(QStringLiteral(
@@ -4429,7 +4530,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			clonedLines[11].count(QStringLiteral("MeterId")) != 1 ||
 			clonedLines[11].contains(QStringLiteral("\"\"")))
 		{
-			return false;
+			return invalid(__LINE__);
 		}
 
 		// Invalid legacy HostIds must be canonicalized to distinct UUIDs before
@@ -4462,7 +4563,7 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			secondCanonicalId.isEmpty() || firstCanonicalId == secondCanonicalId ||
 			firstCanonicalId.contains('!') || secondCanonicalId.contains('?'))
 		{
-			return false;
+			return invalid(__LINE__);
 		}
 	}
 
@@ -4475,8 +4576,26 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 			QWidget* row = filterTable->findChild<QWidget*>(
 				QStringLiteral("LoudnessCorrectionFilterGUI"));
 			if (row != NULL)
-				scrollArea->verticalScrollBar()->setValue(row->mapTo(filterTable, QPoint(0, 0)).y());
+				scrollArea->verticalScrollBar()->setValue(qMax(0, row->mapTo(filterTable, QPoint(0, 0)).y() - GUIHelper::scale(20)));
 		});
+	}
+	{
+		QScrollArea precisionScroll;
+		auto* precisionTable = new FilterTable(this);
+		precisionScroll.setWidget(precisionTable);
+		precisionTable->initialize(&precisionScroll, outputDevices, inputDevices);
+		precisionTable->addLine(QStringLiteral("Preamp: -3 dB"));
+		if (!precisionTable->setDoublePrecision(false)
+			|| precisionTable->getLines().first() != QStringLiteral("ProcessingPrecision: 32"))
+			return invalid(__LINE__);
+		if (!precisionTable->setDoublePrecision(true)
+			|| precisionTable->getLines().size() != 2
+			|| precisionTable->getLines().first() != QStringLiteral("ProcessingPrecision: 64"))
+			return invalid(__LINE__);
+		precisionTable->addLine(QStringLiteral("Include: scoped.txt"));
+		const QList<QString> scopedLines = precisionTable->getLines();
+		if (precisionTable->setDoublePrecision(false) || precisionTable->getLines() != scopedLines)
+			return invalid(__LINE__);
 	}
 	refreshWorkspaceActionState();
 	return true;
@@ -4489,6 +4608,10 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 bool MainWindow::snapshotLayoutIsValid() const
 {
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
+	const auto invalid = [](int line) {
+		std::fprintf(stderr, "UI snapshot layout validation failed at MainWindow.cpp:%d\n", line);
+		return false;
+	};
 	const bool denseScenario = UiSnapshot::scenario() == QStringLiteral("dense") ||
 		UiSnapshot::scenario() == QStringLiteral("volume-follow");
 	const bool restoredToolsScenario = UiSnapshot::scenario() == QStringLiteral("restored-tools");
@@ -4498,13 +4621,13 @@ bool MainWindow::snapshotLayoutIsValid() const
 		|| toolBarArea(ui->mainToolBar) != Qt::TopToolBarArea
 		|| toolBarArea(workspaceToolBar) != Qt::TopToolBarArea
 		|| !toolBarBreak(workspaceToolBar))
-		return false;
+		return invalid(__LINE__);
 
 	QScrollArea* scrollArea = qobject_cast<QScrollArea*>(
 		ui->tabWidget->currentWidget());
 	if (scrollArea == NULL || scrollArea->horizontalScrollBar() == NULL
 		|| scrollArea->horizontalScrollBar()->maximum() != 0)
-		return false;
+		return invalid(__LINE__);
 
 	if (denseScenario)
 	{
@@ -4519,33 +4642,33 @@ bool MainWindow::snapshotLayoutIsValid() const
 		auto manual = probe.findChild<QCheckBox*>(QStringLiteral("manualVolumeCheckBox"));
 		auto volume = probe.findChild<QDoubleSpinBox*>(QStringLiteral("volumeSpinBox"));
 		if (!target || !curve || !manual || !volume || !target->text().contains("-6.02"))
-			return false;
+			return invalid(__LINE__);
 		curve->setCurrentIndex(2);
-		if (!target->text().contains("-12.04")) return false;
+		if (!target->text().contains("-12.04")) return invalid(__LINE__);
 		curve->setCurrentIndex(3);
-		if (!target->text().contains("-50.00")) return false;
+		if (!target->text().contains("-50.00")) return invalid(__LINE__);
 		volume->setValue(-20);
-		if (!target->text().contains("-20.00")) return false;
+		if (!target->text().contains("-20.00")) return invalid(__LINE__);
 		manual->setChecked(false);
 		QString command, parameters;
 		probe.store(command, parameters);
 		if (parameters.contains(" Volume ") || !parameters.contains("Binding Single") ||
 			target->text() != QCoreApplication::translate("LoudnessCorrectionFilterGUI",
-				"APO follow target: unknown (source unavailable)")) return false;
+				"APO follow target: unknown (source unavailable)")) return invalid(__LINE__);
 		curve->setCurrentIndex(0);
-		if (!target->text().contains("0.00")) return false;
+		if (!target->text().contains("0.00")) return invalid(__LINE__);
 
 		const QList<QWidget*> deviceRows = findChildren<QWidget*>(
 			QStringLiteral("DeviceFilterGUI"));
 		if (deviceRows.size() != 3)
-			return false;
+			return invalid(__LINE__);
 		for (QWidget* deviceRow : deviceRows)
 		{
 			QAbstractScrollArea* tree = deviceRow->findChild<QAbstractScrollArea*>(
 				QStringLiteral("treeWidget"));
 			if (tree == NULL || tree->horizontalScrollBar() == NULL
 				|| tree->horizontalScrollBar()->maximum() != 0)
-				return false;
+				return invalid(__LINE__);
 		}
 	}
 
@@ -4565,6 +4688,7 @@ bool MainWindow::snapshotLayoutIsValid() const
 			&& container->rect().contains(geometryInContainer);
 		if (!fits)
 		{
+			std::fprintf(stderr, "Geometry: %s (%d,%d %dx%d) in %s (%dx%d)\n", widget ? qPrintable(widget->objectName()) : "null", geometryInContainer.x(), geometryInContainer.y(), geometryInContainer.width(), geometryInContainer.height(), container ? qPrintable(container->objectName()) : "null", container ? container->width() : 0, container ? container->height() : 0);
 			qWarning().noquote()
 				<< "Dense snapshot geometry violation:"
 				<< (widget == NULL
@@ -4584,7 +4708,7 @@ bool MainWindow::snapshotLayoutIsValid() const
 	};
 	if (autoPreampButton == NULL
 		|| !fitsInsideContainer(autoPreampButton->parentWidget(), autoPreampButton))
-		return false;
+		return invalid(__LINE__);
 	const QList<QWidget*> analysisControls = {
 		ui->startFromLabel, ui->startFromComboBox,
 		ui->analysisChannelLabel, ui->analysisChannelComboBox,
@@ -4592,7 +4716,7 @@ bool MainWindow::snapshotLayoutIsValid() const
 	};
 	for (QWidget* control : analysisControls)
 		if (!fitsInsideContainer(ui->groupBox, control))
-			return false;
+			return invalid(__LINE__);
 	const QStringList simpleGuiObjectNames = denseScenario ? QStringList{
 		QStringLiteral("DeviceFilterGUI"),
 		QStringLiteral("PreampFilterGUI"),
@@ -4619,17 +4743,17 @@ bool MainWindow::snapshotLayoutIsValid() const
 	{
 		const QList<QWidget*> guis = findChildren<QWidget*>(objectName);
 		if (guis.isEmpty())
-			return false;
+			return invalid(__LINE__);
 		for (QWidget* gui : guis)
 		{
 			if (!fitsInsideContainer(gui->parentWidget(), gui))
-				return false;
+				return invalid(__LINE__);
 			for (QWidget* child : gui->findChildren<QWidget*>())
 			{
 				if (child->isVisible() && !child->isWindow()
 					&& !fitsInsideContainer(gui, child))
 				{
-					return false;
+					return invalid(__LINE__);
 				}
 			}
 		}
@@ -4648,12 +4772,12 @@ bool MainWindow::snapshotLayoutIsValid() const
 			: copyGui->findChild<QWidget*>(QStringLiteral("tabWidget"));
 		if (copyReset == NULL || copyTitle == NULL || copyTabs == NULL
 			|| copyReset->sizePolicy().horizontalPolicy() != QSizePolicy::Fixed)
-			return false;
+			return invalid(__LINE__);
 		const QRect resetRect(copyReset->mapTo(copyGui, QPoint(0, 0)), copyReset->size());
 		const QRect titleRect(copyTitle->mapTo(copyGui, QPoint(0, 0)), copyTitle->size());
 		const QRect tabsRect(copyTabs->mapTo(copyGui, QPoint(0, 0)), copyTabs->size());
 		if (resetRect.intersects(titleRect) || tabsRect.right() < resetRect.right())
-			return false;
+			return invalid(__LINE__);
 	}
 
 	if (restoredToolsScenario)
@@ -4674,14 +4798,14 @@ bool MainWindow::snapshotLayoutIsValid() const
 				|| internalScroll->horizontalScrollBar() == NULL
 				|| internalScroll->viewport() == NULL
 				|| !fitsInsideContainer(gui, internalScroll))
-				return false;
+				return invalid(__LINE__);
 
 			const bool contentOverflows = content->width() > internalScroll->viewport()->width();
 			if (contentOverflows && internalScroll->horizontalScrollBar()->maximum() <= 0)
-				return false;
+				return invalid(__LINE__);
 			for (QWidget* child : content->findChildren<QWidget*>(QString(), Qt::FindDirectChildrenOnly))
 				if (child->isVisible() && !fitsInsideContainer(content, child))
-					return false;
+					return invalid(__LINE__);
 		}
 	}
 
@@ -4707,7 +4831,7 @@ bool MainWindow::snapshotLayoutIsValid() const
 		if (denseScenario && check.guiObjectName == QStringLiteral("DelayFilterGUI"))
 			continue;
 		if (guis.isEmpty())
-			return false;
+			return invalid(__LINE__);
 		for (QWidget* gui : guis)
 		{
 			QWidget* reset = gui->findChild<QWidget*>(check.resetObjectName);
@@ -4715,12 +4839,14 @@ bool MainWindow::snapshotLayoutIsValid() const
 			QLabel* title = gui->findChild<QLabel*>(check.titleObjectName);
 			if (reset == NULL || editor == NULL || title == NULL
 				|| reset->sizePolicy().horizontalPolicy() != QSizePolicy::Fixed
-				|| !(title->alignment() & Qt::AlignTop))
-				return false;
+				|| !(title->alignment() & Qt::AlignVCenter))
+			{
+				return invalid(__LINE__);
+			}
 			const QRect resetRect(reset->mapTo(gui, QPoint(0, 0)), reset->size());
 			const QRect editorRect(editor->mapTo(gui, QPoint(0, 0)), editor->size());
 			if (resetRect.intersects(editorRect))
-				return false;
+				return invalid(__LINE__);
 		}
 	}
 	return true;

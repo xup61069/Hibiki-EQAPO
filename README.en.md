@@ -5,7 +5,7 @@
 [![Build](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/xup61069/Hibiki-EQAPO)](https://github.com/xup61069/Hibiki-EQAPO/releases/latest)
 
-**Hibiki EQAPO** is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It retains the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
+**Hibiki EQAPO** is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It defaults to the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
 
 Code lineage: [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) → [TheFireKahuna/equalizerAPO64](https://github.com/TheFireKahuna/equalizerAPO64) → [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) → this repository.
 
@@ -310,6 +310,16 @@ A/B and bypass require a saved profile with no unsaved edits, cannot run at the 
 
 - Enable **Settings → Keep running in the notification area** if closing the window should hide the editor. Its menu can show the editor, open profiles for editing, toggle Instant mode, bypass or restore the current profile, and exit. A real exit first restores any temporary A/B or bypass state.
 - Device Test can restart Windows Audio and try alternative APO registration modes after an initial failure, so audio may be interrupted more than once. Cancelling is cooperative: if a fallback registration transaction has begun, the dialog finishes that transaction and its required Windows Audio restart rather than leaving a half-applied device state.
+
+### Interface and signal-path precision
+
+View offers a persistent 75–200% interface scale (editor restart required) and an animation switch. Interface scale multiplies Windows display scaling; cancelling the close prompt for unsaved edits also cancels the scale change. Smooth wheel scrolling yields to native trackpad momentum and plot zoom gestures. Settings opens Device Selector from the editor’s installation folder.
+
+Settings → Double precision controls the current configuration’s entire signal path. Enabled is the existing default. Disabled writes `ProcessingPrecision: 32`; enabled writes `ProcessingPrecision: 64`. Instant mode uses the existing save workflow; otherwise, save the configuration to apply. A configuration may contain at most one active precision directive across included files. Missing means 64; invalid or duplicate values reject the new configuration and retain the active one.
+
+The 32-bit path uses float buffers between every module and native single-precision kernels where available. Specialized and legacy kernels retain their internal precision through preallocated conversion buffers. Coefficients, calibration, FFT, plug-ins and loudness internals are not promised to use float arithmetic; CPU and memory savings are not guaranteed. Precision changes use the existing configuration crossfade and are also honored by offline analysis. This does not change the Windows device’s output bit depth.
+
+For configurations with included files or device/conditional scopes, the precision menu is disabled and directs users to edit `ProcessingPrecision` in the configuration text. It does not infer an effective format from a single tab or insert potentially conflicting declarations.
 
 ### Analysis panel, response animation, and Auto preamp
 

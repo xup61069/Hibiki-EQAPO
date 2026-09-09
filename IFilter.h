@@ -64,6 +64,13 @@ public:
 	// return value is the channelNames vector, which may contain additional or fewer channel names
 	virtual std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) = 0;
 	virtual void process(double** output, double** input, unsigned frameCount) = 0;
+	// Optional native float kernel. Returning false must leave buffers/state
+	// untouched; the configuration then uses its preallocated double bridge.
+	virtual bool processSingle(float** output, float** input, unsigned frameCount)
+	{
+		(void)output; (void)input; (void)frameCount;
+		return false;
+	}
 
 protected:
 };

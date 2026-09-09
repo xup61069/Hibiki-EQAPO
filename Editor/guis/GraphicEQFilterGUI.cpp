@@ -370,9 +370,10 @@ QSize GraphicEQFilterGUI::minimumSizeHint() const
 
 int GraphicEQFilterGUI::preferredHeight() const
 {
-	return std::max(ui->graphicsView->height(), ui->graphicsView->minimumHeight())
+	const int contentHeight = std::max(ui->graphicsView->height(), ui->graphicsView->minimumHeight())
 		+ ui->toolBar->sizeHint().height()
 		+ GUIHelper::scale(18);
+	return qMax(contentHeight, layout()->totalSizeHint().height());
 }
 
 void GraphicEQFilterGUI::updatePreferredHeight()

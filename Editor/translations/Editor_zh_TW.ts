@@ -3551,6 +3551,46 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <source>This profile changed in another program during calibration. Restore saved profile will overwrite those external changes.</source>
         <translation type="vanished">校正期間此設定檔已由其他程式變更。還原已儲存的設定檔會覆寫那些外部變更。</translation>
     </message>
+    <message>
+        <source>Device Selector…</source>
+        <translation>裝置選擇器…</translation>
+    </message>
+    <message>
+        <source>Interface scale (restart)</source>
+        <translation>介面縮放（重新啟動）</translation>
+    </message>
+    <message>
+        <source>Interface animations</source>
+        <translation>介面動畫</translation>
+    </message>
+    <message>
+        <source>Device Selector</source>
+        <translation>裝置選擇器</translation>
+    </message>
+    <message>
+        <source>Could not open Device Selector. Check that DeviceSelector.exe is installed beside the editor.</source>
+        <translation>無法開啟裝置選擇器。請確認 DeviceSelector.exe 與編輯器安裝在同一個資料夾。</translation>
+    </message>
+    <message>
+        <source>Double precision (64-bit signal path)</source>
+        <translation>雙精度（64 位元訊號鏈）</translation>
+    </message>
+    <message>
+        <source>Applies to the current configuration. Off uses 32-bit audio between modules; specialized filters may retain double-precision internals. Save to apply when instant mode is off.</source>
+        <translation>套用至目前設定檔。關閉後，元件之間使用 32 位元音訊；特殊濾波器內部仍可能使用雙精度。未啟用即時模式時，儲存後才會套用。</translation>
+    </message>
+    <message>
+        <source>Could not change precision. Check for duplicate or invalid ProcessingPrecision entries.</source>
+        <translation>無法變更精度。請檢查 ProcessingPrecision 是否重複或填入無效值。</translation>
+    </message>
+    <message>
+        <source>This configuration contains scopes or included files. Edit ProcessingPrecision in the configuration text to choose the effective signal-path format.</source>
+        <translation>這份設定包含作用域或引入檔案。請在設定文字中編輯 ProcessingPrecision，選擇實際使用的訊號鏈精度。</translation>
+    </message>
+    <message>
+        <source>Processing precision (see configuration)</source>
+        <translation>處理精度（請查看設定文字）</translation>
+    </message>
 </context>
 <context>
     <name>OriginalLoudnessCorrectionCalibrationDialog</name>
@@ -3923,6 +3963,11 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <location filename="../guis/ParametricEQFilterGUIFactory.cpp" line="432"/>
         <source>Parametric equalizer</source>
         <translation>參數式等化器</translation>
+    </message>
+    <message>
+        <location filename="../FilterTableRow.cpp" line="74"/>
+        <source>Parametric EQ</source>
+        <translation>參數等化器</translation>
     </message>
 </context>
 <context>

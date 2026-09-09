@@ -52,8 +52,17 @@ public:
 	double** getOutputSamples() {return allSamples;}
 	bool isEmpty();
 	bool isValid() const {return valid;}
+	bool usesSinglePrecision() const {return singlePrecision;}
 
 private:
+	void processSingle(unsigned frameCount);
+	bool singlePrecision;
+	float** samples32 = nullptr;
+	float** samples32Alternate = nullptr;
+	float** current32 = nullptr;
+	float** output32 = nullptr;
+	size_t allocated32 = 0;
+	size_t allocated32Alternate = 0;
 	unsigned realChannelCount;
 	unsigned outputChannelCount;
 	unsigned allChannelCount;
