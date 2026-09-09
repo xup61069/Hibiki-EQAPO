@@ -17,6 +17,102 @@
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <mutex>
+
+struct LoudnessCorrectionFilter::LiveCrossoverSlot
+{
+	std::wstring key;
+	float sampleRate = 0.0f;
+	size_t channelCount = 0;
+	std::vector<std::vector<BiQuad>> lowpassBanks;
+	std::vector<std::vector<BiQuad>> highpassBanks;
+	std::atomic<bool> settled{ false };
+	std::atomic<LoudnessCorrectionFilter*> activeOwner{ nullptr };
+};
+
+namespace
+{
+	CRITICAL_SECTION g_crossoverHandoffSection;
+	std::once_flag g_crossoverHandoffInitOnce;
+	std::vector<std::unique_ptr<LoudnessCorrectionFilter::LiveCrossoverSlot>> g_crossoverHandoffSlots;
+
+	void ensureCrossoverHandoffSectionInitialized()
+	{
+		std::call_once(g_crossoverHandoffInitOnce, []() {
+			InitializeCriticalSection(&g_crossoverHandoffSection);
+		});
+	}
+}
+
+LoudnessCorrectionFilter::LiveCrossoverSlot* LoudnessCorrectionFilter::acquireCrossoverHandoffSlot(
+	const std::wstring& key,
+	float sampleRate,
+	size_t channelCount)
+{
+	if (channelCount == 0)
+		return nullptr;
+
+	ensureCrossoverHandoffSectionInitialized();
+	EnterCriticalSection(&g_crossoverHandoffSection);
+	for (auto& slot : g_crossoverHandoffSlots)
+	{
+		if (slot->key == key)
+		{
+			if (slot->sampleRate != sampleRate || slot->channelCount != channelCount)
+			{
+				slot->settled.store(false, std::memory_order_release);
+				slot->activeOwner.store(nullptr, std::memory_order_release);
+				slot->sampleRate = sampleRate;
+				slot->channelCount = channelCount;
+				slot->lowpassBanks.assign(
+					channelCount,
+					std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+				slot->highpassBanks.assign(
+					channelCount,
+					std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+			}
+			else if (slot->lowpassBanks.size() < channelCount)
+			{
+				slot->lowpassBanks.assign(
+					channelCount,
+					std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+				slot->highpassBanks.assign(
+					channelCount,
+					std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+			}
+			LeaveCriticalSection(&g_crossoverHandoffSection);
+			return slot.get();
+		}
+	}
+
+	auto newSlot = std::make_unique<LoudnessCorrectionFilter::LiveCrossoverSlot>();
+	newSlot->key = key;
+	newSlot->sampleRate = sampleRate;
+	newSlot->channelCount = channelCount;
+	newSlot->lowpassBanks.assign(
+		channelCount,
+		std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+	newSlot->highpassBanks.assign(
+		channelCount,
+		std::vector<BiQuad>(CROSSOVER_SECTION_COUNT));
+	auto* const result = newSlot.get();
+	g_crossoverHandoffSlots.push_back(std::move(newSlot));
+	LeaveCriticalSection(&g_crossoverHandoffSection);
+	return result;
+}
+
+void LoudnessCorrectionFilter::resetCrossoverHandoffRegistry()
+{
+	ensureCrossoverHandoffSectionInitialized();
+	EnterCriticalSection(&g_crossoverHandoffSection);
+	for (auto& slot : g_crossoverHandoffSlots)
+	{
+		slot->settled.store(false, std::memory_order_release);
+		slot->activeOwner.store(nullptr, std::memory_order_release);
+	}
+	LeaveCriticalSection(&g_crossoverHandoffSection);
+}
 
 LoudnessCorrectionFilter::LoudnessCorrectionFilter(const FilterParameters& fParameters)
 	: _parameterUpdateThreadHandle(NULL),
@@ -72,7 +168,8 @@ LoudnessCorrectionFilter::LoudnessCorrectionFilter(const FilterParameters& fPara
 	  _volumeFollowRampRemaining(0),
 	  _volumeFollowRampLength(480),
 	  _volumeFollowUpdated(false),
-	  _coeffsUpdated(false)
+	  _coeffsUpdated(false),
+	  _handoffSlot(nullptr)
 {
 	InitializeCriticalSection(&_parameterUpdateSection);
 
@@ -104,6 +201,19 @@ LoudnessCorrectionFilter::~LoudnessCorrectionFilter()
 	}
 
 	DeleteCriticalSection(&_parameterUpdateSection);
+
+	if (_handoffSlot != nullptr)
+	{
+		LoudnessCorrectionFilter* expected = this;
+		if (_handoffSlot->activeOwner.compare_exchange_strong(
+			expected, nullptr,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire))
+		{
+			_handoffSlot->settled.store(false, std::memory_order_release);
+		}
+		_handoffSlot = nullptr;
+	}
 }
 
 bool LoudnessCorrectionFilter::canTrackAutomaticVolume() const
@@ -458,6 +568,22 @@ std::vector<std::wstring> LoudnessCorrectionFilter::initialize(
 		_crossfadeActive = false;
 		_transitionFromBypass = false;
 		_coeffsUpdated.store(!initialIdentity, std::memory_order_relaxed);
+	}
+
+	if (!_runtimeContext.offlineAnalysis)
+	{
+		std::wstring handoffKey = getVolumeControllerEndpointId();
+		for (const auto& name : channelNames)
+		{
+			handoffKey += L":";
+			handoffKey += name;
+		}
+		_handoffSlot = acquireCrossoverHandoffSlot(
+			handoffKey, _sampleRate, _channelCount);
+	}
+	else
+	{
+		_handoffSlot = nullptr;
 	}
 
 	// Manual mode is immutable for the lifetime of a filter instance, so it
@@ -1551,6 +1677,117 @@ unsigned long __stdcall LoudnessCorrectionFilter::parameterUpdateThread(void* pa
 }
 
 #pragma AVRT_CODE_BEGIN
+bool LoudnessCorrectionFilter::tryAdoptLiveCrossoverHistory()
+{
+	if (_handoffSlot == nullptr)
+		return false;
+
+	if (!_handoffSlot->settled.load(std::memory_order_acquire))
+		return false;
+
+	if (_handoffSlot->sampleRate != _sampleRate ||
+		_handoffSlot->channelCount != _channelCount)
+	{
+		return false;
+	}
+
+	if (_handoffSlot->lowpassBanks.size() < _channelCount ||
+		_handoffSlot->highpassBanks.size() < _channelCount)
+	{
+		return false;
+	}
+
+	for (size_t channel = 0; channel < _channelCount; ++channel)
+	{
+		for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
+		{
+			if (!_handoffSlot->lowpassBanks[channel][section].isStateFinite() ||
+				!_handoffSlot->highpassBanks[channel][section].isStateFinite())
+			{
+				return false;
+			}
+		}
+	}
+
+	for (size_t bank = 0; bank < 2; ++bank)
+	{
+		for (size_t channel = 0; channel < _channelCount; ++channel)
+		{
+			for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
+			{
+				_lowpassBanks[bank][channel][section] =
+					_handoffSlot->lowpassBanks[channel][section];
+				_highpassBanks[bank][channel][section] =
+					_handoffSlot->highpassBanks[channel][section];
+			}
+		}
+	}
+
+	std::fill(_crossoverDomainActive.begin(), _crossoverDomainActive.end(), 1);
+	_crossoverDomainChannelCount = _channelCount;
+	_crossoverPrewarmActive = false;
+	_crossoverHandoffActive = false;
+	_crossoverPrewarmPosition = _crossoverPrewarmLength;
+
+	_activeBankIndex = 0;
+	_transitionBankIndex = 1;
+	_outputGainLinear = _targetOutputGainLinear;
+	_bankIdentity[0] = _pendingIdentity;
+	_bankIdentity[1] = _pendingIdentity;
+	_coeffsUpdated.store(false, std::memory_order_release);
+	_warmupActive = false;
+	_crossfadeActive = false;
+	_transitionFromBypass = false;
+
+	_handoffSlot->activeOwner.store(this, std::memory_order_release);
+	return true;
+}
+
+void LoudnessCorrectionFilter::publishLiveCrossoverHistory()
+{
+	if (_handoffSlot == nullptr)
+		return;
+
+	if (_handoffSlot->sampleRate != _sampleRate ||
+		_handoffSlot->channelCount != _channelCount)
+	{
+		return;
+	}
+
+	if (_handoffSlot->lowpassBanks.size() < _channelCount ||
+		_handoffSlot->highpassBanks.size() < _channelCount)
+	{
+		return;
+	}
+
+	for (size_t channel = 0; channel < _channelCount; ++channel)
+	{
+		for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
+		{
+			if (!_lowpassBanks[_activeBankIndex][channel][section].isStateFinite() ||
+				!_highpassBanks[_activeBankIndex][channel][section].isStateFinite())
+			{
+				_handoffSlot->settled.store(false, std::memory_order_release);
+				return;
+			}
+		}
+	}
+
+	for (size_t channel = 0; channel < _channelCount; ++channel)
+	{
+		for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
+		{
+			_handoffSlot->lowpassBanks[channel][section] =
+				_lowpassBanks[_activeBankIndex][channel][section];
+			_handoffSlot->highpassBanks[channel][section] =
+				_highpassBanks[_activeBankIndex][channel][section];
+		}
+	}
+
+	_handoffSlot->activeOwner.store(this, std::memory_order_release);
+	_handoffSlot->settled.store(true, std::memory_order_release);
+}
+
 void LoudnessCorrectionFilter::installPendingVolumeFollow()
 {
 	// Manual volume is immutable for this filter instance; initialization has
@@ -1669,6 +1906,9 @@ void LoudnessCorrectionFilter::process(double** output, double** input, unsigned
 		}
 		return;
 	}
+
+	if (_crossoverPrewarmActive)
+		tryAdoptLiveCrossoverHistory();
 
 	bool runtimeBypass = _runtimeBypass.load(std::memory_order_acquire);
 	bool crossoverDomainReady = !_crossoverPrewarmActive &&
@@ -1866,6 +2106,8 @@ void LoudnessCorrectionFilter::process(double** output, double** input, unsigned
 		}
 
 		advanceVolumeFollow(frameCount);
+		if (!runtimeBypass && _crossoverDomainChannelCount == _channelCount)
+			publishLiveCrossoverHistory();
 		_runtimeBypassWasActive = runtimeBypass;
 		return;
 	}
@@ -2131,6 +2373,11 @@ void LoudnessCorrectionFilter::process(double** output, double** input, unsigned
 	}
 
 	advanceVolumeFollow(frameCount);
+	if (!runtimeBypass && !_crossoverPrewarmActive && !_crossoverHandoffActive &&
+		_crossoverDomainChannelCount == _channelCount)
+	{
+		publishLiveCrossoverHistory();
+	}
 	_runtimeBypassWasActive = runtimeBypass;
 }
 #pragma AVRT_CODE_END

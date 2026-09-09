@@ -465,6 +465,11 @@ public:
 		}
 		return true;
 	}
+
+	static void resetCrossoverHandoffRegistry()
+	{
+		LoudnessCorrectionFilter::resetCrossoverHandoffRegistry();
+	}
 };
 
 class OriginalLoudnessCorrectionFilterTestAccess
@@ -3455,6 +3460,120 @@ namespace
 		return true;
 	}
 
+	bool runLoudnessCrossoverReloadHandoffCase()
+	{
+		LoudnessCorrectionFilterTestAccess::resetCrossoverHandoffRegistry();
+
+		const unsigned sampleRate = 48000;
+		const unsigned batchSize = 256;
+		const unsigned prewarmFrames = sampleRate * 2;
+
+		LoudnessCorrectionFilter::FilterParameters params1;
+		params1.state = true;
+		params1.referenceLevel = 80.0f;
+		params1.referenceOffset = 0.0f;
+		params1.attenuation = 1.0f;
+		params1.useManualVolume = true;
+		params1.manualVolume = -30.0f;
+
+		LoudnessCorrectionFilter filter1(params1);
+		vector<wstring> channels{ L"L", L"R" };
+		filter1.initialize(static_cast<float>(sampleRate), batchSize, channels);
+
+		if (!LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filter1))
+		{
+			fprintf(stderr, "Filter 1 should have prewarm active on cold start.\n");
+			return false;
+		}
+
+		vector<double> inL(batchSize, 0.0);
+		vector<double> inR(batchSize, 0.0);
+		vector<double> outL(batchSize, 0.0);
+		vector<double> outR(batchSize, 0.0);
+		double* inChannels[] = { inL.data(), inR.data() };
+		double* outChannels[] = { outL.data(), outR.data() };
+
+		unsigned framesRun = 0;
+		while (framesRun < prewarmFrames)
+		{
+			for (unsigned i = 0; i < batchSize; ++i)
+			{
+				double t = static_cast<double>(framesRun + i) / sampleRate;
+				inL[i] = 0.5 * std::sin(2.0 * M_PI * 100.0 * t);
+				inR[i] = 0.5 * std::cos(2.0 * M_PI * 100.0 * t);
+			}
+			filter1.process(outChannels, inChannels, batchSize);
+			framesRun += batchSize;
+		}
+
+		if (LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filter1) ||
+			!LoudnessCorrectionFilterTestAccess::crossoverDomainReady(filter1))
+		{
+			fprintf(stderr, "Filter 1 failed to reach crossover domain.\n");
+			return false;
+		}
+
+		// Simulate config reload with new parameters
+		LoudnessCorrectionFilter::FilterParameters params2 = params1;
+		params2.attenuation = 0.6f;
+		params2.manualVolume = -25.0f;
+
+		LoudnessCorrectionFilter filter2(params2);
+		filter2.initialize(static_cast<float>(sampleRate), batchSize, channels);
+
+		// Before first process() block, filter2 has _crossoverPrewarmActive = true
+		if (!LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filter2))
+		{
+			fprintf(stderr, "Filter 2 prewarm flag should start true before first process block.\n");
+			return false;
+		}
+
+		// Process first block of filter2
+		for (unsigned i = 0; i < batchSize; ++i)
+		{
+			double t = static_cast<double>(framesRun + i) / sampleRate;
+			inL[i] = 0.5 * std::sin(2.0 * M_PI * 100.0 * t);
+			inR[i] = 0.5 * std::cos(2.0 * M_PI * 100.0 * t);
+		}
+		filter2.process(outChannels, inChannels, batchSize);
+
+		// In the very first block, filter2 must have adopted the live crossover history!
+		if (LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filter2) ||
+			!LoudnessCorrectionFilterTestAccess::crossoverDomainReady(filter2))
+		{
+			fprintf(stderr, "Filter 2 failed to adopt live crossover history on reload!\n");
+			return false;
+		}
+
+		// Verify output is finite
+		for (unsigned i = 0; i < batchSize; ++i)
+		{
+			if (!std::isfinite(outL[i]) || !std::isfinite(outR[i]))
+			{
+				fprintf(stderr, "Filter 2 produced non-finite output after reload handoff.\n");
+				return false;
+			}
+		}
+
+		// Sample rate mismatch must NOT adopt
+		LoudnessCorrectionFilter filterRateMismatch(params2);
+		filterRateMismatch.initialize(96000.0f, batchSize, channels);
+		vector<double> in96(batchSize, 0.1);
+		vector<double> out96(batchSize, 0.0);
+		double* inM[] = { in96.data(), in96.data() };
+		double* outM[] = { out96.data(), out96.data() };
+		filterRateMismatch.process(outM, inM, batchSize);
+		if (!LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filterRateMismatch))
+		{
+			fprintf(stderr, "Filter with mismatched sample rate should NOT adopt crossover history.\n");
+			return false;
+		}
+
+		LoudnessCorrectionFilterTestAccess::resetCrossoverHandoffRegistry();
+		printf("Loudness crossover reload handoff: passed\n");
+		return true;
+	}
+
 	bool runLoudnessTransitionCase(
 		const char* name,
 		unsigned sampleRate,
@@ -4320,6 +4439,7 @@ namespace
 			"State0", false, 1.0f, -100.0f) && passed;
 		passed = runLoudnessIdentityCase(
 			"zero-attenuation", true, 0.0f, -100.0f) && passed;
+		LoudnessCorrectionFilterTestAccess::resetCrossoverHandoffRegistry();
 		const double subsonicFrequencies[] = { 1.0, 5.0, 10.0, 15.0, 19.0 };
 		for (double frequency : subsonicFrequencies)
 			passed = runLoudnessSubsonicSineCase(frequency) && passed;
@@ -4329,6 +4449,7 @@ namespace
 			"8k-0-to-minus100", 8000, 31.5, 0.0, -100.0, 0.0) && passed;
 		passed = runLoudnessTransitionCase(
 			"48k-inter-bin", 48000, 80.216, -40.0, 0.0, 0.0) && passed;
+		passed = runLoudnessCrossoverReloadHandoffCase() && passed;
 
 		passed = runLoudnessAdaptiveHandoffSweep() && passed;
 		const unsigned handoffSampleRates[] = { 8000, 48000 };

@@ -26,6 +26,10 @@ WINDOWS_POWERSHELL = (
     / "v1.0"
     / "powershell.exe"
 )
+# Starting Windows PowerShell through a silently compiled NSIS executable can
+# exceed 20 seconds on a loaded GitHub-hosted runner, even when the command
+# itself is healthy. Keep a finite bound while allowing that cold start.
+PROCESS_STOPPER_TIMEOUT_SECONDS = 60
 
 
 def extract_process_stopper_command(source: str) -> str:
@@ -183,7 +187,7 @@ $lines = @(
                         encoding="utf-8",
                         errors="replace",
                         check=False,
-                        timeout=20,
+                        timeout=PROCESS_STOPPER_TIMEOUT_SECONDS,
                         env=environment,
                     )
                     self.assertEqual(
