@@ -156,7 +156,7 @@ HeadphoneCalibrationFilterGUI::HeadphoneCalibrationFilterGUI(const QString& para
 	contentScrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 	contentScrollArea->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
 	contentScrollArea->setMinimumWidth(0);
-	contentScrollArea->setMinimumHeight(190);
+	contentScrollArea->setMinimumHeight(170);
 	contentScrollArea->setMaximumHeight(360);
 	contentScrollArea->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 

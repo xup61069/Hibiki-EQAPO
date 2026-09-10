@@ -97,7 +97,7 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 	scrollArea->setWidgetResizable(true);
 	scrollArea->setHorizontalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 	scrollArea->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
-	scrollArea->setMinimumHeight(210);
+	scrollArea->setMinimumHeight(180);
 	scrollArea->setMaximumHeight(430);
 	scrollArea->setMinimumWidth(0);
 	scrollArea->setSizeAdjustPolicy(QAbstractScrollArea::AdjustIgnored);
