@@ -808,8 +808,8 @@ AudioToolFilterGUI::AudioToolFilterGUI(const QString& command, const QString& pa
 	setObjectName(commandName + QStringLiteral("FilterGUI"));
 	QGridLayout* grid = new QGridLayout(this);
 	grid->setContentsMargins(0, 0, 0, 0);
-	grid->setHorizontalSpacing(8);
-	grid->setVerticalSpacing(6);
+	grid->setHorizontalSpacing(6);
+	grid->setVerticalSpacing(5);
 
 	if (commandName == "ToneGenerator")
 	{

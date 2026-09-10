@@ -68,15 +68,15 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 
 	QGridLayout* root = new QGridLayout(this);
 	root->setContentsMargins(2, 2, 2, 2);
-	root->setHorizontalSpacing(10);
-	root->setVerticalSpacing(8);
+	root->setHorizontalSpacing(8);
+	root->setVerticalSpacing(6);
 	setMinimumWidth(0);
 	setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
 	QWidget* header = new QWidget(this);
 	QGridLayout* headerLayout = new QGridLayout(header);
 	headerLayout->setContentsMargins(0, 0, 0, 0);
-	headerLayout->setHorizontalSpacing(10);
+	headerLayout->setHorizontalSpacing(8);
 	headerLayout->addWidget(new QLabel(tr("On"), header), 0, 0);
 	headerLayout->addWidget(new QLabel(tr("Type"), header), 0, 1);
 	headerLayout->addWidget(new QLabel(tr("Frequency"), header), 0, 2);
@@ -87,7 +87,7 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 	QWidget* rowsWidget = new QWidget(this);
 	rowsWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
 	rowsLayout = new QVBoxLayout(rowsWidget);
-	rowsLayout->setContentsMargins(0, 0, 14, 0);
+	rowsLayout->setContentsMargins(0, 0, 8, 0);
 	rowsLayout->setSpacing(4);
 	rowsLayout->addStretch(1);
 
@@ -114,8 +114,8 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 	QWidget* actionsWidget = new QWidget(this);
 	QGridLayout* actionsLayout = new QGridLayout(actionsWidget);
 	actionsLayout->setContentsMargins(0, 0, 0, 0);
-	actionsLayout->setHorizontalSpacing(8);
-	actionsLayout->setVerticalSpacing(6);
+	actionsLayout->setHorizontalSpacing(6);
+	actionsLayout->setVerticalSpacing(5);
 	actionsLayout->addWidget(addButton, 0, 0, 1, 2);
 	actionsLayout->addWidget(sortButton, 0, 2, 1, 2);
 	actionsLayout->addWidget(resetButton, 0, 4, 1, 2);
@@ -211,7 +211,7 @@ void ParametricEQFilterGUI::addBand(const ParametricEQFilter::Band& band)
 	row->widget = new QWidget(this);
 	QGridLayout* grid = new QGridLayout(row->widget);
 	grid->setContentsMargins(0, 2, 0, 2);
-	grid->setHorizontalSpacing(10);
+	grid->setHorizontalSpacing(8);
 
 	row->index = new QLabel(row->widget);
 	row->index->setMinimumWidth(34);

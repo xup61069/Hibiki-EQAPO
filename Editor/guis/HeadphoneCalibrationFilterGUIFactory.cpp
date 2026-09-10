@@ -163,9 +163,9 @@ HeadphoneCalibrationFilterGUI::HeadphoneCalibrationFilterGUI(const QString& para
 	QWidget* contentWidget = new QWidget(contentScrollArea);
 	contentWidget->setSizePolicy(QSizePolicy::MinimumExpanding, QSizePolicy::Preferred);
 	QGridLayout* grid = new QGridLayout(contentWidget);
-	grid->setContentsMargins(6, 4, 6, 4);
-	grid->setHorizontalSpacing(10);
-	grid->setVerticalSpacing(8);
+	grid->setContentsMargins(4, 3, 4, 3);
+	grid->setHorizontalSpacing(8);
+	grid->setVerticalSpacing(6);
 
 	sourceComboBox = new QComboBox(contentWidget);
 	brandComboBox = new QComboBox(contentWidget);

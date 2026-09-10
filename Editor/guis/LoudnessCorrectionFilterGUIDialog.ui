@@ -20,11 +20,11 @@
    <string>Listening-level calibration</string>
   </property>
   <layout class="QVBoxLayout" name="rootLayout">
-   <property name="spacing"><number>12</number></property>
-   <property name="leftMargin"><number>18</number></property>
-   <property name="topMargin"><number>18</number></property>
-   <property name="rightMargin"><number>18</number></property>
-   <property name="bottomMargin"><number>16</number></property>
+   <property name="spacing"><number>8</number></property>
+   <property name="leftMargin"><number>12</number></property>
+   <property name="topMargin"><number>12</number></property>
+   <property name="rightMargin"><number>12</number></property>
+   <property name="bottomMargin"><number>12</number></property>
    <item>
     <widget class="QLabel" name="titleLabel">
      <property name="text"><string>Calibrate your listening position</string></property>
@@ -47,7 +47,7 @@
     <widget class="QGroupBox" name="speakerStepGroup">
      <property name="title"><string>1 · Choose one speaker</string></property>
      <layout class="QVBoxLayout" name="speakerStepLayout">
-      <property name="spacing"><number>8</number></property>
+      <property name="spacing"><number>6</number></property>
       <item>
        <widget class="QLabel" name="speakerHintLabel">
         <property name="text"><string>Measure a single speaker so the reference level is not inflated by summing both channels.</string></property>
@@ -79,7 +79,7 @@
     <widget class="QGroupBox" name="playbackStepGroup">
      <property name="title"><string>2 · Play the calibration signal</string></property>
      <layout class="QVBoxLayout" name="playbackStepLayout">
-      <property name="spacing"><number>8</number></property>
+      <property name="spacing"><number>6</number></property>
       <item>
        <widget class="QLabel" name="playbackHintLabel">
         <property name="text"><string>Set application volume to full, keep your normal Windows or hardware volume position, then play the pink-noise signal.</string></property>
@@ -117,7 +117,7 @@
     <widget class="QGroupBox" name="measurementStepGroup">
      <property name="title"><string>3 · Enter the measured level</string></property>
      <layout class="QVBoxLayout" name="measurementStepLayout">
-      <property name="spacing"><number>8</number></property>
+      <property name="spacing"><number>6</number></property>
       <item>
        <widget class="QLabel" name="measurementHintLabel">
         <property name="text"><string>Measure at the listening position and enter the meter reading. The result becomes the 1 kHz reference at 0 dB tracked volume.</string></property>

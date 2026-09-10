@@ -54,7 +54,7 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 	ui->gainDial->setFixedSize(compactDialSize);
 	ui->qDial->setFixedSize(compactDialSize);
 
-	const int compactSpacing = GUIHelper::scale(8);
+	const int compactSpacing = GUIHelper::scale(6);
 	auto parameterLayout = [compactSpacing](
 		QWidget* dial, QWidget* labelOrCombo, QWidget* value)
 	{
@@ -80,7 +80,7 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 
 	ui->gridLayout->setContentsMargins(0, 0, 0, 0);
 	ui->gridLayout->setHorizontalSpacing(compactSpacing);
-	ui->gridLayout->setVerticalSpacing(GUIHelper::scale(6));
+	ui->gridLayout->setVerticalSpacing(GUIHelper::scale(5));
 	ui->gridLayout->addLayout(typeLayout, 0, 0, 1, 3);
 	ui->gridLayout->addLayout(parameterLayout(
 		ui->freqDial, ui->freqComboBox, ui->freqSpinBox), 1, 0);

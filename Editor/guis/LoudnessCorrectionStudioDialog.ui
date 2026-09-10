@@ -24,26 +24,26 @@
   </property>
   <layout class="QVBoxLayout" name="rootLayout" stretch="0,1,0">
    <property name="spacing">
-    <number>12</number>
+    <number>8</number>
    </property>
    <property name="leftMargin">
-    <number>18</number>
+    <number>12</number>
    </property>
    <property name="topMargin">
-    <number>18</number>
+    <number>12</number>
    </property>
    <property name="rightMargin">
-    <number>18</number>
+    <number>12</number>
    </property>
    <property name="bottomMargin">
-    <number>16</number>
+    <number>12</number>
    </property>
    <item>
     <widget class="QFrame" name="heroFrame">
      <property name="minimumSize">
       <size>
        <width>0</width>
-       <height>92</height>
+       <height>80</height>
       </size>
      </property>
      <property name="frameShape">
@@ -51,19 +51,19 @@
      </property>
      <layout class="QHBoxLayout" name="heroLayout">
       <property name="spacing">
-       <number>14</number>
+       <number>10</number>
       </property>
       <property name="leftMargin">
-       <number>18</number>
+       <number>12</number>
       </property>
       <property name="topMargin">
-       <number>14</number>
+       <number>10</number>
       </property>
       <property name="rightMargin">
-       <number>16</number>
+       <number>12</number>
       </property>
       <property name="bottomMargin">
-       <number>14</number>
+       <number>10</number>
       </property>
       <item>
        <widget class="QLabel" name="brandMark">
@@ -204,10 +204,10 @@
        <number>0</number>
       </property>
      <property name="horizontalSpacing">
-      <number>12</number>
+      <number>8</number>
      </property>
      <property name="verticalSpacing">
-      <number>12</number>
+      <number>8</number>
      </property>
      <item row="0" column="0">
       <widget class="QFrame" name="curveCard">
@@ -225,16 +225,16 @@
          <number>6</number>
         </property>
         <property name="leftMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="topMargin">
-         <number>16</number>
+         <number>12</number>
         </property>
         <property name="rightMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="bottomMargin">
-         <number>14</number>
+         <number>10</number>
         </property>
         <item>
          <layout class="QHBoxLayout" name="curveHeaderLayout">
@@ -322,19 +322,19 @@
        </property>
        <layout class="QVBoxLayout" name="volumeLayout">
         <property name="spacing">
-         <number>10</number>
+         <number>8</number>
         </property>
         <property name="leftMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="topMargin">
-         <number>16</number>
+         <number>12</number>
         </property>
         <property name="rightMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="bottomMargin">
-         <number>16</number>
+         <number>12</number>
         </property>
         <item>
          <widget class="QLabel" name="volumeTitleLabel">
@@ -475,19 +475,19 @@
        </property>
        <layout class="QHBoxLayout" name="parametersLayout">
         <property name="spacing">
-         <number>18</number>
+         <number>10</number>
         </property>
         <property name="leftMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="topMargin">
-         <number>14</number>
+         <number>10</number>
         </property>
         <property name="rightMargin">
-         <number>18</number>
+         <number>12</number>
         </property>
         <property name="bottomMargin">
-         <number>14</number>
+         <number>10</number>
         </property>
         <item>
          <layout class="QVBoxLayout" name="referenceLayout">
@@ -517,7 +517,7 @@
           <item>
            <layout class="QHBoxLayout" name="referenceControlLayout">
             <property name="spacing">
-             <number>10</number>
+             <number>8</number>
             </property>
             <item>
              <widget class="QSlider" name="referenceSlider">
@@ -602,7 +602,7 @@
           <item>
            <layout class="QHBoxLayout" name="offsetControlLayout">
             <property name="spacing">
-             <number>10</number>
+             <number>8</number>
             </property>
             <item>
              <widget class="QSlider" name="offsetSlider">
@@ -687,7 +687,7 @@
           <item>
            <layout class="QHBoxLayout" name="strengthControlLayout">
             <property name="spacing">
-             <number>10</number>
+             <number>8</number>
             </property>
             <item>
              <widget class="QSlider" name="strengthSlider">
@@ -744,7 +744,7 @@
    <item>
     <layout class="QHBoxLayout" name="footerLayout">
      <property name="spacing">
-      <number>10</number>
+      <number>8</number>
      </property>
      <item>
       <widget class="QPushButton" name="resetButton">
