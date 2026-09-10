@@ -1,8 +1,16 @@
 # Changelog
 
-## Unreleased
+## 3.1.3
 
+- Completely overhauled the Configuration Editor layout across all filter components, cards, and toolbars:
+  - Eliminated redundant vertical whitespace, dead void rows, oversized paddings, and detached title bars.
+  - Converted Preamp, Delay, and Channel modules into clean, compact single-row horizontal layouts, eliminating the empty void in Channel.
+  - Streamlined Device and Convolution modules by consolidating headers and controls into a 3-row layout and eliminating unused rows.
+  - Removed dead row 2 in BiQuad filters by moving the Reset button into row 0 alongside the filter type dropdown.
+  - Corrected GraphicEQ's expanding vertical label size policy and tightened band selector spacing.
+  - Tightened margins and paddings across Stage, Include, VSTPlugin, ParametricEQ, and Headphone Calibration components.
 - Fixed the header Double precision switch reading as an "off" choice when the configuration needs text editing; it now shows the same "see configuration" wording as the Settings menu action.
+- Isolated formula loudness crossover handoff per endpoint to protect against torn writes and cross-stream state corruption.
 
 ## 3.1.2
 

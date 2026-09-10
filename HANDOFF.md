@@ -1,22 +1,13 @@
-# AI 交接快照：Hibiki EQAPO／Studio UI 與訊號鏈精度
+# AI 交接快照：Hibiki EQAPO v3.1.3 全組件 UI 緊湊化與發布
 
-最後更新：2026-09-09（Asia/Taipei）
+最後更新：2026-09-11（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪仍在最後驗證，不得宣稱完成。正式工作樹為 `G:\AICODE\iso226_2023\Hibiki-EQAPO-studio-ui`；分支 `codex/studio-ui-review`，HEAD `c9bcd857ecdf`。本次 `agent-status.ps1 -Fetch` 成功，相對 `origin/main` 為 ahead 1／behind 0；另有尚未提交的 UI、DSP、翻譯、文件及測試變更，以即時 Git 為準。
-- UI 已加入動畫及平滑捲動修正、共用模組標題、響度介面重排、75%～200% 介面縮放、設定選單的 Device Selector 入口與 Editor 圖示。觸控板、頻率圖手勢與減少動畫仍須由本輪原生 UI 驗證確認。
-- 本輪包含 DSP 變更：`ProcessingPrecision: 32/64` 為 configuration-owned 訊號鏈精度，省略時仍為 64。32 在元件邊界使用 float buffer，Preamp 有原生 float 核心，legacy／specialized 核心經預配置 double bridge；不保證所有內部算式都用 float，也不保證 CPU／記憶體節省。指令不改變裝置輸出位元深度。
-- 精度選單針對目前設定檔，遵守即時／手動儲存與復原。Include、Device、If、Stage 或動態運算等複雜作用域由文字編輯，避免 UI 從單一分頁猜測有效值或加入衝突宣告。Settings 開啟時動態檢查有效性，無效或多重宣告時停用勾選並提示文字編輯。
-- 原工作樹 `Hibiki-EQAPO` 的既有安裝測試與 DSP 修改保留；不要混入此分支。沒有推送、PR、tag 或 GitHub Release；本輪沒有實機安裝／升級／卸載，產品版本未升版。
-
-## 已完成驗證與待辦
-
-- Python 全套：393 tests，392 pass，0 failures／errors，1 skipped。`test_built_host_cold_starts_and_hands_off` 因無法建立 Windows global mapping（Win32 error 5）略過，不能算通過；沒有因 built binary 缺失而暫態略過。紀錄：`_build/studio-final-python.log`。
-- README 中英文與 ADR-0008 已核對目前 32／64 行為，英文介面與精度段落已放回 Interface and workflow。ADR 的原生案例仍須以本輪實跑結果確認。
-- 翻譯：已補 de／fr／zh_CN 的 Pan、Crossfeed、Chorus、Reverb、Tone generator、VU meter，並新增四語 `ParametricEQFilterGUIFactory` 的 `Parametric EQ`。四語共 28 個生成標題均以 XML 核對 context／source 唯一、非空且非 unfinished；四份 `.qm` 已用 Qt 6.10.1 `lrelease` 重新產生。zh_TW 共 838 finished、0 unfinished。其餘既有翻譯保留；UI 協作者已收到 ready，可執行最後 build／矩陣。
-- 原生 precision regression、完整 Release installer／runtime、UI motion harness 與 UI 截圖矩陣正在其他協作者進行；完成後須在此填入實際結果、log、skip 與仍存限制。不得把下方 2026-09-08 的產物或驗證當成本輪證據。
-- 此階段 `git diff --check` 通過。主代理最後補齊 Settings 精度狀態修正的驗證，並在其餘變更結束後重查 whitespace、產物 hash、Git／交付狀態；全部完成後才將 active WIP 改為無。
+- 本輪已完成所有組件（Preamp、Delay、Channel、Device、Convolution、BiQuad、GraphicEQ、Stage、Include、VSTPlugin、ParametricEQ、HeadphoneCalibration、FilterTableRow）之無效空白清理與緊湊化佈局重構。
+- 完成 `codex/compact-editor-ui` 合併回 `main` 分支。
+- 升版至 3.1.3，同步更新 `version.h`、`vcpkg.json`、`.github/workflows/release.yml`、`tests/test_loudness_safety_contract.py` 與 `CHANGELOG.md`。
+- 全套驗證通過：Python 399 項測試通過（398 passed, 1 expected skip）、90/90 UI 回歸截圖幾何約束全數通過、DSP 即時契約測試通過、`git diff --check` 通過。
 
 ---
 
