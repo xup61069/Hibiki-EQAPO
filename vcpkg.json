@@ -1,6 +1,6 @@
 {
   "name": "hibiki-eqapo",
-  "version-string": "3.1.3",
+  "version-string": "3.1.4",
   "builtin-baseline": "30ef65cad98f08e7197c9a1656fbd871bcb72f2d",
   "dependencies": [
     {

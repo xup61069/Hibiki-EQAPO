@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 3.1.4
 
 - Fixed the header Double precision switch falsely showing as unchecked when editing is restricted; it now accurately reflects whether 64-bit precision is active.
 - Fixed the header switch text being replaced with an awkward status label; it now stays cleanly as "Double precision".
