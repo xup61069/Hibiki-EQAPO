@@ -9,7 +9,7 @@ on:
       tag_name:
         description: "Release Tag (e.g. v3.1.1)"
         required: true
-        default: "v3.1.1"
+        default: "v3.1.2"
 
 # Building third-party code must never run with a repository write token.
 permissions:
