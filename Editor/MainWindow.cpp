@@ -3329,6 +3329,12 @@ void MainWindow::refreshWorkspaceActionState()
 				doublePrecision && (!hasTable || editable));
 			doublePrecisionCheckBox->setEnabled(
 				editable && !hasTemporaryState && validPrecision && directives <= 1);
+			// Mirror the menu action wording so a scope-disabled switch does
+			// not read as an "off" 32-bit choice. Both strings already have
+			// complete translations.
+			doublePrecisionCheckBox->setText(hasTable && !editable
+				? tr("Processing precision (see configuration)")
+				: tr("Double precision"));
 		}
 		if (hasTable && !unambiguous)
 			doublePrecisionAction->setToolTip(tr("Could not change precision. Check for duplicate or invalid ProcessingPrecision entries."));

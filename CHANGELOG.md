@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Fixed the header Double precision switch reading as an "off" choice when the configuration needs text editing; it now shows the same "see configuration" wording as the Settings menu action.
+
 ## 3.1.2
 
 - Redesigned the Qt workspace with a Hibiki studio masthead, rounded signal modules, layered light/dark surfaces, engraved rotary controls and softly filled response plots. Added finite header, module, menu, profile, button, focus, status and dial animations without delaying input or audio processing; high contrast, Windows reduced motion, snapshots and `EQAPO_DISABLE_ANIMATIONS` disable motion. Existing profiles, A/B recovery and audio routing remain compatible.

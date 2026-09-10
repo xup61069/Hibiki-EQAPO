@@ -59,6 +59,15 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("refreshWorkspaceActionState()", slot)
         self.assertIn("currentFilterTable()", slot)
 
+    def test_header_switch_labels_scope_disabled_state(self):
+        window = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
+        refresh = window.split("void MainWindow::refreshWorkspaceActionState()", 1)[1].split(
+            "void MainWindow::invalidateAnalysisResult()", 1
+        )[0]
+        self.assertIn("doublePrecisionCheckBox->setText(", refresh)
+        self.assertIn('tr("Processing precision (see configuration)")', refresh)
+        self.assertIn('tr("Double precision")', refresh)
+
 
 if __name__ == "__main__":
     unittest.main()
