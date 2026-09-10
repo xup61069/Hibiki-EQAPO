@@ -56,13 +56,13 @@ public:
 	__forceinline
 	void removeDenormals()
 	{
-		if (IS_DENORMAL(x1))
+		if (!std::isfinite(x1) || IS_DENORMAL(x1))
 			x1 = 0.0;
-		if (IS_DENORMAL(x2))
+		if (!std::isfinite(x2) || IS_DENORMAL(x2))
 			x2 = 0.0;
-		if (IS_DENORMAL(y1))
+		if (!std::isfinite(y1) || IS_DENORMAL(y1))
 			y1 = 0.0;
-		if (IS_DENORMAL(y2))
+		if (!std::isfinite(y2) || IS_DENORMAL(y2))
 			y2 = 0.0;
 	}
 
@@ -138,6 +138,13 @@ public:
 	{
 		return std::isfinite(x1) && std::isfinite(x2) &&
 			std::isfinite(y1) && std::isfinite(y2);
+	}
+	__forceinline
+	bool isStateHealthy() const noexcept
+	{
+		return isStateFinite() &&
+			std::abs(x1) < 100.0 && std::abs(x2) < 100.0 &&
+			std::abs(y1) < 100.0 && std::abs(y2) < 100.0;
 	}
 
 private:

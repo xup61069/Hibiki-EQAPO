@@ -449,6 +449,7 @@ class LoudnessSafetyContractTests(unittest.TestCase):
         self.assertIn("runLoudnessCommonDomainCase", BENCHMARK_SOURCE)
         self.assertIn("runLoudnessPartialHandoffFailureCase", BENCHMARK_SOURCE)
         self.assertIn("runLoudnessCrossoverReloadHandoffCase", BENCHMARK_SOURCE)
+        self.assertIn("runLoudnessCrossoverMultiDeviceIsolationCase", BENCHMARK_SOURCE)
         self.assertIn("resetCrossoverHandoffRegistry", FILTER_HEADER)
         self.assertIn("tryAdoptLiveCrossoverHistory", FILTER_SOURCE)
         self.assertIn("publishLiveCrossoverHistory", FILTER_SOURCE)

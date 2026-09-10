@@ -29,6 +29,7 @@ struct LoudnessCorrectionFilter::LiveCrossoverSlot
 	std::vector<std::vector<BiQuad>> highpassBanks;
 	std::atomic<bool> settled{ false };
 	std::atomic<LoudnessCorrectionFilter*> activeOwner{ nullptr };
+	std::atomic<uint32_t> version{ 0 };
 };
 
 namespace
@@ -63,6 +64,7 @@ LoudnessCorrectionFilter::LiveCrossoverSlot* LoudnessCorrectionFilter::acquireCr
 			{
 				slot->settled.store(false, std::memory_order_release);
 				slot->activeOwner.store(nullptr, std::memory_order_release);
+				slot->version.store(0, std::memory_order_release);
 				slot->sampleRate = sampleRate;
 				slot->channelCount = channelCount;
 				slot->lowpassBanks.assign(
@@ -110,6 +112,7 @@ void LoudnessCorrectionFilter::resetCrossoverHandoffRegistry()
 	{
 		slot->settled.store(false, std::memory_order_release);
 		slot->activeOwner.store(nullptr, std::memory_order_release);
+		slot->version.store(0, std::memory_order_release);
 	}
 	LeaveCriticalSection(&g_crossoverHandoffSection);
 }
@@ -572,7 +575,7 @@ std::vector<std::wstring> LoudnessCorrectionFilter::initialize(
 
 	if (!_runtimeContext.offlineAnalysis)
 	{
-		std::wstring handoffKey = getVolumeControllerEndpointId();
+		std::wstring handoffKey = _runtimeContext.endpointId;
 		for (const auto& name : channelNames)
 		{
 			handoffKey += L":";
@@ -1697,12 +1700,19 @@ bool LoudnessCorrectionFilter::tryAdoptLiveCrossoverHistory()
 		return false;
 	}
 
+	const uint32_t startVersion = _handoffSlot->version.load(std::memory_order_acquire);
+	if ((startVersion & 1) != 0)
+	{
+		// Writer is actively updating the slot; fail safe to clean prewarm.
+		return false;
+	}
+
 	for (size_t channel = 0; channel < _channelCount; ++channel)
 	{
 		for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
 		{
-			if (!_handoffSlot->lowpassBanks[channel][section].isStateFinite() ||
-				!_handoffSlot->highpassBanks[channel][section].isStateFinite())
+			if (!_handoffSlot->lowpassBanks[channel][section].isStateHealthy() ||
+				!_handoffSlot->highpassBanks[channel][section].isStateHealthy())
 			{
 				return false;
 			}
@@ -1721,6 +1731,24 @@ bool LoudnessCorrectionFilter::tryAdoptLiveCrossoverHistory()
 					_handoffSlot->highpassBanks[channel][section];
 			}
 		}
+	}
+
+	const uint32_t endVersion = _handoffSlot->version.load(std::memory_order_acquire);
+	if (startVersion != endVersion)
+	{
+		// Slot was modified while we were copying; clean the local banks and fail safe.
+		for (size_t bank = 0; bank < 2; ++bank)
+		{
+			for (size_t channel = 0; channel < _channelCount; ++channel)
+			{
+				for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
+				{
+					_lowpassBanks[bank][channel][section].resetState();
+					_highpassBanks[bank][channel][section].resetState();
+				}
+			}
+		}
+		return false;
 	}
 
 	std::fill(_crossoverDomainActive.begin(), _crossoverDomainActive.end(), 1);
@@ -1748,6 +1776,12 @@ void LoudnessCorrectionFilter::publishLiveCrossoverHistory()
 	if (_handoffSlot == nullptr)
 		return;
 
+	// Do not publish if another filter instance has already superseded ownership.
+	LoudnessCorrectionFilter* currentOwner =
+		_handoffSlot->activeOwner.load(std::memory_order_acquire);
+	if (currentOwner != nullptr && currentOwner != this)
+		return;
+
 	if (_handoffSlot->sampleRate != _sampleRate ||
 		_handoffSlot->channelCount != _channelCount)
 	{
@@ -1764,14 +1798,17 @@ void LoudnessCorrectionFilter::publishLiveCrossoverHistory()
 	{
 		for (size_t section = 0; section < CROSSOVER_SECTION_COUNT; ++section)
 		{
-			if (!_lowpassBanks[_activeBankIndex][channel][section].isStateFinite() ||
-				!_highpassBanks[_activeBankIndex][channel][section].isStateFinite())
+			if (!_lowpassBanks[_activeBankIndex][channel][section].isStateHealthy() ||
+				!_highpassBanks[_activeBankIndex][channel][section].isStateHealthy())
 			{
 				_handoffSlot->settled.store(false, std::memory_order_release);
 				return;
 			}
 		}
 	}
+
+	const uint32_t currentVersion = _handoffSlot->version.load(std::memory_order_relaxed);
+	_handoffSlot->version.store(currentVersion + 1, std::memory_order_release);
 
 	for (size_t channel = 0; channel < _channelCount; ++channel)
 	{
@@ -1786,6 +1823,7 @@ void LoudnessCorrectionFilter::publishLiveCrossoverHistory()
 
 	_handoffSlot->activeOwner.store(this, std::memory_order_release);
 	_handoffSlot->settled.store(true, std::memory_order_release);
+	_handoffSlot->version.store(currentVersion + 2, std::memory_order_release);
 }
 
 void LoudnessCorrectionFilter::installPendingVolumeFollow()

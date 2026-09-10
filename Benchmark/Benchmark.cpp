@@ -3574,6 +3574,83 @@ namespace
 		return true;
 	}
 
+	bool runLoudnessCrossoverMultiDeviceIsolationCase()
+	{
+		LoudnessCorrectionFilterTestAccess::resetCrossoverHandoffRegistry();
+
+		const unsigned sampleRate = 48000;
+		const unsigned batchSize = 256;
+		const unsigned prewarmFrames = sampleRate * 2;
+
+		LoudnessCorrectionFilter::FilterParameters params;
+		params.state = true;
+		params.binding = LoudnessCorrectionFilter::FilterParameters::BINDING_ALL;
+		params.referenceLevel = 80.0f;
+		params.referenceOffset = 0.0f;
+		params.attenuation = 1.0f;
+		params.useManualVolume = true;
+		params.manualVolume = -30.0f;
+
+		FilterRuntimeContext ctxA;
+		ctxA.endpointId = L"{11111111-1111-1111-1111-111111111111}";
+		LoudnessCorrectionFilter filterA(params);
+		filterA.setRuntimeContext(ctxA);
+		vector<wstring> channels{ L"L", L"R" };
+		filterA.initialize(static_cast<float>(sampleRate), batchSize, channels);
+
+		vector<double> inL(batchSize, 0.0);
+		vector<double> inR(batchSize, 0.0);
+		vector<double> outL(batchSize, 0.0);
+		vector<double> outR(batchSize, 0.0);
+		double* inChannels[] = { inL.data(), inR.data() };
+		double* outChannels[] = { outL.data(), outR.data() };
+
+		unsigned framesRun = 0;
+		while (framesRun < prewarmFrames)
+		{
+			for (unsigned i = 0; i < batchSize; ++i)
+			{
+				double t = static_cast<double>(framesRun + i) / sampleRate;
+				inL[i] = 0.5 * std::sin(2.0 * M_PI * 100.0 * t);
+				inR[i] = 0.5 * std::cos(2.0 * M_PI * 100.0 * t);
+			}
+			filterA.process(outChannels, inChannels, batchSize);
+			framesRun += batchSize;
+		}
+
+		FilterRuntimeContext ctxB;
+		ctxB.endpointId = L"{22222222-2222-2222-2222-222222222222}";
+		LoudnessCorrectionFilter filterB(params);
+		filterB.setRuntimeContext(ctxB);
+		filterB.initialize(static_cast<float>(sampleRate), batchSize, channels);
+
+		for (unsigned i = 0; i < batchSize; ++i)
+		{
+			inL[i] = 0.5;
+			inR[i] = 0.5;
+		}
+		filterB.process(outChannels, inChannels, batchSize);
+
+		if (!LoudnessCorrectionFilterTestAccess::crossoverPrewarmActive(filterB))
+		{
+			fprintf(stderr, "Filter B with different endpointId incorrectly adopted Filter A's slot!\n");
+			return false;
+		}
+
+		for (unsigned i = 0; i < batchSize; ++i)
+		{
+			if (!std::isfinite(outL[i]) || !std::isfinite(outR[i]))
+			{
+				fprintf(stderr, "Multi-device crossover isolation produced non-finite output.\n");
+				return false;
+			}
+		}
+
+		LoudnessCorrectionFilterTestAccess::resetCrossoverHandoffRegistry();
+		printf("Loudness crossover multi-device isolation: passed\n");
+		return true;
+	}
+
 	bool runLoudnessTransitionCase(
 		const char* name,
 		unsigned sampleRate,
@@ -4450,6 +4527,7 @@ namespace
 		passed = runLoudnessTransitionCase(
 			"48k-inter-bin", 48000, 80.216, -40.0, 0.0, 0.0) && passed;
 		passed = runLoudnessCrossoverReloadHandoffCase() && passed;
+		passed = runLoudnessCrossoverMultiDeviceIsolationCase() && passed;
 
 		passed = runLoudnessAdaptiveHandoffSweep() && passed;
 		const unsigned handoffSampleRates[] = { 8000, 48000 };
