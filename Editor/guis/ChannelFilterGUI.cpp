@@ -17,6 +17,7 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include "Editor/helpers/GUIHelper.h"
 #include "ChannelFilterGUI.h"
 #include "ChannelFilterGUIDialog.h"
 #include "ui_ChannelFilterGUI.h"
@@ -27,12 +28,21 @@ ChannelFilterGUI::ChannelFilterGUI(const QString& parameters, int selectedChanne
 	: ui(new Ui::ChannelFilterGUI)
 {
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 
 	this->selectedChannelMask = selectedChannelMask;
 
 	scene = new ChannelFilterGUIScene;
 	ui->graphicsView->setScene(scene);
 	ui->graphicsView->setBackgroundRole(QPalette::Window);
+	ui->graphicsView->setFixedHeight(GUIHelper::scale(28));
+	ui->graphicsView->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	ui->graphicsView->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+	ui->graphicsView->setFrameShape(QFrame::NoFrame);
+	ui->graphicsView->setStyleSheet(QStringLiteral("background: transparent; border: none;"));
 	connect(scene, SIGNAL(selectionChanged()), this, SLOT(updateSelectedChannels()));
 
 	selectedChannels.clear();
@@ -83,4 +93,6 @@ void ChannelFilterGUI::updateSelectedChannels()
 void ChannelFilterGUI::refreshGui()
 {
 	scene->load(channelNames, selectedChannels);
+	const int sceneH = static_cast<int>(std::ceil(scene->sceneRect().height()));
+	ui->graphicsView->setFixedHeight(std::max(GUIHelper::scale(28), sceneH + GUIHelper::scale(4)));
 }

@@ -59,11 +59,23 @@ namespace
 			{"StageFilterGUI", "label"}, {"GraphicEQFilterGUI", "label"},
 			{"IncludeFilterGUI", "includeLabel"}, {"CopyFilterGUI", "copyLabel"},
 			{"ConvolutionFilterGUI", "convolutionLabel"}, {"VSTPluginFilterGUI", "label"},
-			{"LoudnessCorrectionFilterGUI", "label"}, {"BiQuadFilterGUI", "typeComboBox"}
+			{"LoudnessCorrectionFilterGUI", "label"}
 		};
 		const QString name = titles.value(QString::fromLatin1(gui->metaObject()->className()));
 		if (!gui->layout()) return;
 		QWidget* title = name.isEmpty() ? nullptr : gui->findChild<QWidget*>(name);
+		if (title)
+		{
+			title->setProperty("studioModuleTitle", true);
+			if (auto* label = qobject_cast<QLabel*>(title))
+			{
+				label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+				QFont font = label->font();
+				font.setWeight(QFont::DemiBold);
+				label->setFont(font);
+			}
+		}
+
 		const QMap<QString, QPair<const char*, const char*>> generatedTitles = {
 			{"PanFilterGUI", {"PanFilterGUIFactory", QT_TRANSLATE_NOOP("PanFilterGUIFactory", "Pan")}},
 			{"CrossfeedFilterGUI", {"CrossfeedFilterGUIFactory", QT_TRANSLATE_NOOP("CrossfeedFilterGUIFactory", "Crossfeed")}},
@@ -78,27 +90,26 @@ namespace
 			const auto text = generatedTitles.value(gui->objectName());
 			title = new QLabel(QCoreApplication::translate(text.first, text.second), gui);
 			title->setObjectName(QStringLiteral("studioGeneratedTitle"));
+			detachFromLayout(gui->layout(), title);
+			auto* body = new QWidget(gui);
+			body->setObjectName(QStringLiteral("studioModuleBody"));
+			body->setLayout(gui->layout());
+			auto* root = new QVBoxLayout(gui);
+			root->setContentsMargins(0, 0, 0, 0);
+			root->setSpacing(GUIHelper::scale(5));
+			title->setProperty("studioModuleTitle", true);
+			title->setMinimumHeight(GUIHelper::scale(28));
+			title->setSizePolicy(title->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
+			if (auto* label = qobject_cast<QLabel*>(title))
+			{
+				label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+				QFont font = label->font();
+				font.setWeight(QFont::DemiBold);
+				label->setFont(font);
+			}
+			root->addWidget(title, 0, Qt::AlignLeft);
+			root->addWidget(body);
 		}
-		if (!title) return;
-		detachFromLayout(gui->layout(), title);
-		auto* body = new QWidget(gui);
-		body->setObjectName(QStringLiteral("studioModuleBody"));
-		body->setLayout(gui->layout());
-		auto* root = new QVBoxLayout(gui);
-		root->setContentsMargins(0, 0, 0, 0);
-		root->setSpacing(GUIHelper::scale(5));
-		title->setProperty("studioModuleTitle", true);
-		title->setMinimumHeight(GUIHelper::scale(28));
-		title->setSizePolicy(title->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
-		if (auto* label = qobject_cast<QLabel*>(title))
-		{
-			label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
-			QFont font = label->font();
-			font.setWeight(QFont::DemiBold);
-			label->setFont(font);
-		}
-		root->addWidget(title, 0, Qt::AlignLeft);
-		root->addWidget(body);
 	}
 
 	class ElidingCommandLabel final : public QLabel

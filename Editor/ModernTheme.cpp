@@ -923,6 +923,22 @@ QAbstractSpinBox::up-button:hover, QAbstractSpinBox::down-button:hover {
 	background-color: @accentSoft;
 }
 
+QScrollArea#filterTable QGroupBox {
+	border: 1px solid @border;
+	border-radius: 6px;
+	margin-top: 8px;
+	padding-top: 4px;
+	padding-bottom: 2px;
+}
+
+QScrollArea#filterTable QGroupBox::title {
+	subcontrol-origin: margin;
+	left: 8px;
+	padding: 0 4px;
+	color: @muted;
+	font-weight: 600;
+}
+
 QDialog QGroupBox {
 	border: 1px solid @border;
 	margin-top: 10px;

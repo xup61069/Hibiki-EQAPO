@@ -36,6 +36,10 @@ DeviceFilterGUI::DeviceFilterGUI(DeviceFilterGUIFactory* factory)
 	: ui(new Ui::DeviceFilterGUI)
 {
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 	this->factory = factory;
 
 	ui->treeWidget->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);

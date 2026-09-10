@@ -32,6 +32,10 @@ PreampFilterGUI::PreampFilterGUI(double dbGain)
 	: ui(new Ui::PreampFilterGUI)
 {
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 
 	ui->dial->setFixedSize(GUIHelper::scale(QSize(100, 66)));
 	ui->doubleSpinBox->setValue(dbGain);

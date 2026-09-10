@@ -437,6 +437,10 @@ ConvolutionFilterGUI::ConvolutionFilterGUI(const QString& configPath, unsigned d
 {
 	ui->setupUi(this);
 	ui->selectFileToolButton->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::OpenFolder));
+	ui->convolutionLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->convolutionLabel->font();
+	font.setWeight(QFont::DemiBold);
+	ui->convolutionLabel->setFont(font);
 	ui->convolutionLabel->setBuddy(ui->pathLineEdit);
 	ui->pathLineEdit->setAccessibleName(ui->convolutionLabel->text());
 	ui->labelError->setProperty("statusLevel", "danger");
@@ -451,7 +455,9 @@ ConvolutionFilterGUI::ConvolutionFilterGUI(const QString& configPath, unsigned d
 	bundledIrButton->setToolTip(bundledIrDescription);
 	bundledIrButton->setAccessibleName(tr("Local IR/FIR"));
 	bundledIrButton->setAccessibleDescription(bundledIrDescription);
-	ui->gridLayout->addWidget(new QLabel(tr("Local IR/FIR:"), this), 1, 0);
+	QLabel* localIrLabel = new QLabel(tr("Local IR/FIR:"), this);
+	localIrLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	ui->gridLayout->addWidget(localIrLabel, 1, 0);
 
 	QWidget* bundledIrNavWidget = new QWidget(this);
 	QHBoxLayout* bundledIrNavLayout = new QHBoxLayout(bundledIrNavWidget);

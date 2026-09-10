@@ -32,6 +32,10 @@ DelayFilterGUI::DelayFilterGUI(double delay, bool isMs)
 	: ui(new Ui::DelayFilterGUI)
 {
 	ui->setupUi(this);
+	ui->delayLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->delayLabel->font();
+	font.setWeight(QFont::DemiBold);
+	ui->delayLabel->setFont(font);
 
 	ui->delayDial->setFixedSize(GUIHelper::scale(QSize(100, 66)));
 	ui->unitComboBox->setCurrentIndex(isMs ? 0 : 1);

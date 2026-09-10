@@ -13,7 +13,7 @@
   <property name="windowTitle">
    <string notr="true"/>
   </property>
-  <layout class="QGridLayout" name="gridLayout" columnstretch="0,0,0,1">
+  <layout class="QGridLayout" name="gridLayout" columnstretch="0,1">
    <property name="leftMargin">
     <number>0</number>
    </property>
@@ -32,7 +32,7 @@
    <property name="horizontalSpacing">
     <number>8</number>
    </property>
-   <item row="0" column="3">
+   <item row="0" column="1">
     <widget class="QTreeWidget" name="treeWidget">
      <property name="sizePolicy">
       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
@@ -83,7 +83,7 @@
      </column>
     </widget>
    </item>
-   <item row="0" column="2">
+   <item row="0" column="0">
     <layout class="QVBoxLayout" name="verticalLayout">
      <property name="spacing">
       <number>4</number>
