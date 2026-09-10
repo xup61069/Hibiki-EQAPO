@@ -1,15 +1,15 @@
-# AI 交接快照：Hibiki EQAPO 雙精度開關修復與推播
+# AI 交接快照：Hibiki EQAPO v3.1.4 發布
 
 最後更新：2026-09-11（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已徹底修復 Configuration Editor 頂部工作室標頭的「雙精度」開關：
-  - 移去 `FilterTable::processingPrecisionEditable()` 中對 `Device` 與 `Stage` 的限制，使一般 Equalizer APO 設定檔（包含使用者的 `none.txt`）可直接由 GUI 開關修改精度。
-  - 修正 `MainWindow::refreshWorkspaceActionState()`，開關勾選狀態真實反映 `doublePrecision`（64 位元勾選、32 位元未勾選），不再被 `!editable` 強制取消勾選。
-  - 標頭開關標籤固定為「雙精度」（`Double precision`），不再被長字串「處理精度（請查看設定文字）」取代。
-- 完成分支合併至 `main` 並已成功推播至遠端 `origin/main`（commit `0d713b9`）。
-- 全套驗證通過：Python 399 項測試全數通過（398 passed, 1 expected skip）、90/90 UI 快照幾何與原廠約束零違規、DSP 即時契約測試通過、公開歷史檢查通過。
+- 本輪已完成 v3.1.4 正式發布：
+  - 徹底修復 Configuration Editor 頂部工作室標頭「雙精度」開關（解除 Device / Stage 限制、精準反映 64 位元勾選狀態、保持簡潔「雙精度」標籤）。
+  - 版本更新同步：`version.h`、`vcpkg.json`、`.github/workflows/release.yml`、`tests/test_loudness_safety_contract.py` 與 `CHANGELOG.md` 均已升級至 3.1.4。
+  - 全套自動化驗證通過：Python 399 項測試全數通過（398 passed, 1 expected skip）、90/90 UI 回歸截圖幾何約束零違規、DSP 即時契約測試通過、公開歷史檢查通過。
+  - 建立並推送 `v3.1.4` annotated tag，已觸發 GitHub Actions 正式 Release 發布工作流。
+  - 本機安裝包 `Setup\Hibiki-EQAPO-x64-3.1.4.exe` 已建置完成。
 
 ---
 
