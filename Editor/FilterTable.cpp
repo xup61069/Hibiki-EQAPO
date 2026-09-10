@@ -727,12 +727,12 @@ bool FilterTable::applyPreampReduction(const PreampAdjustmentPlan& plan)
 
 bool FilterTable::processingPrecisionEditable() const
 {
-	// Do not infer the effective engine format from one tab when scopes or
-	// included files can contribute another active declaration.
+	// Do not infer the effective engine format from one tab when conditional
+	// scopes or included files can contribute another active declaration.
 	for (const Item* item : items)
 	{
 		const QString key = item->text.section(':', 0, 0).trimmed();
-		if (key == "Include" || key == "Device" || key == "Stage"
+		if (key == "Include"
 			|| key == "If" || key == "ElseIf" || key == "Else" || key == "EndIf"
 			|| key == "Eval" || key == "Expression") return false;
 	}

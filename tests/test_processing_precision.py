@@ -59,14 +59,24 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("refreshWorkspaceActionState()", slot)
         self.assertIn("currentFilterTable()", slot)
 
-    def test_header_switch_labels_scope_disabled_state(self):
+    def test_header_switch_reflects_precision_state(self):
         window = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
+        table = (ROOT / "Editor/FilterTable.cpp").read_text(encoding="utf-8")
         refresh = window.split("void MainWindow::refreshWorkspaceActionState()", 1)[1].split(
             "void MainWindow::invalidateAnalysisResult()", 1
         )[0]
-        self.assertIn("doublePrecisionCheckBox->setText(", refresh)
+        self.assertIn("doublePrecisionCheckBox->setChecked(doublePrecision);", refresh)
+        self.assertIn("doublePrecisionAction->setChecked(doublePrecision);", refresh)
+        self.assertIn('doublePrecisionCheckBox->setText(tr("Double precision"));', refresh)
         self.assertIn('tr("Processing precision (see configuration)")', refresh)
-        self.assertIn('tr("Double precision")', refresh)
+
+        editable = table.split("bool FilterTable::processingPrecisionEditable() const", 1)[1].split(
+            "bool FilterTable::setDoublePrecision(", 1
+        )[0]
+        self.assertIn('"Include"', editable)
+        self.assertIn('"If"', editable)
+        self.assertNotIn('"Device"', editable)
+        self.assertNotIn('"Stage"', editable)
 
 
 if __name__ == "__main__":

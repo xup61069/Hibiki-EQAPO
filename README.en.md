@@ -325,7 +325,7 @@ The header's **Double precision** switch controls the current configuration's en
 
 The 32-bit path uses float buffers between every module and native single-precision kernels where available. Specialized and legacy kernels retain their internal precision through preallocated conversion buffers. Coefficients, calibration, FFT, plug-ins and loudness internals are not promised to use float arithmetic; CPU and memory savings are not guaranteed. Precision changes use the existing configuration crossfade and are also honored by offline analysis. This does not change the Windows device’s output bit depth.
 
-For configurations with included files or device/conditional/stage scopes, the header switch is disabled and directs users to edit `ProcessingPrecision` in the configuration text. It does not infer an effective format from a single tab or insert potentially conflicting declarations.
+For configurations with included files or conditional scopes (such as `If` blocks), the header switch is disabled and directs users to edit `ProcessingPrecision` in the configuration text. Standard configurations using `Device` and `Stage` directives can be edited directly via the switch.
 
 The x64 editor also exposes an **ASIO device** drop-down in the header. It reuses the proxy's shared safe discovery path to list only validated x64 vendor drivers without loading vendor code. A selection writes only the current user's `HKCU\Software\EqualizerAPO\ASIOProxy\TargetCLSID` override; vendor registry keys, CLSIDs, and files are never changed. Selection is not a hot switch: reopen the DAW audio device, or restart the host, before the new target takes effect.
 

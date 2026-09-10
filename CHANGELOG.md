@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Fixed the header Double precision switch falsely showing as unchecked when editing is restricted; it now accurately reflects whether 64-bit precision is active.
+- Fixed the header switch text being replaced with an awkward status label; it now stays cleanly as "Double precision".
+- Permitted configurations containing Device and Stage directives to edit processing precision directly from the GUI.
+
 ## 3.1.3
 
 - Completely overhauled the Configuration Editor layout across all filter components, cards, and toolbars:

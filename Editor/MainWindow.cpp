@@ -3317,24 +3317,18 @@ void MainWindow::refreshWorkspaceActionState()
 			}
 		const bool unambiguous = validPrecision && directives <= 1;
 		const bool editable = hasTable && unambiguous && filterTable->processingPrecisionEditable();
-		doublePrecisionAction->setCheckable(!hasTable || editable);
-		doublePrecisionAction->setChecked(doublePrecision && (!hasTable || editable));
+		doublePrecisionAction->setCheckable(true);
+		doublePrecisionAction->setChecked(doublePrecision);
 		doublePrecisionAction->setText(hasTable && !editable
 			? tr("Processing precision (see configuration)")
 			: tr("Double precision (64-bit signal path)"));
 		doublePrecisionAction->setEnabled(editable && !hasTemporaryState && validPrecision && directives <= 1);
 		if (doublePrecisionCheckBox != NULL)
 		{
-			doublePrecisionCheckBox->setChecked(
-				doublePrecision && (!hasTable || editable));
+			doublePrecisionCheckBox->setChecked(doublePrecision);
 			doublePrecisionCheckBox->setEnabled(
 				editable && !hasTemporaryState && validPrecision && directives <= 1);
-			// Mirror the menu action wording so a scope-disabled switch does
-			// not read as an "off" 32-bit choice. Both strings already have
-			// complete translations.
-			doublePrecisionCheckBox->setText(hasTable && !editable
-				? tr("Processing precision (see configuration)")
-				: tr("Double precision"));
+			doublePrecisionCheckBox->setText(tr("Double precision"));
 		}
 		if (hasTable && !unambiguous)
 			doublePrecisionAction->setToolTip(tr("Could not change precision. Check for duplicate or invalid ProcessingPrecision entries."));
@@ -4788,6 +4782,11 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 		if (!precisionTable->setDoublePrecision(true)
 			|| precisionTable->getLines().size() != 2
 			|| precisionTable->getLines().first() != QStringLiteral("ProcessingPrecision: 64"))
+			return invalid(__LINE__);
+		precisionTable->addLine(QStringLiteral("Device: Speakers"));
+		if (!precisionTable->setDoublePrecision(false)
+			|| precisionTable->getLines().size() != 3
+			|| precisionTable->getLines().first() != QStringLiteral("ProcessingPrecision: 32"))
 			return invalid(__LINE__);
 		precisionTable->addLine(QStringLiteral("Include: scoped.txt"));
 		const QList<QString> scopedLines = precisionTable->getLines();
