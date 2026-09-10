@@ -797,8 +797,8 @@ MainWindow::MainWindow(QDir configDir, QWidget* parent)
 	QFrame* studioHeader = new QFrame(ui->centralWidget);
 	studioHeader->setObjectName(QStringLiteral("studioHeader"));
 	auto* headerLayout = new QHBoxLayout(studioHeader);
-	headerLayout->setContentsMargins(10, 5, 10, 7);
-	headerLayout->setSpacing(16);
+	headerLayout->setContentsMargins(10, 4, 10, 6);
+	headerLayout->setSpacing(12);
 	auto* identity = new QVBoxLayout;
 	identity->setSpacing(0);
 	auto* wordmark = new QLabel(QStringLiteral("HIBIKI"), studioHeader);

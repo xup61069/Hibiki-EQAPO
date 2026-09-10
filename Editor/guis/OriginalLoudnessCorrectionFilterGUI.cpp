@@ -49,7 +49,7 @@ namespace
 		control->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
 		QHBoxLayout* layout = new QHBoxLayout(control);
 		layout->setContentsMargins(0, 0, 0, 0);
-		layout->setSpacing(GUIHelper::scale(7));
+		layout->setSpacing(GUIHelper::scale(6));
 
 		dial = new VerticalDragDial(control);
 		dial->setRange(
@@ -101,8 +101,8 @@ OriginalLoudnessCorrectionFilterGUI::OriginalLoudnessCorrectionFilterGUI(
 	setMinimumWidth(0);
 	QGridLayout* root = new QGridLayout(this);
 	root->setContentsMargins(0, 0, 0, 0);
-	root->setHorizontalSpacing(GUIHelper::scale(10));
-	root->setVerticalSpacing(GUIHelper::scale(12));
+	root->setHorizontalSpacing(GUIHelper::scale(8));
+	root->setVerticalSpacing(GUIHelper::scale(8));
 
 	headerLayout = new QGridLayout;
 	headerLayout->setContentsMargins(0, 0, 0, 0);
@@ -113,7 +113,7 @@ OriginalLoudnessCorrectionFilterGUI::OriginalLoudnessCorrectionFilterGUI(
 	titleLabel = new QLabel(
 		tr("Loudness correction (original):"), this);
 	titleLabel->setObjectName(QStringLiteral("originalLoudnessTitle"));
-	titleLabel->setMinimumHeight(GUIHelper::scale(32));
+	titleLabel->setMinimumHeight(GUIHelper::scale(28));
 	titleLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
 	QFont titleFont = titleLabel->font();
 	titleFont.setWeight(QFont::DemiBold);
@@ -175,8 +175,8 @@ OriginalLoudnessCorrectionFilterGUI::OriginalLoudnessCorrectionFilterGUI(
 	volumeLayout->addWidget(volumeStatusLabel);
 	parameterLayout = new QGridLayout;
 	parameterLayout->setContentsMargins(0, 0, 0, 0);
-	parameterLayout->setHorizontalSpacing(GUIHelper::scale(10));
-	parameterLayout->setVerticalSpacing(GUIHelper::scale(5));
+	parameterLayout->setHorizontalSpacing(GUIHelper::scale(8));
+	parameterLayout->setVerticalSpacing(GUIHelper::scale(4));
 	root->addLayout(parameterLayout, 1, 0);
 
 	QHBoxLayout* actions = new QHBoxLayout;
