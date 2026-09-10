@@ -73,15 +73,20 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 		return row;
 	};
 
-	QVBoxLayout* typeLayout = new QVBoxLayout;
-	typeLayout->setContentsMargins(0, 0, 0, 0);
-	typeLayout->addWidget(ui->typeComboBox);
-	typeLayout->addStretch(1);
+	QHBoxLayout* headerLayout = new QHBoxLayout;
+	headerLayout->setContentsMargins(0, 0, 0, 0);
+	headerLayout->addWidget(ui->typeComboBox, 0, Qt::AlignLeft);
+	headerLayout->addStretch(1);
+
+	QPushButton* resetButton = new QPushButton(tr("Reset"), this);
+	resetButton->setObjectName(QStringLiteral("biQuadResetButton"));
+	resetButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+	headerLayout->addWidget(resetButton, 0, Qt::AlignRight);
 
 	ui->gridLayout->setContentsMargins(0, 0, 0, 0);
 	ui->gridLayout->setHorizontalSpacing(compactSpacing);
 	ui->gridLayout->setVerticalSpacing(GUIHelper::scale(5));
-	ui->gridLayout->addLayout(typeLayout, 0, 0, 1, 3);
+	ui->gridLayout->addLayout(headerLayout, 0, 0, 1, 3);
 	ui->gridLayout->addLayout(parameterLayout(
 		ui->freqDial, ui->freqComboBox, ui->freqSpinBox), 1, 0);
 	ui->gridLayout->addLayout(parameterLayout(
@@ -146,10 +151,6 @@ BiQuadFilterGUI::BiQuadFilterGUI(BiQuadFilter* filter)
 	ui->gainDial->setProperty("resetTarget", QVariant::fromValue(static_cast<QObject*>(ui->gainSpinBox)));
 	ui->gainDial->setProperty("defaultTargetValue", defaultGain);
 
-	QPushButton* resetButton = new QPushButton(tr("Reset"), this);
-	resetButton->setObjectName(QStringLiteral("biQuadResetButton"));
-	resetButton->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-	ui->gridLayout->addWidget(resetButton, 2, 0, 1, 2, Qt::AlignRight);
 	connect(resetButton, &QPushButton::clicked, this, [this]() {
 		const int typeIndex = ui->typeComboBox->findData(defaultType);
 		if (typeIndex != -1)

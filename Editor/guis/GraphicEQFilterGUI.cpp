@@ -53,6 +53,10 @@ GraphicEQFilterGUI::GraphicEQFilterGUI(GraphicEQFilter* filter, QString configPa
 	: ui(new Ui::GraphicEQFilterGUI), scene(nullptr), configPath(configPath), filterTable(filterTable)
 {
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 	if (filterTable != nullptr)
 		filterTable->installEventFilter(this);
 	ui->actionImport->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::Import));

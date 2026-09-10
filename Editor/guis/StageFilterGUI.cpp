@@ -24,6 +24,10 @@ StageFilterGUI::StageFilterGUI(const QString& parameters)
 	: ui(new Ui::StageFilterGUI)
 {
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 
 	QStringList parts = parameters.toLower().split(' ');
 	ui->preMixCheckBox->setChecked(parts.contains("pre-mix"));

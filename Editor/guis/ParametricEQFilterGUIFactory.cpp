@@ -67,9 +67,9 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 	}
 
 	QGridLayout* root = new QGridLayout(this);
-	root->setContentsMargins(2, 2, 2, 2);
+	root->setContentsMargins(0, 0, 0, 0);
 	root->setHorizontalSpacing(8);
-	root->setVerticalSpacing(6);
+	root->setVerticalSpacing(4);
 	setMinimumWidth(0);
 	setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 
@@ -114,8 +114,8 @@ ParametricEQFilterGUI::ParametricEQFilterGUI(const std::vector<ParametricEQFilte
 	QWidget* actionsWidget = new QWidget(this);
 	QGridLayout* actionsLayout = new QGridLayout(actionsWidget);
 	actionsLayout->setContentsMargins(0, 0, 0, 0);
-	actionsLayout->setHorizontalSpacing(6);
-	actionsLayout->setVerticalSpacing(5);
+	actionsLayout->setHorizontalSpacing(4);
+	actionsLayout->setVerticalSpacing(3);
 	actionsLayout->addWidget(addButton, 0, 0, 1, 2);
 	actionsLayout->addWidget(sortButton, 0, 2, 1, 2);
 	actionsLayout->addWidget(resetButton, 0, 4, 1, 2);

@@ -168,6 +168,10 @@ VSTPluginFilterGUI::VSTPluginFilterGUI(std::shared_ptr<VSTPluginLibrary> library
 		this->hostId = QUuid::createUuid().toString(QUuid::WithoutBraces);
 
 	ui->setupUi(this);
+	ui->label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->label->font();
+	font.setWeight(QFont::DemiBold);
+	ui->label->setFont(font);
 	ui->selectButton->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::OpenFolder));
 	ui->label->setBuddy(ui->pathLineEdit);
 	ui->pathLineEdit->setAccessibleName(ui->label->text());
@@ -183,6 +187,7 @@ VSTPluginFilterGUI::VSTPluginFilterGUI(std::shared_ptr<VSTPluginLibrary> library
 	ui->warningTextEdit->setLineWrapMode(QPlainTextEdit::WidgetWidth);
 	ui->warningTextEdit->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 	ui->warningTextEdit->setMinimumWidth(0);
+	ui->gridLayout_3->removeWidget(ui->frame);
 	ui->frame->setVisible(false);
 	updatePermissionWarning();
 

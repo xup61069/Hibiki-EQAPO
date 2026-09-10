@@ -96,9 +96,9 @@ namespace
 			body->setLayout(gui->layout());
 			auto* root = new QVBoxLayout(gui);
 			root->setContentsMargins(0, 0, 0, 0);
-			root->setSpacing(GUIHelper::scale(5));
+			root->setSpacing(GUIHelper::scale(3));
 			title->setProperty("studioModuleTitle", true);
-			title->setMinimumHeight(GUIHelper::scale(28));
+			title->setMinimumHeight(GUIHelper::scale(22));
 			title->setSizePolicy(title->sizePolicy().horizontalPolicy(), QSizePolicy::Fixed);
 			if (auto* label = qobject_cast<QLabel*>(title))
 			{

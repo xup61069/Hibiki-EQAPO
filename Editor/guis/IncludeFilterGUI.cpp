@@ -28,6 +28,10 @@ IncludeFilterGUI::IncludeFilterGUI(FilterTable* filterTable, const QString& path
 	: ui(new Ui::IncludeFilterGUI), filterTable(filterTable)
 {
 	ui->setupUi(this);
+	ui->includeLabel->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+	QFont font = ui->includeLabel->font();
+	font.setWeight(QFont::DemiBold);
+	ui->includeLabel->setFont(font);
 	ui->openFileToolButton->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::Up));
 	ui->selectFileToolButton->setIcon(GUIHelper::createThemeIcon(GUIHelper::ThemeIcon::OpenFolder));
 	ui->includeLabel->setBuddy(ui->pathLineEdit);
