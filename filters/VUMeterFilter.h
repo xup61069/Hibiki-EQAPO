@@ -15,6 +15,7 @@ public:
 	bool getAllChannels() override { return true; }
 	std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) override;
 	void process(double** output, double** input, unsigned frameCount) override;
+	bool processSingle(float** output, float** input, unsigned frameCount) override;
 
 private:
 	void cleanup();
@@ -24,6 +25,8 @@ private:
 	bool beginSharedWrite();
 	void endSharedWrite();
 	void resetMeasurements();
+	template <typename SampleType>
+	void processSamples(SampleType** output, SampleType** input, unsigned frameCount);
 	std::wstring objectName() const;
 	std::wstring ownerMutexName() const;
 

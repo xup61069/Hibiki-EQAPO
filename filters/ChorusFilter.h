@@ -9,6 +9,7 @@ public:
 	ChorusFilter(double rateHz, double depthMs, double mixPercent, double feedbackPercent);
 	std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) override;
 	void process(double** output, double** input, unsigned frameCount) override;
+	bool processSingle(float** output, float** input, unsigned frameCount) override;
 
 private:
 	double rateHz;
@@ -20,4 +21,5 @@ private:
 	unsigned writeIndex = 0;
 	double phase = 0.0;
 	std::vector<std::vector<double>> delayBuffers;
+	std::vector<std::vector<float>> delayBuffers32;
 };

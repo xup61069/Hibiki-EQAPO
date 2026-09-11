@@ -21,6 +21,7 @@ vector<wstring> ChorusFilter::initialize(float sampleRate, unsigned maxFrameCoun
 	channelCount = static_cast<unsigned>(channelNames.size());
 	unsigned maxDelay = static_cast<unsigned>(this->sampleRate * (depthMs + 10.0) / 1000.0) + maxFrameCount + 4;
 	delayBuffers.assign(channelCount, vector<double>(maxDelay, 0.0));
+	delayBuffers32.assign(channelCount, vector<float>(maxDelay, 0.0f));
 	writeIndex = 0;
 	phase = 0.0;
 	return channelNames;
@@ -63,5 +64,51 @@ void ChorusFilter::process(double** output, double** input, unsigned frameCount)
 		if (!delayBuffers.empty() && writeIndex >= delayBuffers[0].size())
 			writeIndex = 0;
 	}
+}
+
+bool ChorusFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (mix <= 0.0 || delayBuffers32.empty())
+	{
+		for (unsigned c = 0; c < channelCount; c++)
+			if (output[c] != input[c])
+				memcpy(output[c], input[c], frameCount * sizeof(float));
+		return true;
+	}
+
+	const float phaseInc = static_cast<float>(2.0 * M_PI * rateHz / sampleRate);
+	const float mixF = static_cast<float>(mix);
+	const float dryMix = 1.0f - mixF;
+	const float feedbackF = static_cast<float>(feedback);
+	const float depthSamplesScale = static_cast<float>(depthMs * sampleRate / 1000.0);
+	const float twoPi = static_cast<float>(2.0 * M_PI);
+
+	for (unsigned i = 0; i < frameCount; i++)
+	{
+		const float lfo = 0.5f + 0.5f * sinf(static_cast<float>(phase));
+		const float delaySamples = 1.0f + lfo * depthSamplesScale;
+		phase += phaseInc;
+		if (phase >= twoPi)
+			phase -= twoPi;
+
+		for (unsigned c = 0; c < channelCount; c++)
+		{
+			vector<float>& buffer = delayBuffers32[c];
+			const unsigned size = static_cast<unsigned>(buffer.size());
+			const float readPos = static_cast<float>(writeIndex + size) - delaySamples;
+			const float floorPos = floorf(readPos);
+			const unsigned index0 = static_cast<unsigned>(floorPos) % size;
+			const unsigned index1 = (index0 + 1) % size;
+			const float frac = readPos - floorPos;
+			const float delayed = buffer[index0] * (1.0f - frac) + buffer[index1] * frac;
+			const float dry = input[c][i];
+			output[c][i] = dry * dryMix + delayed * mixF;
+			buffer[writeIndex] = dry + delayed * feedbackF;
+		}
+		writeIndex++;
+		if (!delayBuffers32.empty() && writeIndex >= delayBuffers32[0].size())
+			writeIndex = 0;
+	}
+	return true;
 }
 #pragma AVRT_CODE_END

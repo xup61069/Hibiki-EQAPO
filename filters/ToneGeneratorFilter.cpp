@@ -114,4 +114,31 @@ void ToneGeneratorFilter::process(double** output, double** input, unsigned fram
 		}
 	}
 }
+
+bool ToneGeneratorFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	for (unsigned c = 0; c < channelCount; c++)
+		if (output[c] != input[c])
+			memcpy(output[c], input[c], frameCount * sizeof(float));
+
+	if (!state || channels.empty())
+		return true;
+
+	for (unsigned frame = 0; frame < frameCount; frame++)
+	{
+		const float sample = static_cast<float>(nextSample());
+		if (!state)
+			break;
+		for (unsigned channel : channels)
+		{
+			if (channel >= channelCount)
+				continue;
+			if (mode == REPLACE)
+				output[channel][frame] = sample;
+			else
+				output[channel][frame] += sample;
+		}
+	}
+	return true;
+}
 #pragma AVRT_CODE_END

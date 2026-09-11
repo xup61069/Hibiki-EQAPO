@@ -3088,6 +3088,24 @@ namespace
 			passed = std::abs(outputChannels[0] - expectedL) < 1e-6
 				&& std::abs(outputChannels[1] - expectedR) < 1e-6 && passed;
 		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nChorus: 1.5 Hz 10 ms 50% 0%\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = 0.5, output = 0.0;
+			engine.process(&output, &sample, 1);
+			passed = std::isfinite(output) && passed;
+		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nToneGenerator: SINE 1000 0 0 0 -6 dB ALL REPLACE\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = 0.0, output = 0.0;
+			engine.process(&output, &sample, 1);
+			passed = std::isfinite(output) && passed;
+		}
 		passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 32\r\n") && passed;
 		{
 			FilterEngine engine;

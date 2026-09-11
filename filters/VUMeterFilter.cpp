@@ -250,13 +250,14 @@ void VUMeterFilter::resetMeasurements()
 }
 
 #pragma AVRT_CODE_BEGIN
-void VUMeterFilter::process(double** output, double** input, unsigned frameCount)
+template <typename SampleType>
+void VUMeterFilter::processSamples(SampleType** output, SampleType** input, unsigned frameCount)
 {
 	// Metering is protocol-limited, but the filter is transparent to every
 	// channel exposed by the endpoint, including channels above that limit.
 	for (unsigned c = 0; c < totalChannelCount; c++)
 		if (output[c] != input[c])
-			memcpy(output[c], input[c], frameCount * sizeof(double));
+			memcpy(output[c], input[c], frameCount * sizeof(SampleType));
 
 	if (shared == NULL || frameCount == 0 || !beginSharedWrite())
 		return;
@@ -288,7 +289,7 @@ void VUMeterFilter::process(double** output, double** input, unsigned frameCount
 		double sumSquares = 0.0;
 		for (unsigned i = 0; i < frameCount; i++)
 		{
-			const double sample = input[channel][i];
+			const double sample = static_cast<double>(input[channel][i]);
 			const double absSample = fabs(sample);
 			peak = max(peak, absSample);
 			sumSquares += sample * sample;
@@ -335,5 +336,16 @@ void VUMeterFilter::process(double** output, double** input, unsigned frameCount
 	shared->lufsShortTerm = toLufs(shortMean);
 	shared->lufsIntegrated = toLufs(integratedMean);
 	endSharedWrite();
+}
+
+void VUMeterFilter::process(double** output, double** input, unsigned frameCount)
+{
+	processSamples(output, input, frameCount);
+}
+
+bool VUMeterFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	processSamples(output, input, frameCount);
+	return true;
 }
 #pragma AVRT_CODE_END
