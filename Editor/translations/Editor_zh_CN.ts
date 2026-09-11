@@ -2900,6 +2900,18 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>继续在通知区域运行</translation>
     </message>
     <message>
+        <source>Take over Windows volume keys &amp; OSD</source>
+        <translation>接管 Windows 音量键与 OSD</translation>
+    </message>
+    <message>
+        <source>Volume takeover active: volume keys control Hibiki EQAPO loudness with OSD</source>
+        <translation>音量接管已启用：音量键将通过 OSD 控制 Hibiki EQAPO 响度音量</translation>
+    </message>
+    <message>
+        <source>Volume takeover disabled: Windows default volume behavior restored</source>
+        <translation>音量接管已禁用：已还原 Windows 默认音量行为</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>
@@ -4785,6 +4797,17 @@ Change the file permissions or copy the files to the config directory.</source>
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="505"/>
         <source>Global</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VolumeOsdWidget</name>
+    <message>
+        <source>Hibiki EQAPO • Loudness Control</source>
+        <translation>Hibiki EQAPO • 响度音量控制</translation>
+    </message>
+    <message>
+        <source>Muted</source>
+        <translation>静音</translation>
     </message>
 </context>
 </TS>

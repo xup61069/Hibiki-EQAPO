@@ -2705,6 +2705,18 @@ Alexander Walch</translation>
         <translation>Continuer à exécuter dans la zone de notification</translation>
     </message>
     <message>
+        <source>Take over Windows volume keys &amp; OSD</source>
+        <translation>Prendre le contrôle des touches de volume Windows et de l'OSD</translation>
+    </message>
+    <message>
+        <source>Volume takeover active: volume keys control Hibiki EQAPO loudness with OSD</source>
+        <translation>Prise de contrôle du volume active : les touches de volume contrôlent le volume sonie Hibiki EQAPO avec OSD</translation>
+    </message>
+    <message>
+        <source>Volume takeover disabled: Windows default volume behavior restored</source>
+        <translation>Prise de contrôle du volume désactivée : comportement de volume par défaut de Windows restauré</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>
@@ -4743,6 +4755,17 @@ Modifiez les autorisations des fichiers ou copiez les fichiers dans le répertoi
         <location filename="../guis/AudioToolFilterGUIFactory.cpp" line="505"/>
         <source>Global</source>
         <translation type="unfinished"></translation>
+    </message>
+</context>
+<context>
+    <name>VolumeOsdWidget</name>
+    <message>
+        <source>Hibiki EQAPO • Loudness Control</source>
+        <translation>Hibiki EQAPO • Contrôle de sonie</translation>
+    </message>
+    <message>
+        <source>Muted</source>
+        <translation>Muet</translation>
     </message>
 </context>
 </TS>

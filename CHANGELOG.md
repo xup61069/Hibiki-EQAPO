@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+- Implemented Windows master volume takeover with dedicated loudness OSD in Configuration Editor:
+  - Added low-level global keyboard hook (`WH_KEYBOARD_LL`) in `VolumeTakeoverManager` to intercept `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, and `VK_VOLUME_MUTE`.
+  - Added modern floating HUD OSD (`VolumeOsdWidget`) displaying volume percentage, attenuation dB, real-time equal-loudness phon estimate, and mute status with smooth auto-fade animation.
+  - Added GUID context isolation (`HIBIKI_VOLUME_EVENT_CONTEXT`) to WASAPI endpoint callbacks in `VolumeController` to prevent feedback loops during bidirectional volume synchronization.
+  - Added Settings menu and system tray toggle action with Windows registry persistence (`takeoverVolumeKeys`).
+  - Linked loudness filter controls bidirectionally with endpoint volume states.
+- Accelerated filter engine, stereo bus processing, and ASIO sample codec:
+  - Vectorized `FilterConfiguration` stereo I/O, transition handoff, and bus conversions.
+  - Vectorized integer and float ASIO codecs with 8-sample AVX2 paths and hardware rounding.
+  - Implemented native single-precision `processSingle` for BiQuad, Channel, ParametricEQ, OutputGuard, CopyFilter, Delay, Pan, VUMeter, Chorus, ToneGenerator, Crossfeed, and Reverb filters.
+  - Guarded `Set-ExactProcessEnvironment` against empty environment variable keys.
+
 ## 3.1.4
 
 - Fixed the header Double precision switch falsely showing as unchecked when editing is restricted; it now accurately reflects whether 64-bit precision is active.

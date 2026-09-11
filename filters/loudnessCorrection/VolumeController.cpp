@@ -20,6 +20,10 @@ namespace
 		4
 	};
 
+	// {C4A5D182-3A64-4217-916B-41DE8C3B87A0}
+	const GUID HIBIKI_VOLUME_EVENT_CONTEXT =
+		{ 0xc4a5d182, 0x3a64, 0x4217, { 0x91, 0x6b, 0x41, 0xde, 0x8c, 0x3b, 0x87, 0xa0 } };
+
 	HRESULT findDeviceByEndpointGuid(
 		IMMDeviceEnumerator* enumerator,
 		const std::wstring& endpointGuid,
@@ -117,7 +121,7 @@ public:
 
 	HRESULT STDMETHODCALLTYPE OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify)
 	{
-		if (pNotify)
+		if (pNotify && !IsEqualGUID(pNotify->guidEventContext, HIBIKI_VOLUME_EVENT_CONTEXT))
 			_changed.store(true, std::memory_order_release);
 		return S_OK;
 	}
@@ -439,10 +443,94 @@ HRESULT VolumeController::setVolume(double volume)
 	}
 	volume = (std::min)(volume, static_cast<double>(_maxVol));
 	volume = (std::max)(volume, static_cast<double>(_minVol));
-	HRESULT result = _endpointVolume->SetMasterVolumeLevel((float)volume, NULL);
+	HRESULT result = _endpointVolume->SetMasterVolumeLevel(
+		(float)volume, const_cast<GUID*>(&HIBIKI_VOLUME_EVENT_CONTEXT));
 	if (FAILED(result))
 		cleanup();
 	return result;
+}
+
+HRESULT VolumeController::setVolumeScalar(double scalar)
+{
+	if (!refreshEndpointIfChanged())
+		return E_FAIL;
+	if (!_endpointVolume)
+	{
+		if (!initEndpoint())
+		{
+			return E_FAIL;
+		}
+	}
+	scalar = (std::min)(1.0, (std::max)(0.0, scalar));
+	HRESULT result = _endpointVolume->SetMasterVolumeLevelScalar(
+		(float)scalar, const_cast<GUID*>(&HIBIKI_VOLUME_EVENT_CONTEXT));
+	if (FAILED(result))
+		cleanup();
+	return result;
+}
+
+HRESULT VolumeController::setMute(bool mute)
+{
+	if (!refreshEndpointIfChanged())
+		return E_FAIL;
+	if (!_endpointVolume)
+	{
+		if (!initEndpoint())
+		{
+			return E_FAIL;
+		}
+	}
+	HRESULT result = _endpointVolume->SetMute(
+		mute ? TRUE : FALSE, const_cast<GUID*>(&HIBIKI_VOLUME_EVENT_CONTEXT));
+	if (FAILED(result))
+		cleanup();
+	return result;
+}
+
+HRESULT VolumeController::getMute(bool& mute)
+{
+	if (!refreshEndpointIfChanged())
+		return E_FAIL;
+	if (!_endpointVolume && !initEndpoint())
+		return E_FAIL;
+
+	BOOL muted = FALSE;
+	HRESULT result = _endpointVolume->GetMute(&muted);
+	if (SUCCEEDED(result))
+		mute = (muted != FALSE);
+	return result;
+}
+
+HRESULT VolumeController::getVolumeScalar(double& scalar)
+{
+	if (!refreshEndpointIfChanged())
+		return E_FAIL;
+	if (!_endpointVolume && !initEndpoint())
+		return E_FAIL;
+
+	float s = 1.0f;
+	HRESULT result = _endpointVolume->GetMasterVolumeLevelScalar(&s);
+	if (SUCCEEDED(result))
+		scalar = static_cast<double>(s);
+	return result;
+}
+
+HRESULT VolumeController::getVolumeRange(float& minDb, float& maxDb, float& stepDb)
+{
+	if (!refreshEndpointIfChanged())
+		return E_FAIL;
+	if (!_endpointVolume && !initEndpoint())
+		return E_FAIL;
+
+	minDb = _minVol;
+	maxDb = _maxVol;
+	stepDb = 0.5f;
+	return S_OK;
+}
+
+const GUID& VolumeController::getEventContextGuid()
+{
+	return HIBIKI_VOLUME_EVENT_CONTEXT;
 }
 
 bool VolumeController::hasVolumeChanged()

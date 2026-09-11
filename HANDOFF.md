@@ -1,15 +1,16 @@
-# AI 交接快照：Hibiki EQAPO v3.1.4 發布
+# AI 交接快照：響度校正接管 Windows 音量條與等響度 HUD
 
-最後更新：2026-09-11（Asia/Taipei）
+最後更新：2026-09-12（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成 v3.1.4 正式發布：
-  - 徹底修復 Configuration Editor 頂部工作室標頭「雙精度」開關（解除 Device / Stage 限制、精準反映 64 位元勾選狀態、保持簡潔「雙精度」標籤）。
-  - 版本更新同步：`version.h`、`vcpkg.json`、`.github/workflows/release.yml`、`tests/test_loudness_safety_contract.py` 與 `CHANGELOG.md` 均已升級至 3.1.4。
-  - 全套自動化驗證通過：Python 399 項測試全數通過（398 passed, 1 expected skip）、90/90 UI 回歸截圖幾何約束零違規、DSP 即時契約測試通過、公開歷史檢查通過。
-  - 建立並推送 `v3.1.4` annotated tag，已觸發 GitHub Actions 正式 Release 發布工作流。
-  - 本機安裝包 `Setup\Hibiki-EQAPO-x64-3.1.4.exe` 已建置完成。
+- 本輪已完成「讓響度校正完全接管 Windows 音量條」實作：
+  - 端點隔離：在 `VolumeController` 引入專屬 `HIBIKI_VOLUME_EVENT_CONTEXT` GUID，消除雙向同步迴圈（Feedback loop），並提供端點 scalar / mute 存取。
+  - 硬體全域按鍵接管：新增 `VolumeTakeoverManager`，使用 `WH_KEYBOARD_LL` 攔截 `VK_VOLUME_UP`、`VK_VOLUME_DOWN`、`VK_VOLUME_MUTE`。
+  - 自訂等響度浮動 OSD：新增 `VolumeOsdWidget`，具備半透明毛玻璃、置頂不搶焦點、平滑進出淡出動畫、百分比、衰減 dB、即時 phon 計算值與靜音狀態提示。
+  - Configuration Editor 整合：主功能表設定與系統匣均提供「接管 Windows 音量鍵與螢幕顯示」選項，支援登錄檔持久化；響度控制項與端點音量雙向連動。
+  - 完整多語系翻譯與 `.qm` 同步（繁體中文 0 unfinished）。
+  - 通過全部 404 項 Python 測試、全部原生 x64 C++ 單元測試、Release Build 及原生響度效能基準測試。
 
 ---
 

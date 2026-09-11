@@ -29,6 +29,12 @@ public:
 	HRESULT getVolume(double& currentVolume);
 	HRESULT getVolumeState(EndpointVolumeState& state);
 	HRESULT setVolume(double volume);
+	HRESULT setVolumeScalar(double scalar);
+	HRESULT setMute(bool mute);
+	HRESULT getMute(bool& mute);
+	HRESULT getVolumeScalar(double& scalar);
+	HRESULT getVolumeRange(float& minDb, float& maxDb, float& stepDb);
+	static const GUID& getEventContextGuid();
 	bool hasVolumeChanged();
 	const std::wstring& getEndpointId() const { return _endpointId; }
 

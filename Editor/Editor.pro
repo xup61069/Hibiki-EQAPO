@@ -168,7 +168,9 @@ SOURCES += main.cpp\
 	helpers/QtSndfileHandle.cpp \
 	widgets/MiddleClickTabWidget.cpp \
 	widgets/MiddleClickTabBar.cpp \
-	widgets/VerticalDragDial.cpp
+	widgets/VerticalDragDial.cpp \
+	widgets/VolumeOsdWidget.cpp \
+	helpers/VolumeTakeoverManager.cpp
 
 contains(QT_ARCH, x86_64) {
 	SOURCES += ../HibikiEQAPODriver/AsioTargetSelection.cpp \
@@ -336,7 +338,9 @@ HEADERS  += \
 	helpers/QtSndfileHandle.h \
 	widgets/MiddleClickTabWidget.h \
 	widgets/MiddleClickTabBar.h \
-	widgets/VerticalDragDial.h
+	widgets/VerticalDragDial.h \
+	widgets/VolumeOsdWidget.h \
+	helpers/VolumeTakeoverManager.h
 
 FORMS    += \
 	guis/PreampFilterGUI.ui \

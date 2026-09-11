@@ -85,6 +85,7 @@
 #include "HibikiEQAPODriver/AsioTargetStore.h"
 #endif
 #include "filters/loudnessCorrection/VolumeController.h"
+#include "Editor/helpers/VolumeTakeoverManager.h"
 #include "ui_MainWindow.h"
 #ifdef EQAPO_ENABLE_UI_SNAPSHOTS
 #include "guis/LoudnessCorrectionFilterGUI.h"
@@ -1302,6 +1303,10 @@ void MainWindow::setupWorkspaceTools()
 	closeToTrayAction->setCheckable(true);
 	connect(closeToTrayAction, SIGNAL(toggled(bool)), this, SLOT(closeToTrayToggled(bool)));
 
+	takeoverVolumeKeysAction = ui->menuSettings->addAction(tr("Take over Windows volume keys & OSD"));
+	takeoverVolumeKeysAction->setCheckable(true);
+	connect(takeoverVolumeKeysAction, &QAction::toggled, this, &MainWindow::takeoverVolumeKeysToggled);
+
 	profileWatcher = new QFileSystemWatcher(this);
 	if (configDir.exists())
 		profileWatcher->addPath(configDir.absolutePath());
@@ -1508,6 +1513,7 @@ void MainWindow::setupTrayIcon()
 	});
 	trayMenu->addAction(bypassAction);
 	trayMenu->addAction(closeToTrayAction);
+	trayMenu->addAction(takeoverVolumeKeysAction);
 	trayMenu->addSeparator();
 	QAction* quitAction = trayMenu->addAction(tr("Exit"));
 	connect(quitAction, &QAction::triggered, this, [this]() {
@@ -3427,6 +3433,21 @@ void MainWindow::closeToTrayToggled(bool enabled)
 	}
 }
 
+void MainWindow::takeoverVolumeKeysToggled(bool enabled)
+{
+	takeoverVolumeKeys = enabled;
+	VolumeTakeoverManager::instance()->setTakeoverEnabled(enabled);
+	if (enabled)
+	{
+		showWorkspaceStatus(tr("Volume takeover active: volume keys control Hibiki EQAPO loudness with OSD"));
+		VolumeTakeoverManager::instance()->showCurrentVolumeOsd();
+	}
+	else
+	{
+		showWorkspaceStatus(tr("Volume takeover disabled: Windows default volume behavior restored"));
+	}
+}
+
 void MainWindow::doChecks()
 {
 	if (!DeviceAPOInfo::checkProtectedAudioDG(false) || !DeviceAPOInfo::checkAPORegistration(false))
@@ -5205,6 +5226,13 @@ void MainWindow::loadPreferences()
 		QSignalBlocker blocker(closeToTrayAction);
 		closeToTrayAction->setChecked(closeToTray);
 	}
+	takeoverVolumeKeys = settings.value("takeoverVolumeKeys", false).toBool();
+	if (takeoverVolumeKeysAction != NULL)
+	{
+		QSignalBlocker blocker(takeoverVolumeKeysAction);
+		takeoverVolumeKeysAction->setChecked(takeoverVolumeKeys);
+	}
+	VolumeTakeoverManager::instance()->setTakeoverEnabled(takeoverVolumeKeys);
 	QString selectedDevice = settings.value("selectedDevice").toString();
 	if (!selectedDevice.isEmpty())
 	{
@@ -5291,6 +5319,7 @@ void MainWindow::savePreferences()
 	settings.setValue("windowState", saveWindowLayoutState());
 	settings.setValue("instantMode", instantModeCheckBox->isChecked());
 	settings.setValue("closeToTray", closeToTray);
+	settings.setValue("takeoverVolumeKeys", takeoverVolumeKeys);
 	shared_ptr<AbstractAPOInfo> selectedDevice = deviceComboBox->currentData().value<shared_ptr<AbstractAPOInfo>>();
 	settings.setValue("selectedDevice", selectedDevice != NULL ? QString::fromStdWString(selectedDevice->getDeviceGuid().empty() ? selectedDevice->getDeviceString() : selectedDevice->getDeviceGuid()) : "");
 	int channelMask = channelConfigurationComboBox->currentData().toInt();

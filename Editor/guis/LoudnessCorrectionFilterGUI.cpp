@@ -22,6 +22,7 @@
 #include "LoudnessCorrectionFilterGUIDialog.h"
 #include "LoudnessCorrectionFilterGUI.h"
 #include "LoudnessCorrectionStudioDialog.h"
+#include "Editor/helpers/VolumeTakeoverManager.h"
 #include "ui_LoudnessCorrectionFilterGUI.h"
 #include <cmath>
 #include <limits>
@@ -135,6 +136,20 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 	}
 
 	connect(&timer, SIGNAL(timeout()), this, SLOT(updateVolume()));
+	VolumeTakeoverManager::instance()->setReferenceParameters(
+		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
+	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::volumeChangedExternal,
+		this, [this](double levelDb, double scalar, bool muted) {
+			Q_UNUSED(scalar);
+			Q_UNUSED(muted);
+			if (!ui->manualVolumeCheckBox->isChecked())
+			{
+				lastVolume = levelDb;
+				ui->volumeSpinBox->setValue(levelDb);
+				updateVolumeReadout();
+				emit updateModel();
+			}
+		});
 	updateAutomaticVolumeUi();
 	updateVolumeReadout();
 	timer.start(250);
@@ -310,11 +325,15 @@ void LoudnessCorrectionFilterGUI::updateVolumeReadout()
 
 void LoudnessCorrectionFilterGUI::on_refLevelSpinBox_valueChanged(int value)
 {
+	VolumeTakeoverManager::instance()->setReferenceParameters(
+		value, ui->refOffsetSpinBox->value());
 	emit updateModel();
 }
 
 void LoudnessCorrectionFilterGUI::on_refOffsetSpinBox_valueChanged(int value)
 {
+	VolumeTakeoverManager::instance()->setReferenceParameters(
+		ui->refLevelSpinBox->value(), value);
 	emit updateModel();
 }
 
@@ -405,6 +424,8 @@ void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged(double value)
 	if (ui->manualVolumeCheckBox->isChecked())
 	{
 		lastVolume = value;
+		if (volumeController)
+			volumeController->setVolume(value);
 		updateVolumeReadout();
 		emit updateModel();
 	}
