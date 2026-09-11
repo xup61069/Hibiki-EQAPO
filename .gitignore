@@ -187,6 +187,7 @@ node_modules/
 __pycache__/
 *.py[cod]
 .codex-tools/
+.opencode/
 _deps/
 _build/
 /build/

@@ -164,6 +164,7 @@ class SharedRuntimeConcurrencyTests(unittest.TestCase):
 
         for token in (
             "runVSTSelfLoadGuardTest",
+            "GetFullPathNameW",
             "VSTPluginLibrary::isCurrentModulePath",
             "AbstractLibrary::RECURSIVE_LOADING",
             "OutProcVSTPluginFilterFactory",

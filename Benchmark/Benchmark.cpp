@@ -4787,8 +4787,19 @@ namespace
 
 static int runVSTSelfLoadGuardTest(const string& pathArgument)
 {
-	const wstring path = StringHelper::toWString(pathArgument, CP_ACP);
-	if (path.empty() || !VSTPluginLibrary::isCurrentModulePath(path))
+	const wstring rawPath = StringHelper::toWString(pathArgument, CP_ACP);
+	if (rawPath.empty())
+	{
+		fprintf(stderr,
+			"VST self-load guard did not recognize the current module identity.\n");
+		return 1;
+	}
+	vector<wchar_t> fullPathBuffer(32768, L'\0');
+	const DWORD written = GetFullPathNameW(
+		rawPath.c_str(), static_cast<DWORD>(fullPathBuffer.size()), fullPathBuffer.data(), NULL);
+	const wstring path = (written > 0 && written < fullPathBuffer.size())
+		? wstring(fullPathBuffer.data(), written) : rawPath;
+	if (!VSTPluginLibrary::isCurrentModulePath(path))
 	{
 		fprintf(stderr,
 			"VST self-load guard did not recognize the current module identity.\n");
