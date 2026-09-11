@@ -87,4 +87,13 @@ void ChannelFilter::process(double** output, double** input, unsigned frameCount
 {
 	// nothing to do
 }
+
+bool ChannelFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	// nothing to do
+	(void)output;
+	(void)input;
+	(void)frameCount;
+	return true;
+}
 #pragma AVRT_CODE_END

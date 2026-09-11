@@ -64,4 +64,40 @@ void OutputGuardFilter::process(double** output, double** input, unsigned frameC
 		}
 	}
 }
+
+bool OutputGuardFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	float peak = 0.0f;
+	const float ceilingF = static_cast<float>(ceiling);
+	for (size_t channel = 0; channel < channelCount; ++channel)
+	{
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+		{
+			const float sample = input[channel][frame];
+			if (std::isfinite(sample))
+				peak = (std::max)(peak, std::abs(sample));
+		}
+	}
+
+	double targetGain = 1.0;
+	if (peak > ceilingF && peak > 0.0f)
+		targetGain = ceiling / static_cast<double>(peak);
+
+	if (targetGain < currentGain)
+		currentGain = targetGain;
+	else
+		currentGain = 1.0 - (1.0 - currentGain) * releaseCoefficient;
+
+	const float gainF = static_cast<float>(currentGain);
+	for (size_t channel = 0; channel < channelCount; ++channel)
+	{
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+		{
+			const float sample = input[channel][frame];
+			output[channel][frame] = std::isfinite(sample) ?
+				sample * gainF : 0.0f;
+		}
+	}
+	return true;
+}
 #pragma AVRT_CODE_END

@@ -54,4 +54,31 @@ void ParametricEQFilter::process(double** output, double** input, unsigned frame
 	_mm_setcsr(oldMxcsr);
 #endif
 }
+
+bool ParametricEQFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+#if !defined(_M_ARM64)
+	unsigned oldMxcsr = _mm_getcsr();
+	_mm_setcsr(oldMxcsr | 0x8040);
+#endif
+
+	for (unsigned channel = 0; channel < channelCount; ++channel)
+	{
+		float* out = output[channel];
+		float* in = input[channel];
+		std::vector<BiQuad>& chain = filters[channel];
+		for (unsigned frame = 0; frame < frameCount; ++frame)
+		{
+			double sample = static_cast<double>(in[frame]);
+			for (BiQuad& biquad : chain)
+				sample = biquad.process(sample);
+			out[frame] = static_cast<float>(sample);
+		}
+	}
+
+#if !defined(_M_ARM64)
+	_mm_setcsr(oldMxcsr);
+#endif
+	return true;
+}
 #pragma AVRT_CODE_END

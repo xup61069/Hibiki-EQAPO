@@ -101,6 +101,21 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("bool processSingle(float** output, float** input, unsigned frameCount) override;", header)
         self.assertIn("bool CopyFilter::processSingle(float** output, float** input, unsigned frameCount)", source)
 
+    def test_core_filters_implement_native_single_precision(self):
+        for name in ("BiQuadFilter", "ChannelFilter", "ParametricEQFilter", "OutputGuardFilter"):
+            header = (ROOT / f"filters/{name}.h").read_text(encoding="utf-8")
+            source = (ROOT / f"filters/{name}.cpp").read_text(encoding="utf-8")
+            self.assertIn(
+                "bool processSingle(float** output, float** input, unsigned frameCount) override;",
+                header,
+                msg=f"{name}.h missing processSingle override",
+            )
+            self.assertIn(
+                f"bool {name}::processSingle(float** output, float** input, unsigned frameCount)",
+                source,
+                msg=f"{name}.cpp missing processSingle implementation",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

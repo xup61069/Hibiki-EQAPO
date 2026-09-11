@@ -37,6 +37,7 @@ public:
     bool getInPlace() override { return true; }
     std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) override;
     void process(double** output, double** input, unsigned frameCount) override;
+    bool processSingle(float** output, float** input, unsigned frameCount) override;
 
     BiQuad::Type getType() const;
     double getDbGain() const;
@@ -61,14 +62,18 @@ private:
 
 #if defined(__AVX512F__) && !defined(_M_ARM64)
     void process_avx512(double** output, double** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
+    void processSingle_avx512(float** output, float** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
 #endif
 #if (defined(__AVX2__) || defined(__AVX512F__)) && !defined(_M_ARM64) // AVX2 is part of AVX
     void process_avx256(double** output, double** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
+    void processSingle_avx256(float** output, float** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
 #endif
     // Use AVX for the 128-bit FMA path if available, otherwise plain SSE2
 #if !defined(_M_ARM64)
     void process_sse128(double** output, double** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
+    void processSingle_sse128(float** output, float** input, unsigned frameCount, unsigned startChannel, unsigned numChannels);
 #endif
     void process_scalar(double** output, double** input, unsigned frameCount, unsigned startChannel);
+    void processSingle_scalar(float** output, float** input, unsigned frameCount, unsigned startChannel);
 };
 #pragma AVRT_VTABLES_END
