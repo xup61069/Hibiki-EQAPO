@@ -21,14 +21,18 @@ function Set-ExactProcessEnvironment {
 	param([Parameter(Mandatory = $true)][hashtable]$Variables)
 
 	foreach ($variableName in @([Environment]::GetEnvironmentVariables("Process").Keys)) {
-		[Environment]::SetEnvironmentVariable([string]$variableName, $null, "Process")
+		if (![string]::IsNullOrEmpty([string]$variableName)) {
+			[Environment]::SetEnvironmentVariable([string]$variableName, $null, "Process")
+		}
 	}
 	foreach ($entry in $Variables.GetEnumerator()) {
-		[Environment]::SetEnvironmentVariable(
-			[string]$entry.Key,
-			[string]$entry.Value,
-			"Process"
-		)
+		if (![string]::IsNullOrEmpty([string]$entry.Key)) {
+			[Environment]::SetEnvironmentVariable(
+				[string]$entry.Key,
+				[string]$entry.Value,
+				"Process"
+			)
+		}
 	}
 }
 
