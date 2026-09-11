@@ -180,24 +180,40 @@ bool AsioSampleCodec::decode(
 		{
 			std::size_t frame = 0;
 #if defined(__AVX2__) && !defined(_M_ARM64)
-			const __m128i expMask = _mm_set1_epi32(0x7F800000);
-			for (; frame + 4 <= frameCount; frame += 4)
+			const __m256i expMask8 = _mm256_set1_epi32(0x7F800000);
+			for (; frame + 8 <= frameCount; frame += 8)
 			{
-				const __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 4));
-				const __m128i isInfOrNan = _mm_cmpeq_epi32(_mm_and_si128(raw, expMask), expMask);
-				if (_mm_testz_si128(isInfOrNan, isInfOrNan))
+				const __m256i raw8 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + frame * 4));
+				const __m256i isInfOrNan8 = _mm256_cmpeq_epi32(_mm256_and_si256(raw8, expMask8), expMask8);
+				if (_mm256_testz_si256(isInfOrNan8, isInfOrNan8))
 				{
-					const __m256d d4 = _mm256_cvtps_pd(_mm_castsi128_ps(raw));
-					_mm256_storeu_pd(destination + frame, d4);
+					const __m128 rawLo = _mm256_castps256_ps128(_mm256_castsi256_ps(raw8));
+					const __m128 rawHi = _mm256_extractf128_ps(_mm256_castsi256_ps(raw8), 1);
+					const __m256d d0 = _mm256_cvtps_pd(rawLo);
+					const __m256d d1 = _mm256_cvtps_pd(rawHi);
+					_mm256_storeu_pd(destination + frame, d0);
+					_mm256_storeu_pd(destination + frame + 4, d1);
 				}
 				else
 				{
-					for (std::size_t k = 0; k < 4; ++k)
+					for (std::size_t k = 0; k < 8; ++k)
 					{
 						float sampleVal{};
 						std::memcpy(&sampleVal, bytes + (frame + k) * 4, sizeof(float));
 						destination[frame + k] = sanitizeFloat(static_cast<double>(sampleVal));
 					}
+				}
+			}
+			if (frame + 4 <= frameCount)
+			{
+				const __m128i expMask4 = _mm_set1_epi32(0x7F800000);
+				const __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 4));
+				const __m128i isInfOrNan = _mm_cmpeq_epi32(_mm_and_si128(raw, expMask4), expMask4);
+				if (_mm_testz_si128(isInfOrNan, isInfOrNan))
+				{
+					const __m256d d4 = _mm256_cvtps_pd(_mm_castsi128_ps(raw));
+					_mm256_storeu_pd(destination + frame, d4);
+					frame += 4;
 				}
 			}
 #endif
@@ -214,22 +230,36 @@ bool AsioSampleCodec::decode(
 			std::size_t frame = 0;
 #if defined(__AVX2__) && !defined(_M_ARM64)
 			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
-			for (; frame + 4 <= frameCount; frame += 4)
+			for (; frame + 8 <= frameCount; frame += 8)
+			{
+				const __m256i raw0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + frame * 8));
+				const __m256i raw1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + (frame + 4) * 8));
+				const __m256i infOrNan0 = _mm256_cmpeq_epi64(_mm256_and_si256(raw0, expMask), expMask);
+				const __m256i infOrNan1 = _mm256_cmpeq_epi64(_mm256_and_si256(raw1, expMask), expMask);
+				const __m256i combined = _mm256_or_si256(infOrNan0, infOrNan1);
+				if (_mm256_testz_si256(combined, combined))
+				{
+					_mm256_storeu_pd(destination + frame, _mm256_castsi256_pd(raw0));
+					_mm256_storeu_pd(destination + frame + 4, _mm256_castsi256_pd(raw1));
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 8; ++k)
+					{
+						double sampleVal{};
+						std::memcpy(&sampleVal, bytes + (frame + k) * 8, sizeof(double));
+						destination[frame + k] = sanitizeFloat(sampleVal);
+					}
+				}
+			}
+			if (frame + 4 <= frameCount)
 			{
 				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + frame * 8));
 				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
 				if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
 				{
 					_mm256_storeu_pd(destination + frame, _mm256_castsi256_pd(raw));
-				}
-				else
-				{
-					for (std::size_t k = 0; k < 4; ++k)
-					{
-						double sampleVal{};
-						std::memcpy(&sampleVal, bytes + (frame + k) * 8, sizeof(double));
-						destination[frame + k] = sanitizeFloat(sampleVal);
-					}
+					frame += 4;
 				}
 			}
 #endif
@@ -249,12 +279,23 @@ bool AsioSampleCodec::decode(
 				std::size_t frame = 0;
 #if defined(__AVX2__) && !defined(_M_ARM64)
 				const __m256d scaleVec = _mm256_set1_pd(invScale);
-				for (; frame + 4 <= frameCount; frame += 4)
+				for (; frame + 8 <= frameCount; frame += 8)
+				{
+					const __m256i in32_8 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + frame * 4));
+					const __m128i in32_0 = _mm256_castsi256_si128(in32_8);
+					const __m128i in32_1 = _mm256_extracti128_si256(in32_8, 1);
+					const __m256d d0 = _mm256_cvtepi32_pd(in32_0);
+					const __m256d d1 = _mm256_cvtepi32_pd(in32_1);
+					_mm256_storeu_pd(destination + frame, _mm256_mul_pd(d0, scaleVec));
+					_mm256_storeu_pd(destination + frame + 4, _mm256_mul_pd(d1, scaleVec));
+				}
+				if (frame + 4 <= frameCount)
 				{
 					__m128i in32 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 4));
 					__m256d d4 = _mm256_cvtepi32_pd(in32);
 					__m256d scaled = _mm256_mul_pd(d4, scaleVec);
 					_mm256_storeu_pd(destination + frame, scaled);
+					frame += 4;
 				}
 #endif
 				for (; frame < frameCount; ++frame)
@@ -271,13 +312,23 @@ bool AsioSampleCodec::decode(
 				std::size_t frame = 0;
 #if defined(__AVX2__) && !defined(_M_ARM64)
 				const __m256d scaleVec = _mm256_set1_pd(invScale);
-				for (; frame + 4 <= frameCount; frame += 4)
+				for (; frame + 8 <= frameCount; frame += 8)
+				{
+					const __m128i in16_8 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 2));
+					const __m256i in32_8 = _mm256_cvtepi16_epi32(in16_8);
+					const __m256d d0 = _mm256_cvtepi32_pd(_mm256_castsi256_si128(in32_8));
+					const __m256d d1 = _mm256_cvtepi32_pd(_mm256_extracti128_si256(in32_8, 1));
+					_mm256_storeu_pd(destination + frame, _mm256_mul_pd(d0, scaleVec));
+					_mm256_storeu_pd(destination + frame + 4, _mm256_mul_pd(d1, scaleVec));
+				}
+				if (frame + 4 <= frameCount)
 				{
 					__m128i in16 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(bytes + frame * 2));
 					__m128i in32 = _mm_cvtepi16_epi32(in16);
 					__m256d d4 = _mm256_cvtepi32_pd(in32);
 					__m256d scaled = _mm256_mul_pd(d4, scaleVec);
 					_mm256_storeu_pd(destination + frame, scaled);
+					frame += 4;
 				}
 #endif
 				for (; frame < frameCount; ++frame)
@@ -400,7 +451,34 @@ bool AsioSampleCodec::encode(
 			const __m256d maxFloatD = _mm256_set1_pd(static_cast<double>((std::numeric_limits<float>::max)()));
 			const __m256d minFloatD = _mm256_set1_pd(static_cast<double>((std::numeric_limits<float>::lowest)()));
 			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
-			for (; frame + 4 <= frameCount; frame += 4)
+			for (; frame + 8 <= frameCount; frame += 8)
+			{
+				const __m256i raw0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+				const __m256i raw1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame + 4));
+				const __m256i infOrNan0 = _mm256_cmpeq_epi64(_mm256_and_si256(raw0, expMask), expMask);
+				const __m256i infOrNan1 = _mm256_cmpeq_epi64(_mm256_and_si256(raw1, expMask), expMask);
+				const __m256i combined = _mm256_or_si256(infOrNan0, infOrNan1);
+				if (_mm256_testz_si256(combined, combined))
+				{
+					__m256d d0 = _mm256_castsi256_pd(raw0);
+					__m256d d1 = _mm256_castsi256_pd(raw1);
+					d0 = _mm256_min_pd(_mm256_max_pd(d0, minFloatD), maxFloatD);
+					d1 = _mm256_min_pd(_mm256_max_pd(d1, minFloatD), maxFloatD);
+					const __m128 f0 = _mm256_cvtpd_ps(d0);
+					const __m128 f1 = _mm256_cvtpd_ps(d1);
+					const __m256 f8 = _mm256_set_m128(f1, f0);
+					_mm256_storeu_ps(reinterpret_cast<float*>(bytes + frame * 4), f8);
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 8; ++k)
+					{
+						const float val = encodeFloat32(source[frame + k]);
+						std::memcpy(bytes + (frame + k) * 4, &val, sizeof(float));
+					}
+				}
+			}
+			if (frame + 4 <= frameCount)
 			{
 				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
 				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
@@ -410,14 +488,7 @@ bool AsioSampleCodec::encode(
 					d4 = _mm256_min_pd(_mm256_max_pd(d4, minFloatD), maxFloatD);
 					const __m128 f4 = _mm256_cvtpd_ps(d4);
 					_mm_storeu_ps(reinterpret_cast<float*>(bytes + frame * 4), f4);
-				}
-				else
-				{
-					for (std::size_t k = 0; k < 4; ++k)
-					{
-						const float val = encodeFloat32(source[frame + k]);
-						std::memcpy(bytes + (frame + k) * 4, &val, sizeof(float));
-					}
+					frame += 4;
 				}
 			}
 #endif
@@ -433,21 +504,35 @@ bool AsioSampleCodec::encode(
 			std::size_t frame = 0;
 #if defined(__AVX2__) && !defined(_M_ARM64)
 			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
-			for (; frame + 4 <= frameCount; frame += 4)
+			for (; frame + 8 <= frameCount; frame += 8)
+			{
+				const __m256i raw0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+				const __m256i raw1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame + 4));
+				const __m256i infOrNan0 = _mm256_cmpeq_epi64(_mm256_and_si256(raw0, expMask), expMask);
+				const __m256i infOrNan1 = _mm256_cmpeq_epi64(_mm256_and_si256(raw1, expMask), expMask);
+				const __m256i combined = _mm256_or_si256(infOrNan0, infOrNan1);
+				if (_mm256_testz_si256(combined, combined))
+				{
+					_mm256_storeu_pd(reinterpret_cast<double*>(bytes + frame * 8), _mm256_castsi256_pd(raw0));
+					_mm256_storeu_pd(reinterpret_cast<double*>(bytes + (frame + 4) * 8), _mm256_castsi256_pd(raw1));
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 8; ++k)
+					{
+						const double val = sanitizeFloat(source[frame + k]);
+						std::memcpy(bytes + (frame + k) * 8, &val, sizeof(double));
+					}
+				}
+			}
+			if (frame + 4 <= frameCount)
 			{
 				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
 				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
 				if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
 				{
 					_mm256_storeu_pd(reinterpret_cast<double*>(bytes + frame * 8), _mm256_castsi256_pd(raw));
-				}
-				else
-				{
-					for (std::size_t k = 0; k < 4; ++k)
-					{
-						const double val = sanitizeFloat(source[frame + k]);
-						std::memcpy(bytes + (frame + k) * 8, &val, sizeof(double));
-					}
+					frame += 4;
 				}
 			}
 #endif
@@ -471,20 +556,27 @@ bool AsioSampleCodec::encode(
 				const __m256d magVec = _mm256_set1_pd(magnitude);
 				const __m256d minD = _mm256_set1_pd(static_cast<double>(minimum));
 				const __m256d maxD = _mm256_set1_pd(static_cast<double>(maximum));
-				for (; frame + 4 <= frameCount; frame += 4)
+				for (; frame + 8 <= frameCount; frame += 8)
 				{
-					const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
-					const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
-					if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
+					const __m256i raw0 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+					const __m256i raw1 = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame + 4));
+					const __m256i infOrNan0 = _mm256_cmpeq_epi64(_mm256_and_si256(raw0, expMask), expMask);
+					const __m256i infOrNan1 = _mm256_cmpeq_epi64(_mm256_and_si256(raw1, expMask), expMask);
+					const __m256i combined = _mm256_or_si256(infOrNan0, infOrNan1);
+					if (_mm256_testz_si256(combined, combined))
 					{
-						__m256d scaled = _mm256_mul_pd(_mm256_castsi256_pd(raw), magVec);
-						scaled = _mm256_min_pd(_mm256_max_pd(scaled, minD), maxD);
-						const __m128i i4 = _mm256_cvtpd_epi32(scaled);
-						_mm_storeu_si128(reinterpret_cast<__m128i*>(bytes + frame * 4), i4);
+						__m256d scaled0 = _mm256_mul_pd(_mm256_castsi256_pd(raw0), magVec);
+						__m256d scaled1 = _mm256_mul_pd(_mm256_castsi256_pd(raw1), magVec);
+						scaled0 = _mm256_min_pd(_mm256_max_pd(scaled0, minD), maxD);
+						scaled1 = _mm256_min_pd(_mm256_max_pd(scaled1, minD), maxD);
+						const __m128i i4_0 = _mm256_cvtpd_epi32(scaled0);
+						const __m128i i4_1 = _mm256_cvtpd_epi32(scaled1);
+						const __m256i i8 = _mm256_set_m128i(i4_1, i4_0);
+						_mm256_storeu_si256(reinterpret_cast<__m256i*>(bytes + frame * 4), i8);
 					}
 					else
 					{
-						for (std::size_t k = 0; k < 4; ++k)
+						for (std::size_t k = 0; k < 8; ++k)
 						{
 							double value = sanitizeFloat(source[frame + k]);
 							std::int32_t encoded;
@@ -499,6 +591,19 @@ bool AsioSampleCodec::encode(
 							}
 							std::memcpy(bytes + (frame + k) * 4, &encoded, sizeof(encoded));
 						}
+					}
+				}
+				if (frame + 4 <= frameCount)
+				{
+					const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+					const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
+					if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
+					{
+						__m256d scaled = _mm256_mul_pd(_mm256_castsi256_pd(raw), magVec);
+						scaled = _mm256_min_pd(_mm256_max_pd(scaled, minD), maxD);
+						const __m128i i4 = _mm256_cvtpd_epi32(scaled);
+						_mm_storeu_si128(reinterpret_cast<__m128i*>(bytes + frame * 4), i4);
+						frame += 4;
 					}
 				}
 #endif

@@ -18,7 +18,10 @@
 */
 
 #include "stdafx.h"
+#define _USE_MATH_DEFINES
+#include <cmath>
 #include <algorithm>
+#include <immintrin.h>
 
 #include "FilterEngine.h"
 #include "helpers/MemoryHelper.h"
@@ -225,8 +228,30 @@ void FilterConfiguration::read(double* input, unsigned frameCount)
 		DEINTERLEAVE_MACRO(1)
 		break;
 	case 2:
-		DEINTERLEAVE_MACRO(2)
+	{
+		double* lChannel = allSamples[0];
+		double* rChannel = allSamples[1];
+		unsigned i = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+		for (; i + 4 <= frameCount; i += 4)
+		{
+			const __m256d lr01 = _mm256_loadu_pd(input + i * 2);
+			const __m256d lr23 = _mm256_loadu_pd(input + (i + 2) * 2);
+			const __m256d unpckLo = _mm256_unpacklo_pd(lr01, lr23);
+			const __m256d unpckHi = _mm256_unpackhi_pd(lr01, lr23);
+			const __m256d l4 = _mm256_permute4x64_pd(unpckLo, _MM_SHUFFLE(3, 1, 2, 0));
+			const __m256d r4 = _mm256_permute4x64_pd(unpckHi, _MM_SHUFFLE(3, 1, 2, 0));
+			_mm256_storeu_pd(lChannel + i, l4);
+			_mm256_storeu_pd(rChannel + i, r4);
+		}
+#endif
+		for (; i < frameCount; i++)
+		{
+			lChannel[i] = input[i * 2];
+			rChannel[i] = input[i * 2 + 1];
+		}
 		break;
+	}
 	case 6:
 		DEINTERLEAVE_MACRO(6)
 		break;
@@ -333,30 +358,47 @@ unsigned FilterConfiguration::doTransition(FilterConfiguration* nextConfig, unsi
 	double** currentSamples = allSamples;
 	double** nextSamples = nextConfig->allSamples;
 
-	for (unsigned f = 0; f < frameCount; f++)
+	if (!(transitionLength != 0 && transitionCounter < transitionLength))
 	{
-		double factor = 1.0;
-		if (transitionLength != 0 && transitionCounter < transitionLength)
+		for (unsigned c = 0; c < outputChannelCount; c++)
+			memcpy(currentSamples[c], nextSamples[c], frameCount * sizeof(double));
+		return transitionCounter;
+	}
+
+	const unsigned fadingFrames = (std::min)(frameCount, transitionLength - transitionCounter);
+	unsigned f = 0;
+	while (f < fadingFrames)
+	{
+		const unsigned chunk = (std::min)(fadingFrames - f, 512U);
+		double factorChunk[512];
+		double invFactorChunk[512];
+		for (unsigned i = 0; i < chunk; ++i)
 		{
-			factor = 0.5 * (1.0 - cos(
-				transitionCounter * static_cast<double>(M_PI) /
+			const double factor = 0.5 * (1.0 - cos(
+				(transitionCounter + i) * static_cast<double>(M_PI) /
 				transitionLength));
+			factorChunk[i] = factor;
+			invFactorChunk[i] = 1.0 - factor;
 		}
-
-		if (factor == 1.0)
+		for (unsigned c = 0; c < outputChannelCount; ++c)
 		{
-			for (unsigned c = 0; c < outputChannelCount; c++)
-				currentSamples[c][f] = nextSamples[c][f];
+			double* cur = currentSamples[c] + f;
+			const double* nxt = nextSamples[c] + f;
+			for (unsigned i = 0; i < chunk; ++i)
+			{
+				cur[i] = cur[i] * invFactorChunk[i] + nxt[i] * factorChunk[i];
+			}
 		}
-		else
-		{
-			const double invFactor = 1.0 - factor;
-			for (unsigned c = 0; c < outputChannelCount; c++)
-				currentSamples[c][f] = currentSamples[c][f] * invFactor + nextSamples[c][f] * factor;
-		}
-
 		if (transitionCounter < transitionLength)
-			transitionCounter++;
+			transitionCounter += chunk;
+		f += chunk;
+	}
+
+	if (f < frameCount)
+	{
+		const unsigned remaining = frameCount - f;
+		for (unsigned c = 0; c < outputChannelCount; ++c)
+			memcpy(currentSamples[c] + f, nextSamples[c] + f, remaining * sizeof(double));
 	}
 
 	return transitionCounter;
@@ -381,8 +423,30 @@ void FilterConfiguration::write(double* output, unsigned frameCount)
 		INTERLEAVE_MACRO(1)
 		break;
 	case 2:
-		INTERLEAVE_MACRO(2)
+	{
+		const double* lChannel = allSamples[0];
+		const double* rChannel = allSamples[1];
+		unsigned i = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+		for (; i + 4 <= frameCount; i += 4)
+		{
+			const __m256d l4 = _mm256_loadu_pd(lChannel + i);
+			const __m256d r4 = _mm256_loadu_pd(rChannel + i);
+			const __m256d lo = _mm256_unpacklo_pd(l4, r4);
+			const __m256d hi = _mm256_unpackhi_pd(l4, r4);
+			const __m256d lr01 = _mm256_permute2f128_pd(lo, hi, 0x20);
+			const __m256d lr23 = _mm256_permute2f128_pd(lo, hi, 0x31);
+			_mm256_storeu_pd(output + i * 2, lr01);
+			_mm256_storeu_pd(output + (i + 2) * 2, lr23);
+		}
+#endif
+		for (; i < frameCount; i++)
+		{
+			output[i * 2] = lChannel[i];
+			output[i * 2 + 1] = rChannel[i];
+		}
 		break;
+	}
 	case 6:
 		INTERLEAVE_MACRO(6)
 		break;
