@@ -19,4 +19,14 @@ void HeadphoneCalibrationFilter::process(double** output, double** input, unsign
 	for (unsigned c = 0; c < channelCount; c++)
 		memcpy(output[c], input[c], frameCount * sizeof(double));
 }
+
+bool HeadphoneCalibrationFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (output == input)
+		return true;
+
+	for (unsigned c = 0; c < channelCount; c++)
+		memcpy(output[c], input[c], frameCount * sizeof(float));
+	return true;
+}
 #pragma AVRT_CODE_END

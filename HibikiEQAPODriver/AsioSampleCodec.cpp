@@ -178,7 +178,30 @@ bool AsioSampleCodec::decode(
 	{
 		if (format.encoding == SampleEncoding::Float32)
 		{
-			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+			const __m128i expMask = _mm_set1_epi32(0x7F800000);
+			for (; frame + 4 <= frameCount; frame += 4)
+			{
+				const __m128i raw = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 4));
+				const __m128i isInfOrNan = _mm_cmpeq_epi32(_mm_and_si128(raw, expMask), expMask);
+				if (_mm_testz_si128(isInfOrNan, isInfOrNan))
+				{
+					const __m256d d4 = _mm256_cvtps_pd(_mm_castsi128_ps(raw));
+					_mm256_storeu_pd(destination + frame, d4);
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 4; ++k)
+					{
+						float sampleVal{};
+						std::memcpy(&sampleVal, bytes + (frame + k) * 4, sizeof(float));
+						destination[frame + k] = sanitizeFloat(static_cast<double>(sampleVal));
+					}
+				}
+			}
+#endif
+			for (; frame < frameCount; ++frame)
 			{
 				float sampleVal{};
 				std::memcpy(&sampleVal, bytes + frame * 4, sizeof(float));
@@ -188,7 +211,29 @@ bool AsioSampleCodec::decode(
 		}
 		if (format.encoding == SampleEncoding::Float64)
 		{
-			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
+			for (; frame + 4 <= frameCount; frame += 4)
+			{
+				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(bytes + frame * 8));
+				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
+				if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
+				{
+					_mm256_storeu_pd(destination + frame, _mm256_castsi256_pd(raw));
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 4; ++k)
+					{
+						double sampleVal{};
+						std::memcpy(&sampleVal, bytes + (frame + k) * 8, sizeof(double));
+						destination[frame + k] = sanitizeFloat(sampleVal);
+					}
+				}
+			}
+#endif
+			for (; frame < frameCount; ++frame)
 			{
 				double sampleVal{};
 				std::memcpy(&sampleVal, bytes + frame * 8, sizeof(double));
@@ -201,7 +246,18 @@ bool AsioSampleCodec::decode(
 			if (format.containerBytes == 4 && format.validBits == 32)
 			{
 				constexpr double invScale = 1.0 / 2147483648.0;
-				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+				const __m256d scaleVec = _mm256_set1_pd(invScale);
+				for (; frame + 4 <= frameCount; frame += 4)
+				{
+					__m128i in32 = _mm_loadu_si128(reinterpret_cast<const __m128i*>(bytes + frame * 4));
+					__m256d d4 = _mm256_cvtepi32_pd(in32);
+					__m256d scaled = _mm256_mul_pd(d4, scaleVec);
+					_mm256_storeu_pd(destination + frame, scaled);
+				}
+#endif
+				for (; frame < frameCount; ++frame)
 				{
 					std::int32_t val{};
 					std::memcpy(&val, bytes + frame * 4, sizeof(val));
@@ -212,7 +268,19 @@ bool AsioSampleCodec::decode(
 			if (format.containerBytes == 2 && format.validBits == 16)
 			{
 				constexpr double invScale = 1.0 / 32768.0;
-				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+				const __m256d scaleVec = _mm256_set1_pd(invScale);
+				for (; frame + 4 <= frameCount; frame += 4)
+				{
+					__m128i in16 = _mm_loadl_epi64(reinterpret_cast<const __m128i*>(bytes + frame * 2));
+					__m128i in32 = _mm_cvtepi16_epi32(in16);
+					__m256d d4 = _mm256_cvtepi32_pd(in32);
+					__m256d scaled = _mm256_mul_pd(d4, scaleVec);
+					_mm256_storeu_pd(destination + frame, scaled);
+				}
+#endif
+				for (; frame < frameCount; ++frame)
 				{
 					std::int16_t val{};
 					std::memcpy(&val, bytes + frame * 2, sizeof(val));
@@ -307,7 +375,33 @@ bool AsioSampleCodec::encode(
 	{
 		if (format.encoding == SampleEncoding::Float32)
 		{
-			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+			const __m256d maxFloatD = _mm256_set1_pd(static_cast<double>((std::numeric_limits<float>::max)()));
+			const __m256d minFloatD = _mm256_set1_pd(static_cast<double>((std::numeric_limits<float>::lowest)()));
+			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
+			for (; frame + 4 <= frameCount; frame += 4)
+			{
+				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
+				if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
+				{
+					__m256d d4 = _mm256_castsi256_pd(raw);
+					d4 = _mm256_min_pd(_mm256_max_pd(d4, minFloatD), maxFloatD);
+					const __m128 f4 = _mm256_cvtpd_ps(d4);
+					_mm_storeu_ps(reinterpret_cast<float*>(bytes + frame * 4), f4);
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 4; ++k)
+					{
+						const float val = encodeFloat32(source[frame + k]);
+						std::memcpy(bytes + (frame + k) * 4, &val, sizeof(float));
+					}
+				}
+			}
+#endif
+			for (; frame < frameCount; ++frame)
 			{
 				const float val = encodeFloat32(source[frame]);
 				std::memcpy(bytes + frame * 4, &val, sizeof(float));
@@ -316,7 +410,28 @@ bool AsioSampleCodec::encode(
 		}
 		if (format.encoding == SampleEncoding::Float64)
 		{
-			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			std::size_t frame = 0;
+#if defined(__AVX2__) && !defined(_M_ARM64)
+			const __m256i expMask = _mm256_set1_epi64x(0x7FF0000000000000ULL);
+			for (; frame + 4 <= frameCount; frame += 4)
+			{
+				const __m256i raw = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(source + frame));
+				const __m256i isInfOrNan = _mm256_cmpeq_epi64(_mm256_and_si256(raw, expMask), expMask);
+				if (_mm256_testz_si256(isInfOrNan, isInfOrNan))
+				{
+					_mm256_storeu_pd(reinterpret_cast<double*>(bytes + frame * 8), _mm256_castsi256_pd(raw));
+				}
+				else
+				{
+					for (std::size_t k = 0; k < 4; ++k)
+					{
+						const double val = sanitizeFloat(source[frame + k]);
+						std::memcpy(bytes + (frame + k) * 8, &val, sizeof(double));
+					}
+				}
+			}
+#endif
+			for (; frame < frameCount; ++frame)
 			{
 				const double val = sanitizeFloat(source[frame]);
 				std::memcpy(bytes + frame * 8, &val, sizeof(double));

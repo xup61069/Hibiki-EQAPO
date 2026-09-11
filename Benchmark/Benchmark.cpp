@@ -3057,6 +3057,37 @@ namespace
 				passed = output == expected && passed;
 			}
 		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nDelay: 2 samples\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 1, 1, 1, 0, 16, path);
+			double sample = 0.5, output = 0.0;
+			engine.process(&output, &sample, 1);
+			passed = output == 0.0 && passed;
+			sample = 0.75;
+			engine.process(&output, &sample, 1);
+			passed = output == 0.0 && passed;
+			sample = 0.125;
+			engine.process(&output, &sample, 1);
+			passed = output == static_cast<float>(0.5) && passed;
+			sample = 0.0;
+			engine.process(&output, &sample, 1);
+			passed = output == static_cast<float>(0.75) && passed;
+		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nPan: 0% 100%\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 2, 2, 2, 3, 16, path);
+			double inputChannels[2] = {0.8, -0.4};
+			double outputChannels[2] = {};
+			engine.process(outputChannels, inputChannels, 1);
+			const float expectedL = static_cast<float>(0.8f * std::cos(std::acos(-1.0) / 4.0));
+			const float expectedR = static_cast<float>(-0.4f * std::sin(std::acos(-1.0) / 4.0));
+			passed = std::abs(outputChannels[0] - expectedL) < 1e-6
+				&& std::abs(outputChannels[1] - expectedR) < 1e-6 && passed;
+		}
 		passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 32\r\n") && passed;
 		{
 			FilterEngine engine;

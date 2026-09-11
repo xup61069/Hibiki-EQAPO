@@ -117,9 +117,66 @@ void PreampFilter::process(double** output, double** input, unsigned frameCount)
 bool PreampFilter::processSingle(float** output, float** input, unsigned frameCount)
 {
 	const float multiplier = static_cast<float>(gain);
-	for (size_t channel = 0; channel < channelCount; ++channel)
-		for (unsigned frame = 0; frame < frameCount; ++frame)
-			output[channel][frame] = input[channel][frame] * multiplier;
+
+	for (size_t c = 0; c < channelCount; ++c)
+	{
+		float* inputChannel = input[c];
+		float* outputChannel = output[c];
+		size_t i = 0;
+
+#if defined(__AVX512F__) && !defined(_M_ARM64)
+		{
+			const size_t simd_width = 16;
+			if (frameCount >= simd_width)
+			{
+				const __m512 gain_vec = _mm512_set1_ps(multiplier);
+				for (; i + simd_width <= frameCount; i += simd_width)
+				{
+					const __m512 samples = _mm512_loadu_ps(inputChannel + i);
+					const __m512 result = _mm512_mul_ps(samples, gain_vec);
+					_mm512_storeu_ps(outputChannel + i, result);
+				}
+			}
+		}
+#endif
+
+#if defined(__AVX2__) && !defined(_M_ARM64)
+		{
+			const size_t simd_width = 8;
+			if (frameCount - i >= simd_width)
+			{
+				const __m256 gain_vec = _mm256_set1_ps(multiplier);
+				for (; i + simd_width <= frameCount; i += simd_width)
+				{
+					const __m256 samples = _mm256_loadu_ps(inputChannel + i);
+					const __m256 result = _mm256_mul_ps(samples, gain_vec);
+					_mm256_storeu_ps(outputChannel + i, result);
+				}
+			}
+		}
+#endif
+
+#if !defined(_M_ARM64)
+		{
+			const size_t simd_width = 4;
+			if (frameCount - i >= simd_width)
+			{
+				const __m128 gain_vec = _mm_set1_ps(multiplier);
+				for (; i + simd_width <= frameCount; i += simd_width)
+				{
+					const __m128 samples = _mm_loadu_ps(inputChannel + i);
+					const __m128 result = _mm_mul_ps(samples, gain_vec);
+					_mm_storeu_ps(outputChannel + i, result);
+				}
+			}
+		}
+#endif
+
+		for (; i < frameCount; ++i)
+		{
+			outputChannel[i] = inputChannel[i] * multiplier;
+		}
+	}
 	return true;
 }
 #pragma AVRT_CODE_END

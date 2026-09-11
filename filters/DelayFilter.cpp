@@ -32,7 +32,9 @@ DelayFilter::DelayFilter(double delay, bool isMs)
 	  bufferLength(0),
 	  channelCount(0),
 	  buffers(NULL),
-	  bufferOffset(0)
+	  buffers32(NULL),
+	  bufferOffset(0),
+	  bufferOffset32(0)
 {
 }
 
@@ -63,27 +65,35 @@ vector<wstring> DelayFilter::initialize(float sampleRate, unsigned maxFrameCount
 
 	buffers = static_cast<double**>(MemoryHelper::allocArray(
 		channelCount, sizeof(double*)));
-	if (buffers == NULL)
+	buffers32 = static_cast<float**>(MemoryHelper::allocArray(
+		channelCount, sizeof(float*)));
+	if (buffers == NULL || buffers32 == NULL)
 	{
+		cleanup();
 		bufferLength = 0;
 		return channelNames;
 	}
 	memset(buffers, 0, channelCount * sizeof(double*));
+	memset(buffers32, 0, channelCount * sizeof(float*));
 
 	for (unsigned i = 0; i < channelCount; i++)
 	{
 		buffers[i] = static_cast<double*>(MemoryHelper::allocArray(
 			bufferLength, sizeof(double)));
-		if (buffers[i] == NULL)
+		buffers32[i] = static_cast<float*>(MemoryHelper::allocArray(
+			bufferLength, sizeof(float)));
+		if (buffers[i] == NULL || buffers32[i] == NULL)
 		{
 			cleanup();
 			bufferLength = 0;
 			return channelNames;
 		}
 		memset(buffers[i], 0, sizeof(double) * bufferLength);
+		memset(buffers32[i], 0, sizeof(float) * bufferLength);
 	}
 
 	bufferOffset = 0;
+	bufferOffset32 = 0;
 
 	return channelNames;
 }
@@ -134,6 +144,54 @@ void DelayFilter::process(double** output, double** input, unsigned frameCount)
 	else
 		bufferOffset = (bufferOffset + frameCount) % bufferLength;
 }
+
+bool DelayFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (bufferLength == 0)
+	{
+		for (unsigned i = 0; i < channelCount; i++)
+			if (output[i] != input[i])
+				memcpy(output[i], input[i], frameCount * sizeof(float));
+		return true;
+	}
+
+	for (unsigned i = 0; i < channelCount; i++)
+	{
+		float* inputChannel = input[i];
+		float* outputChannel = output[i];
+		float* bufferChannel = buffers32[i];
+
+		if (bufferLength <= frameCount)
+		{
+			memcpy(outputChannel, bufferChannel + bufferOffset32, (bufferLength - bufferOffset32) * sizeof(float));
+			memcpy(outputChannel + bufferLength - bufferOffset32, bufferChannel, bufferOffset32 * sizeof(float));
+			memcpy(outputChannel + bufferLength, inputChannel, (frameCount - bufferLength) * sizeof(float));
+			memcpy(bufferChannel, inputChannel + frameCount - bufferLength, bufferLength * sizeof(float));
+		}
+		else
+		{
+			if (bufferLength < bufferOffset32 + frameCount)
+			{
+				memcpy(outputChannel, bufferChannel + bufferOffset32, (bufferLength - bufferOffset32) * sizeof(float));
+				memcpy(outputChannel + bufferLength - bufferOffset32, bufferChannel, (frameCount - (bufferLength - bufferOffset32)) * sizeof(float));
+				memcpy(bufferChannel + bufferOffset32, inputChannel, (bufferLength - bufferOffset32) * sizeof(float));
+				memcpy(bufferChannel, inputChannel + bufferLength - bufferOffset32, (frameCount - (bufferLength - bufferOffset32)) * sizeof(float));
+			}
+			else
+			{
+				memcpy(outputChannel, bufferChannel + bufferOffset32, frameCount * sizeof(float));
+				memcpy(bufferChannel + bufferOffset32, inputChannel, frameCount * sizeof(float));
+			}
+		}
+	}
+
+	if (bufferLength <= frameCount)
+		bufferOffset32 = 0;
+	else
+		bufferOffset32 = (bufferOffset32 + frameCount) % bufferLength;
+
+	return true;
+}
 #pragma AVRT_CODE_END
 
 void DelayFilter::cleanup()
@@ -146,8 +204,17 @@ void DelayFilter::cleanup()
 		MemoryHelper::free(buffers);
 		buffers = NULL;
 	}
+	if (buffers32 != NULL)
+	{
+		for (unsigned i = 0; i < channelCount; i++)
+			MemoryHelper::free(buffers32[i]);
+
+		MemoryHelper::free(buffers32);
+		buffers32 = NULL;
+	}
 	bufferLength = 0;
 	bufferOffset = 0;
+	bufferOffset32 = 0;
 }
 
 bool DelayFilter::getIsMs() const

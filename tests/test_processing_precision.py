@@ -102,7 +102,15 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertIn("bool CopyFilter::processSingle(float** output, float** input, unsigned frameCount)", source)
 
     def test_core_filters_implement_native_single_precision(self):
-        for name in ("BiQuadFilter", "ChannelFilter", "ParametricEQFilter", "OutputGuardFilter"):
+        for name in (
+            "BiQuadFilter",
+            "ChannelFilter",
+            "ParametricEQFilter",
+            "OutputGuardFilter",
+            "DelayFilter",
+            "PanFilter",
+            "HeadphoneCalibrationFilter",
+        ):
             header = (ROOT / f"filters/{name}.h").read_text(encoding="utf-8")
             source = (ROOT / f"filters/{name}.cpp").read_text(encoding="utf-8")
             self.assertIn(
