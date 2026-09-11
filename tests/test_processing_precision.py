@@ -113,6 +113,8 @@ class ProcessingPrecisionTests(unittest.TestCase):
             "VUMeterFilter",
             "ChorusFilter",
             "ToneGeneratorFilter",
+            "CrossfeedFilter",
+            "ReverbFilter",
         ):
             header = (ROOT / f"filters/{name}.h").read_text(encoding="utf-8")
             source = (ROOT / f"filters/{name}.cpp").read_text(encoding="utf-8")

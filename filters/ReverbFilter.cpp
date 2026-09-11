@@ -112,4 +112,72 @@ void ReverbFilter::process(double** output, double** input, unsigned frameCount)
 		}
 	}
 }
+
+bool ReverbFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (wet <= 0.0)
+	{
+		if (dry == 1.0)
+		{
+			for (unsigned c = 0; c < channelCount; c++)
+				if (output[c] != input[c])
+					memcpy(output[c], input[c], frameCount * sizeof(float));
+		}
+		else
+		{
+			const float dryF = static_cast<float>(dry);
+			for (unsigned c = 0; c < channelCount; c++)
+				for (unsigned frame = 0; frame < frameCount; frame++)
+					output[c][frame] = input[c][frame] * dryF;
+		}
+		return true;
+	}
+
+	const double feedback = 0.72 + roomSize * 0.23;
+	for (unsigned frame = 0; frame < frameCount; frame++)
+	{
+		double dryLeft = 0.0;
+		double dryRight = 0.0;
+		double wetLeft = 0.0;
+		double wetRight = 0.0;
+		for (unsigned c = 0; c < channelCount; c++)
+		{
+			double acc = 0.0;
+			const double in = static_cast<double>(input[c][frame]);
+			for (unsigned i = 0; i < 4; i++)
+			{
+				double delayed = combs[c][i].process(in + dampState[c][i] * feedback);
+				dampState[c][i] = delayed * (1.0 - damping) + dampState[c][i] * damping;
+				acc += delayed;
+			}
+			acc *= 0.25;
+			for (unsigned i = 0; i < 2; i++)
+			{
+				double delayed = allpasses[c][i].process(acc);
+				acc = delayed - acc * 0.5;
+			}
+			const double drySignal = in * dry;
+			const double wetSignal = acc * wet;
+			output[c][frame] = static_cast<float>(drySignal + wetSignal);
+			if (c == 0)
+			{
+				dryLeft = drySignal;
+				wetLeft = wetSignal;
+			}
+			else if (c == 1)
+			{
+				dryRight = drySignal;
+				wetRight = wetSignal;
+			}
+		}
+
+		if (channelCount >= 2 && width < 1.0)
+		{
+			const double wetMid = 0.5 * (wetLeft + wetRight);
+			output[0][frame] = static_cast<float>(dryLeft + wetMid + (wetLeft - wetMid) * width);
+			output[1][frame] = static_cast<float>(dryRight + wetMid + (wetRight - wetMid) * width);
+		}
+	}
+	return true;
+}
 #pragma AVRT_CODE_END

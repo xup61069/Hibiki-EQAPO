@@ -10,6 +10,7 @@ public:
 	CrossfeedFilter(std::wstring algorithm, double amountPercent, double circumferenceCm, double headWidthCm, double headLengthCm, double angleDeg, double cutoffHz, double directPercent);
 	std::vector<std::wstring> initialize(float sampleRate, unsigned maxFrameCount, std::vector<std::wstring> channelNames) override;
 	void process(double** output, double** input, unsigned frameCount) override;
+	bool processSingle(float** output, float** input, unsigned frameCount) override;
 
 private:
 	enum class Algorithm { Natural, BS2B };
@@ -34,6 +35,8 @@ private:
 	double firstOrderLowpass(double input, double& state) const;
 	void processNatural(double** output, double** input, unsigned frameCount);
 	void processBS2B(double** output, double** input, unsigned frameCount);
+	void processNaturalSingle(float** output, float** input, unsigned frameCount);
+	void processBS2BSingle(float** output, float** input, unsigned frameCount);
 
 	Algorithm algorithm = Algorithm::Natural;
 	double amount;

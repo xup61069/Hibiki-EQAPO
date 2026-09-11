@@ -3106,6 +3106,26 @@ namespace
 			engine.process(&output, &sample, 1);
 			passed = std::isfinite(output) && passed;
 		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nCrossfeed: Natural 50% 57 14 19 30 700 100%\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 2, 2, 2, 3, 16, path);
+			double inputChannels[2] = {0.5, -0.25};
+			double outputChannels[2] = {};
+			engine.process(outputChannels, inputChannels, 1);
+			passed = std::isfinite(outputChannels[0]) && std::isfinite(outputChannels[1]) && passed;
+		}
+		passed = writeFilterEngineTestConfig(path,
+			"ProcessingPrecision: 32\r\nReverb: 50% 50% 30% 100% 100%\r\n") && passed;
+		{
+			FilterEngine engine;
+			engine.initialize(48000.0f, 2, 2, 2, 3, 16, path);
+			double inputChannels[2] = {0.5, -0.25};
+			double outputChannels[2] = {};
+			engine.process(outputChannels, inputChannels, 1);
+			passed = std::isfinite(outputChannels[0]) && std::isfinite(outputChannels[1]) && passed;
+		}
 		passed = writeFilterEngineTestConfig(path, "ProcessingPrecision: 32\r\n") && passed;
 		{
 			FilterEngine engine;

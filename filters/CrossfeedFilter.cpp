@@ -215,3 +215,63 @@ void CrossfeedFilter::processBS2B(double** output, double** input, unsigned fram
 		output[1][i] = right + amount * (wetR - right);
 	}
 }
+
+bool CrossfeedFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (channelCount < 2 || amount <= 0.0001)
+	{
+		for (unsigned c = 0; c < channelCount; c++)
+			if (output[c] != input[c])
+				memcpy(output[c], input[c], frameCount * sizeof(float));
+		return true;
+	}
+
+	if (algorithm == Algorithm::Natural)
+		processNaturalSingle(output, input, frameCount);
+	else
+		processBS2BSingle(output, input, frameCount);
+
+	for (unsigned c = 2; c < channelCount; c++)
+		if (output[c] != input[c])
+			memcpy(output[c], input[c], frameCount * sizeof(float));
+	return true;
+}
+
+void CrossfeedFilter::processNaturalSingle(float** output, float** input, unsigned frameCount)
+{
+	const double width = 1.0 + amount * (0.42 - 1.0);
+	const double crossGain = 0.16 * amount;
+	const unsigned delaySize = static_cast<unsigned>(leftDelay.size());
+	for (unsigned i = 0; i < frameCount; i++)
+	{
+		const double left = static_cast<double>(input[0][i]);
+		const double right = static_cast<double>(input[1][i]);
+		const double mid = 0.5 * (left + right);
+		const double side = 0.5 * (left - right) * width;
+		leftDelay[writeIndex] = firstOrderLowpass(left, leftLp);
+		rightDelay[writeIndex] = firstOrderLowpass(right, rightLp);
+		const unsigned readIndex = (writeIndex + delaySize - delaySamples) % delaySize;
+		output[0][i] = static_cast<float>((mid + side + crossGain * rightDelay[readIndex]) * directGain);
+		output[1][i] = static_cast<float>((mid - side + crossGain * leftDelay[readIndex]) * directGain);
+		writeIndex = (writeIndex + 1) % delaySize;
+	}
+}
+
+void CrossfeedFilter::processBS2BSingle(float** output, float** input, unsigned frameCount)
+{
+	for (unsigned i = 0; i < frameCount; i++)
+	{
+		const double left = static_cast<double>(input[0][i]);
+		const double right = static_cast<double>(input[1][i]);
+		bs2bLo[0] = bs2bA0Lo * left + bs2bB1Lo * bs2bLo[0];
+		bs2bLo[1] = bs2bA0Lo * right + bs2bB1Lo * bs2bLo[1];
+		bs2bHi[0] = bs2bA0Hi * left + bs2bA1Hi * bs2bPrevInput[0] + bs2bB1Hi * bs2bHi[0];
+		bs2bHi[1] = bs2bA0Hi * right + bs2bA1Hi * bs2bPrevInput[1] + bs2bB1Hi * bs2bHi[1];
+		bs2bPrevInput[0] = left;
+		bs2bPrevInput[1] = right;
+		const double wetL = (bs2bHi[0] + bs2bLo[1]) * bs2bGain * directGain;
+		const double wetR = (bs2bHi[1] + bs2bLo[0]) * bs2bGain * directGain;
+		output[0][i] = static_cast<float>(left + amount * (wetL - left));
+		output[1][i] = static_cast<float>(right + amount * (wetR - right));
+	}
+}
