@@ -2,9 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cmath>
 #include <cstdint>
 #include <cstdio>
+#include <cstring>
 #include <limits>
 #include <optional>
 #include <thread>
@@ -514,10 +516,85 @@ void testWorkerOutputReadyDoesNotRaceBridgeRelease()
 	check(!incorrectlyDeferred.load(std::memory_order_acquire),
 		"worker-thread outputReady must bypass callback-only owner state during release");
 }
+
+void runCodecPerformanceBenchmark()
+{
+	using namespace HibikiAsio;
+	struct CodecCase
+	{
+		const char* name;
+		ASIOSampleType type;
+	};
+	const CodecCase cases[] = {
+		{"Float32LSB", ASIOSTFloat32LSB},
+		{"Float64LSB", ASIOSTFloat64LSB},
+		{"Int32LSB",   ASIOSTInt32LSB},
+		{"Int24LSB",   ASIOSTInt24LSB},
+		{"Int16LSB",   ASIOSTInt16LSB},
+		{"Int32MSB",   ASIOSTInt32MSB}
+	};
+
+	constexpr size_t sampleCount = 4096;
+	constexpr size_t iterations = 5000;
+	std::vector<double> input(sampleCount);
+	for (size_t i = 0; i < sampleCount; ++i)
+	{
+		input[i] = std::sin(2.0 * 3.14159265358979323846 * i / 100.0) * 0.85;
+	}
+
+	std::printf("ASIO Sample Codec Performance (%zu samples/batch, %zu iterations):\n", sampleCount, iterations);
+
+	for (const auto& c : cases)
+	{
+		const SampleFormat format = AsioSampleCodec::describe(c.type);
+		std::vector<uint8_t> rawBuffer(sampleCount * format.containerBytes);
+		std::vector<double> decoded(sampleCount);
+
+		// Initial encode
+		AsioSampleCodec::encode(input.data(), format, rawBuffer.data(), sampleCount);
+
+		// Warm up
+		for (size_t w = 0; w < 100; ++w)
+		{
+			AsioSampleCodec::decode(rawBuffer.data(), format, decoded.data(), sampleCount);
+			AsioSampleCodec::encode(decoded.data(), format, rawBuffer.data(), sampleCount);
+		}
+
+		// Measure decode
+		const auto t0 = std::chrono::high_resolution_clock::now();
+		for (size_t it = 0; it < iterations; ++it)
+		{
+			AsioSampleCodec::decode(rawBuffer.data(), format, decoded.data(), sampleCount);
+		}
+		const auto t1 = std::chrono::high_resolution_clock::now();
+		const double decodeNsPerSample = std::chrono::duration<double, std::nano>(t1 - t0).count() /
+			(sampleCount * iterations);
+
+		// Measure encode
+		const auto t2 = std::chrono::high_resolution_clock::now();
+		for (size_t it = 0; it < iterations; ++it)
+		{
+			AsioSampleCodec::encode(decoded.data(), format, rawBuffer.data(), sampleCount);
+		}
+		const auto t3 = std::chrono::high_resolution_clock::now();
+		const double encodeNsPerSample = std::chrono::duration<double, std::nano>(t3 - t2).count() /
+			(sampleCount * iterations);
+
+		std::printf("  %-11s: decode %6.3f ns/sample, encode %6.3f ns/sample\n",
+			c.name, decodeNsPerSample, encodeNsPerSample);
+	}
+}
 }
 
-int main()
+int main(int argc, char** argv)
 {
+	if (argc > 1 && (std::strcmp(argv[1], "--benchmark") == 0 ||
+	                 std::strcmp(argv[1], "--asio-codec-performance") == 0))
+	{
+		runCodecPerformanceBenchmark();
+		return 0;
+	}
+
 	testCodecRoundTrips();
 	testCodecClipsAndSanitizes();
 	testCodecExternalBytePatternsAndUnalignedStorage();

@@ -304,6 +304,17 @@ class AsioProxyContractTests(unittest.TestCase):
         self.assertIn("The proxy is not production-ready", readme_en)
         self.assertIn("disable or exclude the proxy from the release installer", checklist)
 
+    def test_sample_codec_fast_paths_and_benchmarking(self) -> None:
+        codec = read("HibikiEQAPODriver/AsioSampleCodec.cpp")
+        self.assertIn("Float32LSB", codec)
+        self.assertIn("Float64LSB", codec)
+        self.assertIn("Int32LSB", codec)
+        self.assertIn("Int24LSB", codec)
+        self.assertIn("Int16LSB", codec)
+        core_tests = read("HibikiEQAPODriver/Tests/AsioProxyCoreTests.cpp")
+        self.assertIn("runCodecPerformanceBenchmark", core_tests)
+        self.assertIn("--asio-codec-performance", core_tests)
+
 
 if __name__ == "__main__":
     unittest.main()

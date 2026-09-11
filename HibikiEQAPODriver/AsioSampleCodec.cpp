@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <cstring>
+#include <immintrin.h>
 #include <limits>
 
 namespace HibikiAsio
@@ -167,7 +168,85 @@ bool AsioSampleCodec::decode(
 	if (source == nullptr || destination == nullptr || !format.isSupported())
 		return false;
 
+	if (frameCount == 0)
+		return true;
+
 	const auto* bytes = static_cast<const std::uint8_t*>(source);
+
+	// Fast paths for common Little-Endian formats
+	if (!format.isBigEndian)
+	{
+		if (format.encoding == SampleEncoding::Float32)
+		{
+			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			{
+				float sampleVal{};
+				std::memcpy(&sampleVal, bytes + frame * 4, sizeof(float));
+				destination[frame] = sanitizeFloat(static_cast<double>(sampleVal));
+			}
+			return true;
+		}
+		if (format.encoding == SampleEncoding::Float64)
+		{
+			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			{
+				double sampleVal{};
+				std::memcpy(&sampleVal, bytes + frame * 8, sizeof(double));
+				destination[frame] = sanitizeFloat(sampleVal);
+			}
+			return true;
+		}
+		if (format.encoding == SampleEncoding::SignedInteger)
+		{
+			if (format.containerBytes == 4 && format.validBits == 32)
+			{
+				constexpr double invScale = 1.0 / 2147483648.0;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					std::int32_t val{};
+					std::memcpy(&val, bytes + frame * 4, sizeof(val));
+					destination[frame] = static_cast<double>(val) * invScale;
+				}
+				return true;
+			}
+			if (format.containerBytes == 2 && format.validBits == 16)
+			{
+				constexpr double invScale = 1.0 / 32768.0;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					std::int16_t val{};
+					std::memcpy(&val, bytes + frame * 2, sizeof(val));
+					destination[frame] = static_cast<double>(val) * invScale;
+				}
+				return true;
+			}
+			if (format.containerBytes == 3 && format.validBits == 24)
+			{
+				constexpr double invScale = 1.0 / 8388608.0;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					const std::uint8_t* p = bytes + frame * 3;
+					const std::uint32_t packed =
+						static_cast<std::uint32_t>(p[0]) |
+						(static_cast<std::uint32_t>(p[1]) << 8) |
+						(static_cast<std::uint32_t>(p[2]) << 16);
+					const std::int32_t val = (static_cast<std::int32_t>(packed << 8)) >> 8;
+					destination[frame] = static_cast<double>(val) * invScale;
+				}
+				return true;
+			}
+		}
+	}
+
+	// General path for Big-Endian and right-aligned formats (e.g. Int32*16/18/20/24)
+	const double invDenominator = 1.0 / std::ldexp(1.0, format.validBits - 1);
+	const std::uint64_t valueMask = (format.validBits < 64) ?
+		((static_cast<std::uint64_t>(1) << format.validBits) - 1) : ~0ULL;
+	const std::uint64_t signBit = (format.validBits > 0 && format.validBits <= 64) ?
+		(static_cast<std::uint64_t>(1) << (format.validBits - 1)) : 0ULL;
+	const std::int64_t signExtend = (format.validBits < 64) ?
+		(static_cast<std::int64_t>(1) << format.validBits) : 0;
+
 	for (std::size_t frame = 0; frame < frameCount; ++frame)
 	{
 		const std::uint8_t* sample = bytes + frame * format.containerBytes;
@@ -193,22 +272,13 @@ bool AsioSampleCodec::decode(
 			else
 				return false;
 
-			// The Int32*16/18/20/24 variants are right-aligned. Some ASIO
-			// producers sign-extend the unused high bits while others leave them
-			// zero; only validBits belongs to the signal in either representation.
-			const std::uint64_t valueMask =
-				(static_cast<std::uint64_t>(1) << format.validBits) - 1;
-			const std::uint64_t signBit =
-				static_cast<std::uint64_t>(1) << (format.validBits - 1);
 			const std::uint64_t validValue =
 				static_cast<std::uint64_t>(value) & valueMask;
 			value = (validValue & signBit) != 0 ?
-				static_cast<std::int64_t>(validValue) -
-					(static_cast<std::int64_t>(1) << format.validBits) :
+				static_cast<std::int64_t>(validValue) - signExtend :
 				static_cast<std::int64_t>(validValue);
 
-			const double denominator = std::ldexp(1.0, format.validBits - 1);
-			destination[frame] = static_cast<double>(value) / denominator;
+			destination[frame] = static_cast<double>(value) * invDenominator;
 			break;
 		}
 		default:
@@ -227,7 +297,113 @@ bool AsioSampleCodec::encode(
 	if (source == nullptr || destination == nullptr || !format.isSupported())
 		return false;
 
+	if (frameCount == 0)
+		return true;
+
 	auto* bytes = static_cast<std::uint8_t*>(destination);
+
+	// Fast paths for common Little-Endian formats
+	if (!format.isBigEndian)
+	{
+		if (format.encoding == SampleEncoding::Float32)
+		{
+			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			{
+				const float val = encodeFloat32(source[frame]);
+				std::memcpy(bytes + frame * 4, &val, sizeof(float));
+			}
+			return true;
+		}
+		if (format.encoding == SampleEncoding::Float64)
+		{
+			for (std::size_t frame = 0; frame < frameCount; ++frame)
+			{
+				const double val = sanitizeFloat(source[frame]);
+				std::memcpy(bytes + frame * 8, &val, sizeof(double));
+			}
+			return true;
+		}
+		if (format.encoding == SampleEncoding::SignedInteger)
+		{
+			if (format.containerBytes == 4 && format.validBits == 32)
+			{
+				constexpr double magnitude = 2147483648.0;
+				constexpr std::int32_t maximum = 2147483647;
+				constexpr std::int32_t minimum = -2147483647 - 1;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					double value = sanitizeFloat(source[frame]);
+					std::int32_t encoded;
+					if (value <= -1.0)
+						encoded = minimum;
+					else if (value >= 1.0)
+						encoded = maximum;
+					else
+					{
+						const std::int64_t rounded = _mm_cvtsd_si64(_mm_set_sd(value * magnitude));
+						encoded = static_cast<std::int32_t>(rounded < minimum ? minimum : (rounded > maximum ? maximum : rounded));
+					}
+					std::memcpy(bytes + frame * 4, &encoded, sizeof(encoded));
+				}
+				return true;
+			}
+			if (format.containerBytes == 2 && format.validBits == 16)
+			{
+				constexpr double magnitude = 32768.0;
+				constexpr std::int16_t maximum = 32767;
+				constexpr std::int16_t minimum = -32768;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					double value = sanitizeFloat(source[frame]);
+					std::int16_t encoded;
+					if (value <= -1.0)
+						encoded = minimum;
+					else if (value >= 1.0)
+						encoded = maximum;
+					else
+					{
+						const std::int64_t rounded = _mm_cvtsd_si64(_mm_set_sd(value * magnitude));
+						encoded = static_cast<std::int16_t>(rounded < minimum ? minimum : (rounded > maximum ? maximum : rounded));
+					}
+					std::memcpy(bytes + frame * 2, &encoded, sizeof(encoded));
+				}
+				return true;
+			}
+			if (format.containerBytes == 3 && format.validBits == 24)
+			{
+				constexpr double magnitude = 8388608.0;
+				constexpr std::int32_t maximum = 8388607;
+				constexpr std::int32_t minimum = -8388608;
+				for (std::size_t frame = 0; frame < frameCount; ++frame)
+				{
+					double value = sanitizeFloat(source[frame]);
+					std::int32_t encoded;
+					if (value <= -1.0)
+						encoded = minimum;
+					else if (value >= 1.0)
+						encoded = maximum;
+					else
+					{
+						const std::int64_t rounded = _mm_cvtsd_si64(_mm_set_sd(value * magnitude));
+						encoded = static_cast<std::int32_t>(rounded < minimum ? minimum : (rounded > maximum ? maximum : rounded));
+					}
+					const std::uint32_t packed = static_cast<std::uint32_t>(encoded);
+					std::uint8_t* dst = bytes + frame * 3;
+					dst[0] = static_cast<std::uint8_t>(packed & 0xFFU);
+					dst[1] = static_cast<std::uint8_t>((packed >> 8) & 0xFFU);
+					dst[2] = static_cast<std::uint8_t>((packed >> 16) & 0xFFU);
+				}
+				return true;
+			}
+		}
+	}
+
+	// General path for Big-Endian and right-aligned formats
+	const std::int64_t magnitude = (format.validBits > 0 && format.validBits <= 63) ?
+		(static_cast<std::int64_t>(1) << (format.validBits - 1)) : 0;
+	const std::int64_t maximum = magnitude - 1;
+	const std::int64_t minimum = -magnitude;
+
 	for (std::size_t frame = 0; frame < frameCount; ++frame)
 	{
 		std::uint8_t* sample = bytes + frame * format.containerBytes;
@@ -242,8 +418,19 @@ bool AsioSampleCodec::encode(
 			break;
 		case SampleEncoding::SignedInteger:
 		{
-			const std::int64_t encoded =
-				encodeSignedInteger(source[frame], format.validBits);
+			double value = sanitizeFloat(source[frame]);
+			std::int64_t encoded;
+			if (value <= -1.0)
+				encoded = minimum;
+			else if (value >= 1.0)
+				encoded = maximum;
+			else
+			{
+				encoded = _mm_cvtsd_si64(_mm_set_sd(value * magnitude));
+				if (encoded < minimum) encoded = minimum;
+				else if (encoded > maximum) encoded = maximum;
+			}
+
 			if (format.containerBytes == 2)
 				storeUnaligned(sample,
 					static_cast<std::int16_t>(encoded), format.isBigEndian);
