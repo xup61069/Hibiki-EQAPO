@@ -287,10 +287,11 @@ void FilterConfiguration::process(unsigned frameCount)
 
 void FilterConfiguration::processSingle(unsigned frameCount)
 {
-	for (unsigned channel = 0; channel < allChannelCount; ++channel)
-		for (unsigned frame = 0; frame < frameCount; ++frame)
-			samples32[channel][frame] = channel < realChannelCount
-				? static_cast<float>(allSamples[channel][frame]) : 0.0f;
+	const unsigned copyChannels = (std::min)(allChannelCount, realChannelCount);
+	for (unsigned channel = 0; channel < copyChannels; ++channel)
+		convertDoubleToFloat(samples32[channel], allSamples[channel], frameCount);
+	for (unsigned channel = copyChannels; channel < allChannelCount; ++channel)
+		memset(samples32[channel], 0, frameCount * sizeof(float));
 	if (realChannelCount == 1 && outputChannelCount >= 2)
 		memcpy(samples32[1], samples32[0], frameCount * sizeof(float));
 	for (size_t index = 0; index < filterCount; ++index)
@@ -308,16 +309,14 @@ void FilterConfiguration::processSingle(unsigned frameCount)
 			for (size_t channel = 0; channel < info->inChannelCount; ++channel)
 			{
 				currentSamples[channel] = allSamples[info->inChannels[channel]];
-				for (unsigned frame = 0; frame < frameCount; ++frame)
-					currentSamples[channel][frame] = current32[channel][frame];
+				convertFloatToDouble(currentSamples[channel], current32[channel], frameCount);
 			}
 			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
 				currentSamples2[channel] = info->inPlace ? allSamples[info->outChannels[channel]]
 					: allSamples2[info->outChannels[channel]];
 			info->filter->process(currentSamples2, currentSamples, frameCount);
 			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
-				for (unsigned frame = 0; frame < frameCount; ++frame)
-					output32[channel][frame] = static_cast<float>(currentSamples2[channel][frame]);
+				convertDoubleToFloat(output32[channel], currentSamples2[channel], frameCount);
 		}
 		if (!info->inPlace)
 			for (size_t channel = 0; channel < info->outChannelCount; ++channel)
@@ -326,8 +325,7 @@ void FilterConfiguration::processSingle(unsigned frameCount)
 	// Share the existing double transition/output boundary so old and new
 	// configurations can safely crossfade even when their bus formats differ.
 	for (unsigned channel = 0; channel < outputChannelCount; ++channel)
-		for (unsigned frame = 0; frame < frameCount; ++frame)
-			allSamples[channel][frame] = samples32[channel][frame];
+		convertFloatToDouble(allSamples[channel], samples32[channel], frameCount);
 }
 
 unsigned FilterConfiguration::doTransition(FilterConfiguration* nextConfig, unsigned frameCount, unsigned transitionCounter, unsigned transitionLength)
@@ -345,8 +343,17 @@ unsigned FilterConfiguration::doTransition(FilterConfiguration* nextConfig, unsi
 				transitionLength));
 		}
 
-		for (unsigned c = 0; c < outputChannelCount; c++)
-			currentSamples[c][f] = currentSamples[c][f] * (1 - factor) + nextSamples[c][f] * factor;
+		if (factor == 1.0)
+		{
+			for (unsigned c = 0; c < outputChannelCount; c++)
+				currentSamples[c][f] = nextSamples[c][f];
+		}
+		else
+		{
+			const double invFactor = 1.0 - factor;
+			for (unsigned c = 0; c < outputChannelCount; c++)
+				currentSamples[c][f] = currentSamples[c][f] * invFactor + nextSamples[c][f] * factor;
+		}
 
 		if (transitionCounter < transitionLength)
 			transitionCounter++;

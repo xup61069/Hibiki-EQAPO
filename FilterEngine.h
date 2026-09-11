@@ -42,6 +42,9 @@ struct LoadedConfigurationFile
 	bool readable = false;
 };
 
+void convertFloatToDouble(double* dest, const float* src, size_t count);
+void convertDoubleToFloat(float* dest, const double* src, size_t count);
+
 #pragma AVRT_VTABLES_BEGIN
 class FilterEngine
 {

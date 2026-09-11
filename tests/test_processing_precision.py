@@ -78,6 +78,29 @@ class ProcessingPrecisionTests(unittest.TestCase):
         self.assertNotIn('"Device"', editable)
         self.assertNotIn('"Stage"', editable)
 
+    def test_snapshot_scenario_covers_device_and_include_precision(self):
+        window = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
+        scenario = window.split("bool MainWindow::loadSnapshotScenario(", 1)[1].split(
+            "bool MainWindow::validateAnalysisResult(", 1
+        )[0]
+        self.assertIn('precisionTable->addLine(QStringLiteral("Device: Speakers"));', scenario)
+        self.assertIn("precisionTable->setDoublePrecision(false)", scenario)
+        self.assertIn('precisionTable->addLine(QStringLiteral("Include: scoped.txt"));', scenario)
+
+    def test_single_callback_uses_vectorized_conversions(self):
+        source = (ROOT / "FilterConfiguration.cpp").read_text(encoding="utf-8")
+        callback = source.split("void FilterConfiguration::processSingle(", 1)[1].split(
+            "unsigned FilterConfiguration::doTransition", 1
+        )[0]
+        self.assertIn("convertDoubleToFloat(samples32[channel], allSamples[channel], frameCount)", callback)
+        self.assertIn("convertFloatToDouble(allSamples[channel], samples32[channel], frameCount)", callback)
+
+    def test_copy_filter_implements_native_single_precision(self):
+        header = (ROOT / "filters/CopyFilter.h").read_text(encoding="utf-8")
+        source = (ROOT / "filters/CopyFilter.cpp").read_text(encoding="utf-8")
+        self.assertIn("bool processSingle(float** output, float** input, unsigned frameCount) override;", header)
+        self.assertIn("bool CopyFilter::processSingle(float** output, float** input, unsigned frameCount)", source)
+
 
 if __name__ == "__main__":
     unittest.main()

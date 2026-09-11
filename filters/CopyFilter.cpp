@@ -203,6 +203,59 @@ void CopyFilter::process(double** output, double** input, unsigned frameCount)
 		}
 	}
 }
+
+bool CopyFilter::processSingle(float** output, float** input, unsigned frameCount)
+{
+	if (allocationFailed)
+	{
+		for (size_t channel = 0; channel < bypassChannelCount; ++channel)
+		{
+			if (output[channel] != input[channel])
+				memcpy(output[channel], input[channel], frameCount * sizeof(float));
+		}
+		return true;
+	}
+
+	for (unsigned i = 0; i < assignmentCount; i++)
+	{
+		InternalAssignment& ia = internalAssignments[i];
+
+		if (ia.targetChannel == -1 || ia.sourceCount == 0)
+			continue;
+
+		{
+			InternalAssignment::InternalSummand& is = ia.sourceSum[0];
+			const float factor = static_cast<float>(is.factor);
+
+			if (is.channel == -1)
+				for (unsigned f = 0; f < frameCount; f++)
+					output[ia.targetChannel][f] = factor;
+			else if (factor == 1.0f)
+				memcpy(output[ia.targetChannel], input[is.channel], frameCount * sizeof(float));
+			else
+				for (unsigned f = 0; f < frameCount; f++)
+					output[ia.targetChannel][f] = factor * input[is.channel][f];
+		}
+
+		for (unsigned j = 1; j < ia.sourceCount; j++)
+		{
+			InternalAssignment::InternalSummand& is = ia.sourceSum[j];
+			const float factor = static_cast<float>(is.factor);
+
+			if (is.channel == -1)
+				for (unsigned f = 0; f < frameCount; f++)
+					output[ia.targetChannel][f] += factor;
+			else if (factor == 1.0f)
+				for (unsigned f = 0; f < frameCount; f++)
+					output[ia.targetChannel][f] += input[is.channel][f];
+			else
+				for (unsigned f = 0; f < frameCount; f++)
+					output[ia.targetChannel][f] += factor * input[is.channel][f];
+		}
+	}
+
+	return true;
+}
 #pragma AVRT_CODE_END
 
 void CopyFilter::cleanup()
