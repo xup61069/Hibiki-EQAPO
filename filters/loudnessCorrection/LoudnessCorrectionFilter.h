@@ -53,7 +53,9 @@ public:
 			VOLUME_FOLLOW_OFF = 0,
 			VOLUME_FOLLOW_LINEAR = 1,
 			VOLUME_FOLLOW_LOGARITHMIC = 2,
-			VOLUME_FOLLOW_WINDOWS = 3
+			VOLUME_FOLLOW_WINDOWS = 3,
+			VOLUME_FOLLOW_PERCEPTUAL = 4,
+			VOLUME_FOLLOW_CUBIC = 5
 		};
 
 		bool state;
@@ -81,13 +83,19 @@ public:
 			// Windows attenuation twice, so Off remains the omitted default.
 			if (volumeFollow == VOLUME_FOLLOW_LINEAR ||
 				volumeFollow == VOLUME_FOLLOW_LOGARITHMIC ||
-				volumeFollow == VOLUME_FOLLOW_WINDOWS)
+				volumeFollow == VOLUME_FOLLOW_WINDOWS ||
+				volumeFollow == VOLUME_FOLLOW_PERCEPTUAL ||
+				volumeFollow == VOLUME_FOLLOW_CUBIC)
 			{
 				const wchar_t* mode = L"Windows";
 				if (volumeFollow == VOLUME_FOLLOW_LINEAR)
 					mode = L"Linear";
 				else if (volumeFollow == VOLUME_FOLLOW_LOGARITHMIC)
 					mode = L"Logarithmic";
+				else if (volumeFollow == VOLUME_FOLLOW_PERCEPTUAL)
+					mode = L"Perceptual";
+				else if (volumeFollow == VOLUME_FOLLOW_CUBIC)
+					mode = L"Cubic";
 				archive.add(std::wstring(mode), L"VolumeFollow");
 			}
 			archive.add(state, L"State");
@@ -185,6 +193,18 @@ public:
 				std::regex_constants::icase)))
 			{
 				volumeFollow = VOLUME_FOLLOW_WINDOWS;
+			}
+			else if (archive.find(std::wregex(
+				L"(?:^|\\s)VolumeFollow\\s+Perceptual(?=\\s|$)",
+				std::regex_constants::icase)))
+			{
+				volumeFollow = VOLUME_FOLLOW_PERCEPTUAL;
+			}
+			else if (archive.find(std::wregex(
+				L"(?:^|\\s)VolumeFollow\\s+Cubic(?=\\s|$)",
+				std::regex_constants::icase)))
+			{
+				volumeFollow = VOLUME_FOLLOW_CUBIC;
 			}
 			else
 			{
@@ -306,7 +326,7 @@ public:
 			manualVolume = (std::max)(-100.0f, (std::min)(0.0f, manualVolume));
 
 			if (volumeFollow < VOLUME_FOLLOW_OFF ||
-				volumeFollow > VOLUME_FOLLOW_WINDOWS)
+				volumeFollow > VOLUME_FOLLOW_CUBIC)
 			{
 				volumeFollow = VOLUME_FOLLOW_OFF;
 			}

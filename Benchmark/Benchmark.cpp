@@ -2276,7 +2276,9 @@ namespace
 		const FollowCodecCase followCases[] = {
 			{ L"Linear", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LINEAR },
 			{ L"Logarithmic", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LOGARITHMIC },
-			{ L"Windows", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS }
+			{ L"Windows", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS },
+			{ L"Perceptual", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_PERCEPTUAL },
+			{ L"Cubic", LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC }
 		};
 		for (const FollowCodecCase& followCase : followCases)
 		{
@@ -2299,7 +2301,7 @@ namespace
 
 		LoudnessCorrectionFilter::FilterParameters invalidFollow(std::wstring(
 			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
-			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1 VolumeFollow Cubic"));
+			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1 VolumeFollow InvalidTaper"));
 		LoudnessCorrectionFilter::FilterParameters missingFollowValue(std::wstring(
 			L"Schema 1 Model FormulaLoudnessV1 Binding Single State 1 "
 			L"ReferenceLevel 80 ReferenceOffset 0 Attenuation 1 VolumeFollow"));
@@ -2367,6 +2369,18 @@ namespace
 		passed = checkGain("volume-follow-windows-uses-reported-db",
 			Parameters::VOLUME_FOLLOW_WINDOWS,
 			-6.020599913279624, 0.1, false, 0.5) && passed;
+		passed = checkGain("volume-follow-perceptual",
+			Parameters::VOLUME_FOLLOW_PERCEPTUAL,
+			-20.0, 0.5, false, std::pow(10.0, -1.5)) && passed;
+		passed = checkGain("volume-follow-perceptual-mute",
+			Parameters::VOLUME_FOLLOW_PERCEPTUAL,
+			-20.0, 0.5, true, 0.0) && passed;
+		passed = checkGain("volume-follow-cubic",
+			Parameters::VOLUME_FOLLOW_CUBIC,
+			-20.0, 0.5, false, 0.125) && passed;
+		passed = checkGain("volume-follow-cubic-mute",
+			Parameters::VOLUME_FOLLOW_CUBIC,
+			-20.0, 0.5, true, 0.0) && passed;
 		passed = checkGain("volume-follow-linear-mute", Parameters::VOLUME_FOLLOW_LINEAR,
 			-20.0, 0.5, true, 0.0) && passed;
 		passed = checkGain("volume-follow-logarithmic-mute",

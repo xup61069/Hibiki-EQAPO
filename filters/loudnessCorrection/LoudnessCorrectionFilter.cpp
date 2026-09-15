@@ -1243,6 +1243,12 @@ double LoudnessCorrectionFilter::calculateVolumeFollowGain(
 		return (std::max)(minimumGain, scalar * scalar);
 	case FilterParameters::VOLUME_FOLLOW_WINDOWS:
 		return std::pow(10.0, levelDb / 20.0);
+	case FilterParameters::VOLUME_FOLLOW_PERCEPTUAL:
+		if (scalar <= 0.0)
+			return minimumGain;
+		return (std::max)(minimumGain, std::pow(10.0, -60.0 * (1.0 - scalar) / 20.0));
+	case FilterParameters::VOLUME_FOLLOW_CUBIC:
+		return (std::max)(minimumGain, scalar * scalar * scalar);
 	case FilterParameters::VOLUME_FOLLOW_OFF:
 	default:
 		return 1.0;
