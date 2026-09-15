@@ -41,7 +41,7 @@ private:
 	void updateTypography();
 	void updateDeviceAppearance(QTreeWidgetItem* item);
 	void onDeviceSelectionChanged();
-	void onDeviceToggled(QTreeWidgetItem* item);
+	void onDeviceToggled(QTreeWidgetItem* item, int column);
 	void onDeviceContextMenuRequested(const QPoint& pos);
 	void onDialogAccepted();
 	void onDialogRejected();
@@ -58,6 +58,7 @@ private:
 
 	Ui::DeviceSelectorClass ui;
 	bool askForReboot = false;
+	bool m_updatingDeviceState = false;
 };
 
 Q_DECLARE_METATYPE(std::shared_ptr<AbstractAPOInfo>)

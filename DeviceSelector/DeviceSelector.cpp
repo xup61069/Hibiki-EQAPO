@@ -305,6 +305,11 @@ void DeviceSelector::updateDeviceAppearance(QTreeWidgetItem* item)
 	if (item == nullptr || item->parent() == nullptr)
 		return;
 
+	// Mutating the item re-emits itemChanged, which is connected to
+	// onDeviceToggled. Without blocking, toggling a device recurses through
+	// updateList back into here until the stack overflows.
+	const QSignalBlocker blocker(ui.deviceTreeWidget);
+
 	std::shared_ptr<AbstractAPOInfo> apoInfo = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
 	if (!apoInfo)
 		return;
@@ -343,13 +348,18 @@ void DeviceSelector::onDeviceSelectionChanged()
 	updateButtons();
 }
 
-void DeviceSelector::onDeviceToggled(QTreeWidgetItem* item)
+void DeviceSelector::onDeviceToggled(QTreeWidgetItem* item, int column)
 {
-	if (item == nullptr || item->parent() == nullptr)
+	if (item == nullptr || item->parent() == nullptr || column != 0)
 		return;
 
+	if (m_updatingDeviceState)
+		return;
+
+	m_updatingDeviceState = true;
 	updateList(item);
 	updateButtons();
+	m_updatingDeviceState = false;
 }
 
 void DeviceSelector::onDeviceContextMenuRequested(const QPoint& pos)
@@ -370,6 +380,8 @@ void DeviceSelector::onDialogAccepted()
 		{
 			QTreeWidgetItem* item = topItem->child(i);
 			std::shared_ptr<AbstractAPOInfo> info = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
+			if (!info)
+				continue;
 			bool checked = item->checkState(0) == Qt::Checked;
 
 			try
@@ -480,6 +492,8 @@ void DeviceSelector::onCopyDeviceCommandClicked()
 			command += "; ";
 
 		std::shared_ptr<AbstractAPOInfo> info = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
+		if (!info)
+			continue;
 		command += QString::fromStdWString(info->getDeviceGuid().empty() ? info->getDeviceString() : info->getDeviceGuid()).replace(';', ' ');
 	}
 
@@ -529,7 +543,17 @@ void DeviceSelector::onTroubleShootingOptionChanged()
 
 void DeviceSelector::updateList(QTreeWidgetItem* item)
 {
+	if (item == nullptr)
+		return;
+
+	// setText re-emits itemChanged (handled by onDeviceToggled), so block the
+	// tree's signals while applying the programmatic state update.
+	const QSignalBlocker blocker(ui.deviceTreeWidget);
+
 	std::shared_ptr<AbstractAPOInfo> apoInfo = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
+	if (!apoInfo)
+		return;
+
 	bool checked = item->checkState(0) == Qt::Checked;
 
 	QString state = getStateText(apoInfo, checked);
@@ -700,6 +724,8 @@ bool DeviceSelector::isChanged()
 		{
 			QTreeWidgetItem* item = topItem->child(i);
 			std::shared_ptr<AbstractAPOInfo> apoInfo = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
+			if (!apoInfo)
+				continue;
 			bool checked = item->checkState(0) == Qt::Checked;
 			if (checked != apoInfo->isInstalled()
 				|| checked && apoInfo->isInstalled() && (apoInfo->canBeUpgraded() || apoInfo->hasChanges() || apoInfo->isEnhancementsDisabled()))
@@ -724,6 +750,8 @@ bool DeviceSelector::hasUpgrades()
 		{
 			QTreeWidgetItem* item = topItem->child(i);
 			std::shared_ptr<AbstractAPOInfo> apoInfo = item->data(0, DeviceInfoRole).value<std::shared_ptr<AbstractAPOInfo>>();
+			if (!apoInfo)
+				continue;
 			bool checked = item->checkState(0) == Qt::Checked;
 			if (checked && apoInfo->isInstalled() && (apoInfo->canBeUpgraded() || apoInfo->isEnhancementsDisabled()))
 			{
