@@ -29,6 +29,11 @@
 #include <QPalette>
 #include <QScreen>
 #include <QStyleHints>
+#include <QLibrary>
+
+#ifdef Q_OS_WIN
+#include <QtCore/qt_windows.h>
+#endif
 
 #include <algorithm>
 
@@ -282,6 +287,34 @@ double GUIHelper::invScaleZoom(double zoom)
 bool GUIHelper::isDarkMode()
 {
 	return QGuiApplication::styleHints()->colorScheme() == Qt::ColorScheme::Dark;
+}
+
+QColor GUIHelper::accentColor()
+{
+	const QPalette palette = QApplication::palette();
+	const QColor accent = palette.color(QPalette::Highlight);
+	if (accent.isValid() && accent != QColor(Qt::transparent) && accent.alpha() > 0)
+		return accent;
+
+#ifdef Q_OS_WIN
+	QLibrary dwmApi(QStringLiteral("dwmapi"));
+	using DwmGetColorizationColorFunction = HRESULT (WINAPI *)(DWORD*, BOOL*);
+	auto getColorizationColor = reinterpret_cast<DwmGetColorizationColorFunction>(
+		dwmApi.resolve("DwmGetColorizationColor"));
+	DWORD colorization = 0;
+	BOOL opaqueBlend = FALSE;
+	if (getColorizationColor && SUCCEEDED(getColorizationColor(&colorization, &opaqueBlend)))
+	{
+		return QColor(
+			static_cast<int>((colorization >> 16) & 0xff),
+			static_cast<int>((colorization >> 8) & 0xff),
+			static_cast<int>(colorization & 0xff));
+	}
+	const COLORREF highlight = GetSysColor(COLOR_HIGHLIGHT);
+	return QColor(GetRValue(highlight), GetGValue(highlight), GetBValue(highlight));
+#else
+	return QColor(59, 130, 246);
+#endif
 }
 
 QIcon GUIHelper::createAccentAddIcon()

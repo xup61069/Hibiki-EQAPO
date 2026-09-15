@@ -1588,6 +1588,22 @@ Change the file permissions or copy the file to the config directory.</source>
         <translation>依 dB 衰減</translation>
     </message>
     <message>
+        <source>Perceptual (-60 dB)</source>
+        <translation>聽感對數 (-60 dB)</translation>
+    </message>
+    <message>
+        <source>Cubic taper (s³)</source>
+        <translation>三次電位器 (s³)</translation>
+    </message>
+    <message>
+        <source>Take over Windows volume (OSD &amp; keys)</source>
+        <translation>接管 Windows 音量鍵與螢幕顯示</translation>
+    </message>
+    <message>
+        <source>Intercepts Windows volume keys (Volume Up, Down, Mute) and displays Hibiki's modern floating HUD with real-time equal-loudness phon and attenuation, linking directly with loudness correction.</source>
+        <translation>攔截系統音量鍵 (Volume Up/Down/Mute)，由 Hibiki 響度校正即時顯示專屬 HUD（顯示音量、衰減 dB 與即時 Phon 等響度值），並直接連動響度校正控制。若要關閉視窗後繼續生效，可於設定開啟「保持在通知區域執行」。</translation>
+    </message>
+    <message>
         <source>Manual input: %1 dB · control %2%</source>
         <translation>手動輸入：%1 dB · 控制位置 %2%</translation>
     </message>
@@ -1686,8 +1702,8 @@ Alexander Walch</source>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
-        <source>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
-        <translation>在 Hibiki EQAPO 內增加衰減；若 Windows／硬體已在降低音量，請保持關閉。振幅線性使用控制位置 s（50% = −6.02 dB），振幅平方使用 s 的平方（50% = −12.04 dB），依 dB 衰減使用端點／手動 dB。不會改變 Windows 音量。</translation>
+        <source>Adds broadband attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio (prevents double attenuation). Perceptual provides natural -60 dB logarithmic listening taper; Cubic provides s³ potentiometer feel; Linear/Squared use s / s²; Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
+        <translation>在 Hibiki EQAPO 內套用寬頻衰減；若 Windows／硬體音效卡已自行降低音量，請保持關閉（避免雙重衰減）。聽感對數提供符合人耳感知的 -60 dB 均勻聽感衰減；三次電位器提供 s³ 模擬電位器調節感；振幅線性／平方使用 s 與 s²；依 dB 衰減使用端點回報 dB。本項不會改變 Windows 系統音量。</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="440"/>

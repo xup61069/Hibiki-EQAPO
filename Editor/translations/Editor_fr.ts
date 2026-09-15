@@ -1565,6 +1565,22 @@ Modifiez les autorisations du fichier ou copiez le fichier dans le répertoire d
         <translation>Suivre les dB</translation>
     </message>
     <message>
+        <source>Perceptual (-60 dB)</source>
+        <translation>Perceptuel (-60 dB)</translation>
+    </message>
+    <message>
+        <source>Cubic taper (s³)</source>
+        <translation>Progression cubique (s³)</translation>
+    </message>
+    <message>
+        <source>Take over Windows volume (OSD &amp; keys)</source>
+        <translation>Prendre le contrôle des touches de volume &amp; OSD Windows</translation>
+    </message>
+    <message>
+        <source>Intercepts Windows volume keys (Volume Up, Down, Mute) and displays Hibiki's modern floating HUD with real-time equal-loudness phon and attenuation, linking directly with loudness correction.</source>
+        <translation>Intercepte les touches de volume Windows (Volume +, Volume -, Muet) et affiche le HUD flottant moderne d'Hibiki avec estimation des phons en temps réel, lié directement à la correction d'intensité sonore.</translation>
+    </message>
+    <message>
         <source>Manual input: %1 dB · control %2%</source>
         <translation>Entrée manuelle : %1 dB · commande %2%</translation>
     </message>
@@ -1665,8 +1681,8 @@ Alexander Walch</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="377"/>
-        <source>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
-        <translation>Ajoute une atténuation dans Hibiki EQAPO ; désactiver si Windows/le matériel atténue déjà. Amplitude linéaire utilise la commande s (50% = −6.02 dB), amplitude au carré utilise s au carré (50% = −12.04 dB), Suivre les dB utilise les dB du périphérique/manuels. Ne modifie pas le volume Windows.</translation>
+        <source>Adds broadband attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio (prevents double attenuation). Perceptual provides natural -60 dB logarithmic listening taper; Cubic provides s³ potentiometer feel; Linear/Squared use s / s²; Follow dB uses endpoint/manual dB. Does not change Windows volume.</source>
+        <translation>Ajoute une atténuation globale dans Hibiki EQAPO ; désactiver si Windows/le matériel atténue déjà (évite une double atténuation). Perceptuel offre une courbe logarithmique naturelle de -60 dB ; Cubique procure la sensation d'un potentiomètre s³ ; Linéaire/au carré utilisent s / s² ; Suivre les dB utilise les dB rapportés. Ne modifie pas le volume Windows.</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionFilterGUI.ui" line="440"/>

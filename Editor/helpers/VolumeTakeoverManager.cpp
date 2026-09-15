@@ -61,6 +61,7 @@ void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 		installHook();
 	else
 		removeHook();
+	emit takeoverToggled(enabled);
 }
 
 void VolumeTakeoverManager::setReferenceParameters(double refLevel, double refOffset)
@@ -71,8 +72,23 @@ void VolumeTakeoverManager::setReferenceParameters(double refLevel, double refOf
 		referenceOffset = refOffset;
 }
 
+void VolumeTakeoverManager::setManualMode(bool manual, double manualDb)
+{
+	manualMode = manual;
+	if (std::isfinite(manualDb))
+		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualDb));
+}
+
+void VolumeTakeoverManager::setManualVolumeDb(double manualDb)
+{
+	if (std::isfinite(manualDb))
+		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualDb));
+}
+
 void VolumeTakeoverManager::refreshEndpoint(const std::wstring& endpointId)
 {
+	if (volumeController && volumeController->getEndpointId() == endpointId && !endpointId.empty())
+		return;
 	volumeController = std::make_unique<VolumeController>(endpointId);
 	if (volumeController)
 		volumeController->getVolumeState(lastState);
@@ -135,6 +151,24 @@ double VolumeTakeoverManager::calculateCurrentPhon(double volumeDb) const
 
 void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 {
+	if (manualMode)
+	{
+		if (manualMuted && up)
+		{
+			manualMuted = false;
+		}
+		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualVolumeDb + (up ? 1.0 : -1.0)));
+		const double scalar = (manualVolumeDb + 100.0) / 100.0;
+		if (osdEnabled && osdWidget)
+		{
+			osdWidget->showVolume(
+				manualVolumeDb, scalar, manualMuted,
+				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb));
+		}
+		emit volumeChangedExternal(manualVolumeDb, scalar, manualMuted);
+		return;
+	}
+
 	if (!volumeController)
 		return;
 
@@ -168,6 +202,21 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 
 void VolumeTakeoverManager::toggleMute()
 {
+	if (manualMode)
+	{
+		manualMuted = !manualMuted;
+		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
+		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		if (osdEnabled && osdWidget)
+		{
+			osdWidget->showVolume(
+				db, scalar, manualMuted,
+				manualMuted ? 0.0 : calculateCurrentPhon(db));
+		}
+		emit volumeChangedExternal(db, scalar, manualMuted);
+		return;
+	}
+
 	if (!volumeController)
 		return;
 
@@ -192,7 +241,20 @@ void VolumeTakeoverManager::toggleMute()
 
 void VolumeTakeoverManager::showCurrentVolumeOsd()
 {
-	if (!volumeController || !osdEnabled || !osdWidget)
+	if (!osdEnabled || !osdWidget)
+		return;
+
+	if (manualMode)
+	{
+		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
+		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		osdWidget->showVolume(
+			db, scalar, manualMuted,
+			manualMuted ? 0.0 : calculateCurrentPhon(db));
+		return;
+	}
+
+	if (!volumeController)
 		return;
 
 	EndpointVolumeState state;
@@ -206,6 +268,9 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 
 void VolumeTakeoverManager::checkVolumeChange()
 {
+	if (manualMode)
+		return;
+
 	if (!volumeController)
 		return;
 

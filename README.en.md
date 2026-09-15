@@ -271,6 +271,8 @@ The loudness profile normally uses the tracked volume only to calculate tonal co
 | Mode | Final output gain | When to use it |
 |---|---|---|
 | **Off** / omitted `VolumeFollow` | `1` | The backward-compatible default for Windows or hardware paths that already attenuate the signal. |
+| **Perceptual** / `VolumeFollow Perceptual` | `10^(-60(1-s)/20)` | Recommended curve; 50% control position → −30.00 dB, 25% → −45.00 dB, matching logarithmic human loudness perception. |
+| **Cubic taper** / `VolumeFollow Cubic` | `s³` | 50% control position → −18.06 dB, emulating traditional analog potentiometer feel. |
 | **Linear amplitude** / `VolumeFollow Linear` | volume scalar `s` | 50% control → −6.02 dB; 25% → −12.04 dB. Not equal dB steps or perceptually linear loudness. |
 | **Squared amplitude** / `VolumeFollow Logarithmic` | `s²` | 50% control → −12.04 dB; 25% → −24.08 dB. Preserves the legacy token and formula. |
 | **Follow dB** / `VolumeFollow Windows` | `10^(dB/20)` | Directly follows endpoint or manual dB; does not recreate the Windows slider curve. |
@@ -283,9 +285,14 @@ The **APO follow target** readout is calculated from this row and its latest sou
 
 ### Can Windows stay at 100% with APO owning volume?
 
-**Manual APO dB control is available; automatic Windows master-volume takeover is not.** On a verified monitoring route without additional Windows attenuation, select manual volume and Follow dB. This never raises Windows volume for you. If Windows still attenuates the signal, both gains multiply.
+**Manual APO dB control and keyboard volume takeover are both supported.**
 
-A background loop forcing 100% is insufficient: Windows may use software or hardware volume, and disabling, removing or bypassing APO (or routing audio around it) removes APO attenuation. There is no verified all-path takeover/recovery protocol, so the application does not force full system volume or override mute. Seamless takeover would require an independent master-volume controller, processing acknowledgement, endpoint/reboot recovery and a fail-safe gain stage independent of bypassable EQ.
+- **Keyboard volume keys & OSD takeover (optional)**: Enable "Take over Windows volume keys & OSD" directly within the Loudness Correction panel, the main menu, or the system tray. A low-level keyboard hook intercepts media volume keys (Volume Up, Volume Down, Volume Mute) and displays a Windows 11 Fluent equal-loudness OSD.
+  - **Automatic mode**: Intercepted volume keys adjust the exact playback endpoint selected in Loudness Correction, displaying real-time volume %, attenuation dB, and the estimated equal-loudness phon.
+  - **Manual mode**: Volume keys directly adjust Hibiki EQAPO's internal "Manual volume (dB)" in 1.0 dB increments, leaving the Windows endpoint volume untouched (preserving bit-perfect full-scale output for external DACs) while APO handles wideband and equal-loudness attenuation.
+- On a verified monitoring route without additional Windows attenuation, select manual volume and Follow dB. If Windows still attenuates the signal, both gains multiply.
+
+A background loop forcing 100% is insufficient: Windows may use software or hardware volume, and disabling, removing or bypassing APO (or routing audio around it) removes APO attenuation. There is no verified all-path takeover/recovery protocol, so the application does not unconditionally force full system volume or override hardware mute. Seamless takeover would require an independent master-volume controller, processing acknowledgement, endpoint/reboot recovery and a fail-safe gain stage independent of bypassable EQ.
 
 This feature is read-only and **never writes or moves the Windows volume control**. If Windows, an amplifier, or the speaker path already applies attenuation, enabling follow multiplies the two reductions and makes the result quieter; leave it **Off** when uncertain. If automatic follow has never obtained a valid snapshot at startup, output remains muted. A temporary read failure after a valid snapshot holds the last successful follow gain instead of jumping to 0 dB; recovery moves to the new value over 10 ms. Tonal correction separately follows the fail-closed behavior described below.
 
@@ -386,7 +393,7 @@ For example, with `ReferenceLevel 80` and `Volume -30`, `ReferenceOffset 0` esti
 | `Model` | `FormulaLoudnessV1` | Identifies this formula profile without making a conformance claim. |
 | `Engine` | omitted, `Full`, or `Fast` | Omitted or `Full` uses the default complete engine; `Fast` explicitly enables the experimental approximation with at most two sections. Unknown values or duplicate fields fail closed. |
 | `Binding` | `Single` or `All` | `Single` follows this APO instance's actual playback endpoint. `All` makes all instances follow the current Windows default Multimedia playback endpoint. Ignored when manual `Volume` is present. |
-| `VolumeFollow` | omitted, `Off`, `Linear`, `Logarithmic`, or `Windows` | Omitted or `Off` leaves complete-output volume unchanged. The other modes apply the wideband APO attenuation described above. Unknown values or duplicate fields fail closed. |
+| `VolumeFollow` | omitted, `Off`, `Perceptual`, `Cubic`, `Linear`, `Logarithmic`, or `Windows` | Omitted or `Off` leaves complete-output volume unchanged. The other modes apply the wideband APO attenuation described above. Unknown values or duplicate fields fail closed. |
 | `State` | `0` or `1` | Internal bypass or enabled state. `0` bypasses both tonal correction and volume follow. New filters use `1`. |
 | `ReferenceLevel` | 1–100 phon | Selects the neutral reference contour. The default is 80 phon. |
 | `ReferenceOffset` | −100 to +100 dB | Subtracted from the estimated current level. A positive value therefore requests stronger low-level compensation. |

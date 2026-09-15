@@ -7,6 +7,7 @@
 
 #include <QWidget>
 #include <QTimer>
+#include <QVariantAnimation>
 
 class VolumeOsdWidget : public QWidget
 {
@@ -21,10 +22,27 @@ public:
 protected:
 	void paintEvent(QPaintEvent* event) override;
 
+private slots:
+	void onScalarAnimationChanged(const QVariant& value);
+	void onFadeAnimationChanged(const QVariant& value);
+	void onFadeAnimationFinished();
+	void startFadeOut();
+
 private:
+	void updateGeometryPosition();
+	void drawSpeakerIcon(QPainter& painter, const QRectF& rect, const QColor& color, bool muted, double scalar);
+
 	QTimer hideTimer;
-	double currentDb;
-	double currentScalar;
-	bool isMuted;
-	double currentPhon;
+	QVariantAnimation scalarAnimation;
+	QVariantAnimation fadeAnimation;
+
+	double targetDb = 0.0;
+	double targetScalar = 1.0;
+	double animatedScalar = 1.0;
+	bool isMuted = false;
+	double currentPhon = -1.0;
+
+	qreal displayOpacity = 0.0;
+	qreal slideOffset = 0.0;
+	bool isFadingOut = false;
 };

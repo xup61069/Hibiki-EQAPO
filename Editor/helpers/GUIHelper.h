@@ -17,6 +17,7 @@
     51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 */
 
+#include <QColor>
 #include <QSize>
 
 #pragma once
@@ -64,6 +65,7 @@ public:
 	static double invScale(int pixel);
 	static double invScaleZoom(double zoom);
 	static bool isDarkMode();
+	static QColor accentColor();
 	static QIcon createThemeIcon(ThemeIcon icon, bool accent = false);
 	static QIcon createAccentAddIcon();
 };

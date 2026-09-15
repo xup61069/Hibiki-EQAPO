@@ -32,6 +32,10 @@ public:
 	bool isOsdEnabled() const { return osdEnabled; }
 
 	void setReferenceParameters(double refLevel, double refOffset);
+	void setManualMode(bool manual, double manualDb = 0.0);
+	bool isManualMode() const { return manualMode; }
+	void setManualVolumeDb(double manualDb);
+	double getManualVolumeDb() const { return manualVolumeDb; }
 
 	void stepVolume(bool up, double stepScalar = 0.02);
 	void toggleMute();
@@ -45,6 +49,7 @@ public slots:
 
 signals:
 	void volumeChangedExternal(double levelDb, double scalar, bool muted);
+	void takeoverToggled(bool enabled);
 
 private:
 	static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
@@ -62,6 +67,9 @@ private:
 
 	bool takeoverEnabled = false;
 	bool osdEnabled = true;
+	bool manualMode = false;
+	double manualVolumeDb = 0.0;
+	bool manualMuted = false;
 	double referenceLevel = 80.0;
 	double referenceOffset = 0.0;
 	EndpointVolumeState lastState;

@@ -23,6 +23,7 @@
 #include "LoudnessCorrectionFilterGUI.h"
 #include "LoudnessCorrectionStudioDialog.h"
 #include "Editor/helpers/VolumeTakeoverManager.h"
+#include "Editor/StudioMotion.h"
 #include "ui_LoudnessCorrectionFilterGUI.h"
 #include <cmath>
 #include <limits>
@@ -31,6 +32,7 @@
 #include <QSizePolicy>
 #include <QToolTip>
 #include <QPushButton>
+#include <QSettings>
 #include <QVariant>
 
 LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
@@ -93,6 +95,7 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 		ui->refLevelSpinBox->setValue(80);
 		ui->refOffsetSpinBox->setValue(0);
 		ui->attSpinBox->setValue(1.0);
+		VolumeTakeoverManager::instance()->setReferenceParameters(80, 0);
 		emit updateModel();
 	});
 
@@ -106,7 +109,7 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 	ui->fastEngineCheckBox->blockSignals(engineBlocked);
 	bool volumeFollowBlocked = ui->volumeFollowComboBox->blockSignals(true);
 	int volumeFollowIndex = static_cast<int>(volumeFollow);
-	if (volumeFollowIndex < 0 || volumeFollowIndex > 3)
+	if (volumeFollowIndex < 0 || volumeFollowIndex > 5)
 		volumeFollowIndex = 0;
 	ui->volumeFollowComboBox->setCurrentIndex(volumeFollowIndex);
 	ui->volumeFollowComboBox->blockSignals(volumeFollowBlocked);
@@ -135,18 +138,42 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 		ui->volumeSpinBox->setValue(ui->volumeSpinBox->minimum());
 	}
 
+	bool takeoverBlocked = ui->takeoverVolumeCheckBox->blockSignals(true);
+	ui->takeoverVolumeCheckBox->setChecked(
+		VolumeTakeoverManager::instance()->isTakeoverEnabled());
+	ui->takeoverVolumeCheckBox->blockSignals(takeoverBlocked);
+
+	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverToggled,
+		this, [this](bool enabled) {
+			QSignalBlocker blocker(ui->takeoverVolumeCheckBox);
+			ui->takeoverVolumeCheckBox->setChecked(enabled);
+		});
+
 	connect(&timer, SIGNAL(timeout()), this, SLOT(updateVolume()));
 	VolumeTakeoverManager::instance()->setReferenceParameters(
 		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
+	VolumeTakeoverManager::instance()->setManualMode(
+		useManualVolume, ui->volumeSpinBox->value());
+	VolumeTakeoverManager::instance()->refreshEndpoint(getRequestedEndpointId());
+
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::volumeChangedExternal,
 		this, [this](double levelDb, double scalar, bool muted) {
 			Q_UNUSED(scalar);
 			Q_UNUSED(muted);
-			if (!ui->manualVolumeCheckBox->isChecked())
+			if (ui->manualVolumeCheckBox->isChecked())
+			{
+				ui->volumeSpinBox->setValue(levelDb);
+				lastVolume = levelDb;
+				updateVolumeReadout();
+				StudioMotion::feedback(ui->volumeSpinBox);
+				emit updateModel();
+			}
+			else
 			{
 				lastVolume = levelDb;
 				ui->volumeSpinBox->setValue(levelDb);
 				updateVolumeReadout();
+				StudioMotion::feedback(ui->volumeSpinBox);
 				emit updateModel();
 			}
 		});
@@ -194,6 +221,12 @@ void LoudnessCorrectionFilterGUI::store(QString& command, QString& parameters)
 	case LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS:
 		parameters += QString(" VolumeFollow Windows");
 		break;
+	case LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_PERCEPTUAL:
+		parameters += QString(" VolumeFollow Perceptual");
+		break;
+	case LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC:
+		parameters += QString(" VolumeFollow Cubic");
+		break;
 	default:
 		break;
 	}
@@ -218,6 +251,10 @@ LoudnessCorrectionFilterGUI::getVolumeFollowMode() const
 		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LOGARITHMIC;
 	case 3:
 		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS;
+	case 4:
+		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_PERCEPTUAL;
+	case 5:
+		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC;
 	default:
 		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF;
 	}
@@ -264,6 +301,7 @@ void LoudnessCorrectionFilterGUI::refreshVolumeController()
 	lastEndpointState = endpointVolumeState;
 	lastVolume = endpointVolumeState.levelDb;
 	endpointId = volumeController->getEndpointId();
+	VolumeTakeoverManager::instance()->refreshEndpoint(requestedEndpointId);
 }
 
 void LoudnessCorrectionFilterGUI::updateAutomaticVolumeUi()
@@ -318,7 +356,7 @@ void LoudnessCorrectionFilterGUI::updateVolumeReadout()
 	}
 	ui->volumeFollowStatusLabel->setText(target);
 	ui->volumeFollowStatusLabel->setToolTip(tr(
-		"Calculated target for this row, not a measurement or confirmation that APO is active. Excludes EQ/headroom and Windows/hardware attenuation. Apply/save changes to affect audio. Source loss holds the runtime's last gain; cold start without a source is muted. Bypassing this row removes its attenuation."));
+		"Calculated target for this row, not a measurement or confirmation that APO is active. Excludes EQ/headroom and Windows/hardware attenuation. Apply/save changes to affect audio. Source loss holds the runtime's last gain; cold start without a source is muted. Bypassing this row removes its attenuation. If the audio device already attenuates in Windows, leave this Off to avoid double attenuation."));
 	ui->volumeFollowStatusLabel->setAccessibleDescription(
 		target + QStringLiteral(". ") + ui->volumeFollowStatusLabel->toolTip());
 }
@@ -383,6 +421,7 @@ void LoudnessCorrectionFilterGUI::on_bindingComboBox_currentIndexChanged(int ind
 
 void LoudnessCorrectionFilterGUI::on_manualVolumeCheckBox_toggled(bool checked)
 {
+	VolumeTakeoverManager::instance()->setManualMode(checked, ui->volumeSpinBox->value());
 	ui->volumeSpinBox->setEnabled(checked);
 	if (checked)
 	{
@@ -424,10 +463,30 @@ void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged(double value)
 	if (ui->manualVolumeCheckBox->isChecked())
 	{
 		lastVolume = value;
+		VolumeTakeoverManager::instance()->setManualVolumeDb(value);
 		if (volumeController)
 			volumeController->setVolume(value);
 		updateVolumeReadout();
 		emit updateModel();
+	}
+}
+
+void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked)
+{
+	VolumeTakeoverManager::instance()->setReferenceParameters(
+		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
+	VolumeTakeoverManager::instance()->setManualMode(
+		ui->manualVolumeCheckBox->isChecked(), ui->volumeSpinBox->value());
+	VolumeTakeoverManager::instance()->refreshEndpoint(getRequestedEndpointId());
+	VolumeTakeoverManager::instance()->setTakeoverEnabled(checked);
+
+	QSettings settings;
+	settings.setValue(QStringLiteral("takeoverVolumeKeys"), checked);
+
+	if (checked)
+	{
+		VolumeTakeoverManager::instance()->showCurrentVolumeOsd();
+		StudioMotion::feedback(ui->takeoverVolumeCheckBox);
 	}
 }
 
@@ -508,6 +567,11 @@ void LoudnessCorrectionFilterGUI::on_studioButton_clicked()
 			}
 		}
 	}
+
+	VolumeTakeoverManager::instance()->setReferenceParameters(
+		dialog.getReferenceLevel(), dialog.getReferenceOffset());
+	VolumeTakeoverManager::instance()->setManualMode(
+		useManualVolume, ui->volumeSpinBox->value());
 
 	updateAutomaticVolumeUi();
 	updateVolumeReadout();

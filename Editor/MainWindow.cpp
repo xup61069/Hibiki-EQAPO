@@ -1306,6 +1306,14 @@ void MainWindow::setupWorkspaceTools()
 	takeoverVolumeKeysAction = ui->menuSettings->addAction(tr("Take over Windows volume keys & OSD"));
 	takeoverVolumeKeysAction->setCheckable(true);
 	connect(takeoverVolumeKeysAction, &QAction::toggled, this, &MainWindow::takeoverVolumeKeysToggled);
+	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverToggled, this, [this](bool enabled) {
+		takeoverVolumeKeys = enabled;
+		if (takeoverVolumeKeysAction != NULL)
+		{
+			QSignalBlocker blocker(takeoverVolumeKeysAction);
+			takeoverVolumeKeysAction->setChecked(enabled);
+		}
+	});
 
 	profileWatcher = new QFileSystemWatcher(this);
 	if (configDir.exists())

@@ -34,7 +34,8 @@ class VolumeFollowUiTests(unittest.TestCase):
         ui = ET.parse(ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.ui").getroot()
         combo = ui.find(".//widget[@name='volumeFollowComboBox']")
         self.assertEqual([node.text for node in combo.findall("item/property/string")],
-                         ["Off", "Linear amplitude", "Squared amplitude", "Follow dB"])
+                         ["Off", "Linear amplitude", "Squared amplitude", "Follow dB",
+                          "Perceptual (-60 dB)", "Cubic taper (s³)"])
         for name in ("volumeFollowStatusLabel", "volumeSourceLabel"):
             label = ui.find(f".//widget[@name='{name}']")
             self.assertEqual(label.findtext("property[@name='wordWrap']/bool"), "true")
@@ -49,6 +50,19 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn('scenario == QStringLiteral("volume-follow")', snapshots)
         for expected in ("-6.02", "-12.04", "-50.00", "-20.00"):
             self.assertIn(f'target->text().contains("{expected}")', snapshots)
+
+    def test_volume_takeover_integration_in_loudness_gui(self):
+        ui = ET.parse(ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.ui").getroot()
+        takeover_box = ui.find(".//widget[@name='takeoverVolumeCheckBox']")
+        self.assertIsNotNone(takeover_box)
+        self.assertIn("Take over Windows volume", takeover_box.findtext("property[@name='text']/string"))
+        gui_source = (ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
+        self.assertIn("&VolumeTakeoverManager::takeoverToggled", gui_source)
+        self.assertIn("VolumeTakeoverManager::instance()->setManualMode", gui_source)
+        self.assertIn("void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled", gui_source)
+        mgr_header = (ROOT / "Editor/helpers/VolumeTakeoverManager.h").read_text(encoding="utf-8")
+        self.assertIn("void takeoverToggled(bool enabled);", mgr_header)
+        self.assertIn("void setManualMode(bool manual", mgr_header)
 
 
 if __name__ == "__main__":

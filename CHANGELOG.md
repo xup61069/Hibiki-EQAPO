@@ -2,12 +2,24 @@
 
 ## Unreleased
 
-- Implemented Windows master volume takeover with dedicated loudness OSD in Configuration Editor:
-  - Added low-level global keyboard hook (`WH_KEYBOARD_LL`) in `VolumeTakeoverManager` to intercept `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, and `VK_VOLUME_MUTE`.
-  - Added modern floating HUD OSD (`VolumeOsdWidget`) displaying volume percentage, attenuation dB, real-time equal-loudness phon estimate, and mute status with smooth auto-fade animation.
-  - Added GUID context isolation (`HIBIKI_VOLUME_EVENT_CONTEXT`) to WASAPI endpoint callbacks in `VolumeController` to prevent feedback loops during bidirectional volume synchronization.
-  - Added Settings menu and system tray toggle action with Windows registry persistence (`takeoverVolumeKeys`).
-  - Linked loudness filter controls bidirectionally with endpoint volume states.
+- Deeply integrated Windows master volume takeover into the Loudness Correction filter:
+  - Added "Take over Windows volume keys & OSD" (`takeoverVolumeCheckBox`) directly inside the Loudness Correction listening card with `takeoverVolumeKeys` registry persistence.
+  - Dynamically aligned intercepted volume keys with the exact playback endpoint selected in Loudness Correction (`refreshEndpoint`).
+  - Added manual volume mode support: when manual volume is enabled, volume keys adjust Hibiki EQAPO's manual dB directly while keeping the Windows endpoint at 100% full scale (preserving bit-perfect output for external DACs).
+  - Synchronized volume takeover state bidirectionally across the Loudness Correction GUI, Configuration Editor menu, and system tray icon.
+- Modernized the Loudness Volume OSD (`VolumeOsdWidget`) with Windows Fluent design:
+  - Added dynamic Windows accent color detection (`DwmGetColorizationColor`) and dual-ring glowing card aesthetics.
+  - Added smooth window fade-in/fade-out/float transitions and continuous volume scalar interpolation animations with accessibility reduced-motion fallback.
+  - Added vector-drawn dynamic speaker state icon reflecting 4 volume level tiers and mute warning.
+  - Connected volume adjustment feedback ripples (`StudioMotion::feedback`) in the Loudness Correction GUI.
+- Re-architected APO volume follow attenuation:
+  - Clarified separation between tonal loudness EQ and wideband volume follow attenuation to avoid double attenuation on standard physical endpoints.
+  - Added `Perceptual (-60 dB)` curve (`VolumeFollow Perceptual`) matching human logarithmic loudness perception.
+  - Added `Cubic taper (s³)` curve (`VolumeFollow Cubic`) modeling analog stereo potentiometers.
+  - Updated documentation, serialization round-trip tests, and GUI warning tooltips.
+- Fixed a crash in Device Selector:
+  - Resolved infinite recursive `itemChanged` signal loop and stack overflow when toggling devices in `QTreeWidget`.
+  - Added column-0 filtering and signal blockers during tree item updates, along with `apoInfo` null-pointer guards.
 - Accelerated filter engine, stereo bus processing, and ASIO sample codec:
   - Vectorized `FilterConfiguration` stereo I/O, transition handoff, and bus conversions.
   - Vectorized integer and float ASIO codecs with 8-sample AVX2 paths and hardware rounding.

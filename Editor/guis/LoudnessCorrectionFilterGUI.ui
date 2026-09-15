@@ -463,7 +463,7 @@
          </sizepolicy>
         </property>
         <property name="toolTip">
-         <string>Adds attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio. Linear amplitude uses control position s (50% = -6.02 dB); Squared amplitude uses s squared (50% = -12.04 dB); Follow dB uses endpoint/manual dB. Does not change Windows volume.</string>
+         <string>Adds broadband attenuation inside Hibiki EQAPO; leave Off when Windows/hardware already attenuates audio (prevents double attenuation). Perceptual provides natural -60 dB logarithmic listening taper; Cubic provides s³ potentiometer feel; Linear/Squared use s / s²; Follow dB uses endpoint/manual dB. Does not change Windows volume.</string>
         </property>
         <item>
          <property name="text">
@@ -483,6 +483,16 @@
         <item>
          <property name="text">
           <string>Follow dB</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Perceptual (-60 dB)</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Cubic taper (s³)</string>
          </property>
         </item>
        </widget>
@@ -512,7 +522,17 @@
         </property>
        </widget>
       </item>
-      <item row="6" column="0" colspan="2">
+      <item row="6" column="0" colspan="1">
+       <widget class="QCheckBox" name="takeoverVolumeCheckBox">
+        <property name="toolTip">
+         <string>Intercepts Windows volume keys (Volume Up, Down, Mute) and displays Hibiki's modern floating HUD with real-time equal-loudness phon and attenuation, linking directly with loudness correction.</string>
+        </property>
+        <property name="text">
+         <string>Take over Windows volume (OSD &amp; keys)</string>
+        </property>
+       </widget>
+      </item>
+      <item row="6" column="1" colspan="1">
        <widget class="QCheckBox" name="fastEngineCheckBox">
         <property name="toolTip">
          <string>Experimental two-filter approximation. Uses less CPU but may differ noticeably from Full, especially at very low listening levels.</string>

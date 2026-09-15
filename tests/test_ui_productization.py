@@ -1106,6 +1106,62 @@ class UiProductizationTests(unittest.TestCase):
         )
         self.assertNotIn("QPushButton#skipButton", update_ui)
 
+    def test_device_selector_toggle_signals_are_isolated_and_reentrancy_safe(self) -> None:
+        header = (ROOT / "DeviceSelector" / "DeviceSelector.h").read_text(
+            encoding="utf-8"
+        )
+        source = (ROOT / "DeviceSelector" / "DeviceSelector.cpp").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("void onDeviceToggled(QTreeWidgetItem* item, int column);", header)
+        self.assertIn("bool m_updatingDeviceState = false;", header)
+
+        on_toggled = source[
+            source.index("void DeviceSelector::onDeviceToggled") :
+            source.index("void DeviceSelector::onDeviceContextMenuRequested")
+        ]
+        self.assertIn("column != 0", on_toggled)
+        self.assertIn("m_updatingDeviceState", on_toggled)
+
+        update_list = source[
+            source.index("void DeviceSelector::updateList") :
+            source.index("void DeviceSelector::updateButtons")
+        ]
+        self.assertIn("QSignalBlocker blocker(ui.deviceTreeWidget);", update_list)
+
+        update_appearance = source[
+            source.index("void DeviceSelector::updateDeviceAppearance") :
+            source.index("void DeviceSelector::onDeviceSelectionChanged")
+        ]
+        self.assertIn("QSignalBlocker blocker(ui.deviceTreeWidget);", update_appearance)
+
+    def test_volume_osd_matches_windows_accent_and_motion_contract(self) -> None:
+        header = (ROOT / "Editor" / "widgets" / "VolumeOsdWidget.h").read_text(
+            encoding="utf-8"
+        )
+        source = (ROOT / "Editor" / "widgets" / "VolumeOsdWidget.cpp").read_text(
+            encoding="utf-8"
+        )
+        gui_helper_h = (ROOT / "Editor" / "helpers" / "GUIHelper.h").read_text(
+            encoding="utf-8"
+        )
+        gui_helper_cpp = (ROOT / "Editor" / "helpers" / "GUIHelper.cpp").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("static QColor accentColor();", gui_helper_h)
+        self.assertIn("QColor GUIHelper::accentColor()", gui_helper_cpp)
+        self.assertIn("scalarAnimation", header)
+        self.assertIn("fadeAnimation", header)
+        self.assertIn("drawSpeakerIcon", header)
+
+        self.assertIn("GUIHelper::accentColor()", source)
+        self.assertIn("StudioMotion::allowed()", source)
+        self.assertIn("scalarAnimation.setDuration(120);", source)
+        self.assertIn("fadeAnimation.setDuration(", source)
+        self.assertNotIn("QColor(59, 130, 246)", source)
+
 
 if __name__ == "__main__":
     unittest.main()
