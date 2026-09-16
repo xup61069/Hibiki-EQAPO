@@ -8,6 +8,9 @@
 #include <QWidget>
 #include <QTimer>
 #include <QVariantAnimation>
+#include <QPointer>
+
+class QScreen;
 
 class VolumeOsdWidget : public QWidget
 {
@@ -43,6 +46,6 @@ private:
 	double currentPhon = -1.0;
 
 	qreal displayOpacity = 0.0;
-	qreal slideOffset = 0.0;
 	bool isFadingOut = false;
+	QPointer<QScreen> currentScreen;
 };

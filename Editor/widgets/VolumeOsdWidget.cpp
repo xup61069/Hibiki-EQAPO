@@ -24,7 +24,6 @@ VolumeOsdWidget::VolumeOsdWidget(QWidget* parent)
 	  isMuted(false),
 	  currentPhon(-1.0),
 	  displayOpacity(0.0),
-	  slideOffset(0.0),
 	  isFadingOut(false)
 {
 	setAttribute(Qt::WA_TranslucentBackground);
@@ -53,11 +52,11 @@ void VolumeOsdWidget::updateGeometryPosition()
 	if (!screen)
 		return;
 
+	currentScreen = screen;
 	const QRect geom = screen->availableGeometry();
 	const int baseY = geom.y() + geom.height() - height() - GUIHelper::scale(80);
 	const int targetX = geom.x() + (geom.width() - width()) / 2;
-	const int targetY = baseY + static_cast<int>(std::round(slideOffset));
-	move(targetX, targetY);
+	move(targetX, baseY);
 }
 
 void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, double phon)
@@ -69,10 +68,14 @@ void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, dou
 
 	const bool motion = StudioMotion::allowed();
 
-	// Smooth scalar animation
+	// Smooth scalar animation: snappy adaptive duration for rapid keystrokes
 	if (motion)
 	{
 		scalarAnimation.stop();
+		const qreal diff = std::abs(targetScalar - animatedScalar);
+		const int duration = std::clamp(static_cast<int>(diff * 300.0), 30, 90);
+		scalarAnimation.setDuration(duration);
+		scalarAnimation.setEasingCurve(QEasingCurve::OutCubic);
 		scalarAnimation.setStartValue(animatedScalar);
 		scalarAnimation.setEndValue(targetScalar);
 		scalarAnimation.start();
@@ -83,25 +86,33 @@ void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, dou
 		animatedScalar = targetScalar;
 	}
 
-	// Entrance fade and slide animation
+	// Entrance fade: do not restart fade if already fully visible
 	hideTimer.stop();
-	isFadingOut = false;
 
 	if (motion)
 	{
-		fadeAnimation.stop();
-		fadeAnimation.setDuration(150);
-		fadeAnimation.setEasingCurve(QEasingCurve::OutCubic);
-		fadeAnimation.setStartValue(displayOpacity);
-		fadeAnimation.setEndValue(1.0);
-		fadeAnimation.start();
+		if (!isVisible() || displayOpacity < 0.99 || isFadingOut)
+		{
+			isFadingOut = false;
+			fadeAnimation.stop();
+			fadeAnimation.setDuration(140);
+			fadeAnimation.setEasingCurve(QEasingCurve::OutCubic);
+			fadeAnimation.setStartValue(displayOpacity);
+			fadeAnimation.setEndValue(1.0);
+			fadeAnimation.start();
+		}
 	}
 	else
 	{
 		fadeAnimation.stop();
+		isFadingOut = false;
 		displayOpacity = 1.0;
-		slideOffset = 0.0;
 		setWindowOpacity(1.0);
+	}
+
+	QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+	if (!isVisible() || (screen && screen != currentScreen))
+	{
 		updateGeometryPosition();
 	}
 
@@ -110,15 +121,9 @@ void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, dou
 		if (motion)
 		{
 			displayOpacity = 0.0;
-			slideOffset = GUIHelper::scale(10.0);
 			setWindowOpacity(0.0);
 		}
-		updateGeometryPosition();
 		show();
-	}
-	else
-	{
-		updateGeometryPosition();
 	}
 
 	raise();
@@ -140,7 +145,7 @@ void VolumeOsdWidget::startFadeOut()
 
 	isFadingOut = true;
 	fadeAnimation.stop();
-	fadeAnimation.setDuration(220);
+	fadeAnimation.setDuration(180);
 	fadeAnimation.setEasingCurve(QEasingCurve::InCubic);
 	fadeAnimation.setStartValue(displayOpacity);
 	fadeAnimation.setEndValue(0.0);
@@ -157,24 +162,12 @@ void VolumeOsdWidget::onFadeAnimationChanged(const QVariant& value)
 {
 	displayOpacity = value.toReal();
 	setWindowOpacity(displayOpacity);
-
-	if (!isFadingOut)
-	{
-		// Float upward into place during entrance
-		slideOffset = GUIHelper::scale(10.0) * (1.0 - displayOpacity);
-	}
-	else
-	{
-		// Float slightly downward as it fades out
-		slideOffset = GUIHelper::scale(4.0) * (1.0 - displayOpacity);
-	}
-	updateGeometryPosition();
 	update();
 }
 
 void VolumeOsdWidget::onFadeAnimationFinished()
 {
-	if (isFadingOut && displayOpacity <= 0.01)
+	if (isFadingOut && displayOpacity <= 0.02)
 	{
 		hide();
 		isFadingOut = false;
@@ -324,7 +317,7 @@ void VolumeOsdWidget::paintEvent(QPaintEvent* event)
 		painter.setPen(primaryText);
 
 		const int percent = static_cast<int>(std::round(animatedScalar * 100.0));
-		QString text = QString::asprintf("%.1f dB  (%d%%)", targetDb, percent);
+		QString text = QString::asprintf("%.2f dB  (%d%%)", targetDb, percent);
 		if (currentPhon >= 0.0)
 		{
 			text += QString::asprintf("  \u2022  %.0f phon", currentPhon);

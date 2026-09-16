@@ -1,33 +1,26 @@
-# AI 交接快照：音量跟隨衰減度排序、懸停簡介提示與全介面文案潤飾
+# AI 交接快照：音量 OSD 數值修正為 APO 跟隨目標與動畫效能流暢度改善
 
 最後更新：2026-09-16（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成音量跟隨衰減度排序、選項懸停簡介提示、下拉選單 UserRole 解耦以及全介面文案與換行全面檢視：
-  1. **音量跟隨衰減（`volumeFollowComboBox`）依 50% 位置衰減幅度單調遞增排序**：
-     - `Off`（0 dB，單位增益不衰減）
-     - `Linear amplitude`（$s$，50% 位置約 -6.02 dB）
-     - `Squared amplitude`（$s^2$，50% 位置約 -12.04 dB）
-     - `Cubic taper (s³)`（$s^3$，50% 位置約 -18.06 dB，模擬類比雙聯電位器 A 型曲線）
-     - `Perceptual (-60 dB)`（$10^{-60(1-s)/20}$，50% 位置約 -30.00 dB，人耳等感知對數曲線）
-     - `Follow dB`（$10^{d/20}$，直接分貝數值衰減）
-  2. **下拉選單懸停提示與即時狀態更新**：
-     - 每個選項在清單中設定 `Qt::ToolTipRole` 繁中／英文等多語簡介，並開啟 `ui->volumeFollowComboBox->view()->setMouseTracking(true)`，滑鼠移過即可即時顯示說明。
-     - 項目使用 `Qt::UserRole` 綁定 `VolumeFollowMode` 列舉值，徹底解除 UI 排列順序與內部邏輯索引用值的相依。
-     - 切換選項時動態更新下拉選單本體之 `toolTip`，收合狀態懸停即可快速查閱目前啟用的衰減模式特性。
-  3. **介面文字與換行完整檢視**：
-     - `LoudnessCorrectionStudioDialog` 調整校準按鈕提示為「套用這些數值，並開啟聆聽音量校準流程」，準確涵蓋 1 kHz 純音與粉紅噪音雙選項。
-     - 全面檢查所有 `.ui` 與動態產生的 C++ 標籤，長文字與動態回報標籤（`volumeFollowStatusLabel`、`instructions`、`signalHintLabel` 等）均已啟用 `wordWrap`。
-  4. **多語系與測試契約同步**：
-     - 繁體中文（台灣用語）、簡體中文、德文、法文翻譯檔同步更新，編譯產出相符 `.qm`，`zh_TW` 達成 0 unfinished。
-     - 更新 `tests/test_volume_follow_ui.py` 與 `Editor/MainWindow.cpp` 密度快照測試。
-  5. **驗證結果**：
+- 本輪已完成音量 OSD 顯示數值修正與動畫卡頓效能全面最佳化：
+  1. **OSD 分貝數值校正為 APO 實際跟隨目標值**：
+     - 在 `VolumeTakeoverManager` 中新增 `calculateApoFollowTargetDb(volumeDb, scalar, muted)`，呼叫 `LoudnessCorrectionFilter::calculateVolumeFollowGain(volumeFollowMode, volumeDb, scalar, false)` 並轉換為正確的分貝衰減值（如 Linear 50% 為 -6.02 dB、Squared 50% 為 -12.04 dB、Cubic 50% 為 -18.06 dB、Perceptual 50% 為 -30.00 dB、Follow dB 為 Windows 端點或手動分貝值、Off 為 0.00 dB）。
+     - 修正 `stepVolume`、`toggleMute`、`showCurrentVolumeOsd` 與 `checkVolumeChange`，將原先傳遞未經換算之 Windows 硬體／端點原始音量（如 -20.0 dB）替換為實際 APO 跟隨目標分貝。
+     - OSD 數值顯示改為 `%.2f dB (%d%%)`，與 Configuration Editor 介面中「APO follow target: %1 dB」的兩位小數精度完美一致。
+  2. **消除 OSD 動畫卡頓與微延遲，極大化效能**：
+     - **移除逐影格呼叫 Win32 `SetWindowPos`**：先前在 `onFadeAnimationChanged()` 60Hz 每一 tick 中均重複呼叫 `QCursor::pos()`、螢幕遍歷與 `move(targetX, targetY)`，在 Windows 混合半透明圖層（`WA_TranslucentBackground` / `WS_EX_LAYERED`）上頻繁強制 DWM 重新配置硬體後台緩衝區；改為靜態錨定位置，淡入淡出時視窗坐標維持不變，徹底根除 DWM 撕裂與卡頓。
+     - **跨螢幕智慧追蹤**：僅在 OSD 首次顯示或使用者游標移動至不同顯示器時呼叫 `updateGeometryPosition()` 重新定位視窗。
+     - **長按／連續按鍵防抖與快進**：當 OSD 已完全顯示（`displayOpacity >= 0.99`）時，不再打斷並重啟 150ms 的淡入動畫，僅重置 1.8 秒隱藏計時器；同時依照分貝／比例變化量（`diff * 300` 箝制於 30~90ms）動態自適應進度條動畫時長，使連續按鍵或長按音量鍵時進度條緊密跟隨，毫無延遲拖泥帶水。
+  3. **自動化測試與契約**：
+     - `tests/test_volume_follow_ui.py` 新增 `calculateApoFollowTargetDb` 介面契約驗證，並防範 `onFadeAnimationChanged` 內再次出現 `move()` 或 `updateGeometryPosition()` 效能倒退。
+  4. **完整驗證階梯**：
      - 410 項 Python 測試全數通過（409 passed, 1 skipped: Win32 global mapping privilege）。
      - `git diff --check` 完全通過，無格式或空白錯誤。
-     - `test-runtime-loudness.ps1 -Configuration Release` 通過。
      - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.4.exe`。
-     - 變更已明確 stage、commit 並成功 push 至 `origin/main`（HEAD: `086fbf7`）。
+     - `test-runtime-loudness.ps1 -Configuration Release` 通過。
+     - 原生效能量測基準 `Benchmark.exe --loudness-performance` 通過。
 
 ---
 

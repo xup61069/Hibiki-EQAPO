@@ -108,6 +108,11 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn("state.scalar = newScalar;", mgr_source)
         self.assertIn("state.muted = newMute;", mgr_source)
 
+        # 9. VolumeTakeoverManager calculates APO follow target dB for OSD
+        self.assertIn("double calculateApoFollowTargetDb(", mgr_header)
+        self.assertIn("calculateApoFollowTargetDb(", mgr_source)
+        self.assertIn("const double apoDb = calculateApoFollowTargetDb(", mgr_source)
+
     def test_original_loudness_ui_and_osd_contract(self):
         orig_header = (ROOT / "Editor/guis/OriginalLoudnessCorrectionFilterGUI.h").read_text(encoding="utf-8")
         orig_source = (ROOT / "Editor/guis/OriginalLoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
@@ -122,6 +127,14 @@ class VolumeFollowUiTests(unittest.TestCase):
         # 2. OSD targets cursor screen with primary fallback
         self.assertIn("QScreen* screen = QGuiApplication::screenAt(QCursor::pos());", osd_source)
         self.assertIn("screen = QGuiApplication::primaryScreen();", osd_source)
+
+        # 3. OSD uses 2-decimal dB readout matching GUI precision and static geometry anchoring without per-tick move()
+        self.assertIn('QString::asprintf("%.2f dB  (%d%%)", targetDb, percent);', osd_source)
+        fade_changed = osd_source.split("void VolumeOsdWidget::onFadeAnimationChanged", 1)[1].split(
+            "void VolumeOsdWidget::onFadeAnimationFinished", 1
+        )[0]
+        self.assertNotIn("updateGeometryPosition()", fade_changed)
+        self.assertNotIn("move(", fade_changed)
 
 
 if __name__ == "__main__":

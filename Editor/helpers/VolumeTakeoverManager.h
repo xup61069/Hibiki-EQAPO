@@ -40,6 +40,8 @@ public:
 	void setManualVolumeDb(double manualDb);
 	double getManualVolumeDb() const { return manualVolumeDb; }
 
+	double calculateApoFollowTargetDb(double volumeDb, double scalar = 1.0, bool muted = false) const;
+
 	void stepVolume(bool up, double stepScalar = 0.02);
 	void toggleMute();
 	void showCurrentVolumeOsd();

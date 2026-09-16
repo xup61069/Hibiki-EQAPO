@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Corrected volume OSD readout to reflect actual APO follow target and eliminated animation stutter:
+  - Fixed `VolumeTakeoverManager` passing raw endpoint level instead of calculated APO follow target attenuation dB (`calculateApoFollowTargetDb`) to `VolumeOsdWidget`.
+  - Formatted OSD decibel readout to two decimal places (`%.2f dB`) to align with Configuration Editor target precision.
+  - Eliminated high DWM compositing load and micro-stutter by removing per-frame `SetWindowPos` calls from `onFadeAnimationChanged`.
+  - Dynamically scaled scalar animation duration based on delta volume for snappy, lag-free response during rapid keystrokes and holding volume hotkeys.
+  - Avoided redundant fade animation restarts when the OSD is already fully opaque.
+
 - Reordered volume-follow attenuation options by attenuation degree and added option hover tooltips:
   - Reordered dropdown items monotonically from gentlest to deepest attenuation at 50% position: `Off` (0 dB) < `Linear amplitude` (-6 dB) < `Squared amplitude` (-12 dB) < `Cubic taper (s³)` (-18 dB) < `Perceptual (-60 dB)` (-30 dB) < `Follow dB` (direct decibels).
   - Attached concise explanatory hover tooltips to each combobox item using `Qt::ToolTipRole` with active mouse tracking on the popup list.

@@ -150,6 +150,19 @@ LRESULT CALLBACK VolumeTakeoverManager::LowLevelKeyboardProc(
 	return CallNextHookEx(s_keyboardHook, nCode, wParam, lParam);
 }
 
+double VolumeTakeoverManager::calculateApoFollowTargetDb(
+	double volumeDb, double scalar, bool muted) const
+{
+	if (muted)
+		return -100.0;
+	if (volumeFollowMode == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
+		return 0.0;
+
+	const double gain = LoudnessCorrectionFilter::calculateVolumeFollowGain(
+		volumeFollowMode, volumeDb, scalar, false);
+	return gain > 0.0 ? (20.0 * std::log10(gain)) : -100.0;
+}
+
 double VolumeTakeoverManager::calculateCurrentPhon(double volumeDb, double scalar) const
 {
 	double effectiveDb = volumeDb;
@@ -172,10 +185,11 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		}
 		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualVolumeDb + (up ? 1.0 : -1.0)));
 		const double scalar = (manualVolumeDb + 100.0) / 100.0;
+		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, scalar, manualMuted);
 		if (osdEnabled && osdWidget)
 		{
 			osdWidget->showVolume(
-				manualVolumeDb, scalar, manualMuted,
+				apoDb, scalar, manualMuted,
 				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(manualVolumeDb, scalar, manualMuted);
@@ -215,8 +229,9 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		lastState = state;
 		if (osdEnabled && osdWidget)
 		{
+			const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
 			osdWidget->showVolume(
-				state.levelDb, state.scalar, state.muted,
+				apoDb, state.scalar, state.muted,
 				calculateCurrentPhon(state.levelDb, state.scalar));
 		}
 		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
@@ -230,10 +245,11 @@ void VolumeTakeoverManager::toggleMute()
 		manualMuted = !manualMuted;
 		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
 		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, scalar, manualMuted);
 		if (osdEnabled && osdWidget)
 		{
 			osdWidget->showVolume(
-				db, scalar, manualMuted,
+				apoDb, scalar, manualMuted,
 				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(db, scalar, manualMuted);
@@ -257,8 +273,9 @@ void VolumeTakeoverManager::toggleMute()
 		lastState = state;
 		if (osdEnabled && osdWidget)
 		{
+			const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
 			osdWidget->showVolume(
-				state.levelDb, state.scalar, state.muted,
+				apoDb, state.scalar, state.muted,
 				calculateCurrentPhon(state.levelDb, state.scalar));
 		}
 		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
@@ -273,9 +290,9 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 	if (manualMode)
 	{
 		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
-		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, scalar, manualMuted);
 		osdWidget->showVolume(
-			db, scalar, manualMuted,
+			apoDb, scalar, manualMuted,
 			manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		return;
 	}
@@ -286,8 +303,9 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 	EndpointVolumeState state;
 	if (SUCCEEDED(volumeController->getVolumeState(state)))
 	{
+		const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
 		osdWidget->showVolume(
-			state.levelDb, state.scalar, state.muted,
+			apoDb, state.scalar, state.muted,
 			calculateCurrentPhon(state.levelDb, state.scalar));
 	}
 }
@@ -313,8 +331,9 @@ void VolumeTakeoverManager::checkVolumeChange()
 				lastState = state;
 				if (osdEnabled && takeoverEnabled && osdWidget)
 				{
+					const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
 					osdWidget->showVolume(
-						state.levelDb, state.scalar, state.muted,
+						apoDb, state.scalar, state.muted,
 						calculateCurrentPhon(state.levelDb, state.scalar));
 				}
 				emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
