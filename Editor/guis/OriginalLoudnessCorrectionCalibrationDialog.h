@@ -56,6 +56,7 @@ private:
 	void stopPlayback();
 	void stopNoise();
 	void setPlaybackStatus(const QString& text, const char* level);
+	void updateSignalUi();
 
 	std::wstring endpointId;
 	std::unique_ptr<VolumeController> volumeController;
@@ -63,6 +64,9 @@ private:
 	QTimer endpointGuardTimer;
 	QRadioButton* leftRadioButton = nullptr;
 	QRadioButton* rightRadioButton = nullptr;
+	QRadioButton* sine1kHzRadioButton = nullptr;
+	QRadioButton* pinkNoiseRadioButton = nullptr;
+	QLabel* signalHintLabel = nullptr;
 	QPushButton* playButton = nullptr;
 	QPushButton* stopButton = nullptr;
 	QPushButton* saveButton = nullptr;

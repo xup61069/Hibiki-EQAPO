@@ -33,6 +33,51 @@
 
 namespace
 {
+	bool generate1kHzTone(
+		QBuffer& buffer,
+		bool leftEnabled,
+		bool rightEnabled,
+		int sampleRate = 48000)
+	{
+		if (!buffer.open(QIODevice::WriteOnly))
+			return false;
+
+		bool writeSucceeded = true;
+		{
+			QtSndfileHandle bufferHandle(
+				buffer, SFM_WRITE, SF_FORMAT_WAV | SF_FORMAT_PCM_24, 2, sampleRate);
+			if (bufferHandle.error() != SF_ERR_NO_ERROR)
+			{
+				buffer.close();
+				return false;
+			}
+
+			// 1000.0 Hz pure tone: exactly 48 samples per cycle at 48000 Hz.
+			// 48000 samples = 1000 full cycles (1.0 s), seamless looping without phase discontinuity.
+			const double twoPiFreq = 2.0 * 3.14159265358979323846 * 1000.0;
+			// RMS = 0.02210515454670527 matches pinkNoise.flac (-33.11 dBFS RMS)
+			// Amplitude = RMS * sqrt(2) = 0.03126144 (-30.10 dBFS peak)
+			const double amplitude = 0.02210515454670527 * 1.41421356237309504880;
+
+			const int chunkSize = 1024;
+			double stereo[2 * chunkSize];
+			for (int offset = 0; offset < sampleRate && writeSucceeded; offset += chunkSize)
+			{
+				const int count = (std::min)(chunkSize, sampleRate - offset);
+				for (int i = 0; i < count; ++i)
+				{
+					const double t = static_cast<double>(offset + i) / sampleRate;
+					const double sample = amplitude * std::sin(twoPiFreq * t);
+					stereo[2 * i] = leftEnabled ? sample : 0.0;
+					stereo[2 * i + 1] = rightEnabled ? sample : 0.0;
+				}
+				writeSucceeded = bufferHandle.write(stereo, 2 * count) == (2 * count);
+			}
+		}
+		buffer.close();
+		return writeSucceeded && buffer.size() > 0;
+	}
+
 	bool isDefaultRenderEndpoint(
 		const std::wstring& endpointId,
 		ERole role)
@@ -102,6 +147,7 @@ LoudnessCorrectionFilterGUIDialog::LoudnessCorrectionFilterGUIDialog(
 	// The procedure is defined for one speaker. Playing both changes the level
 	// at the meter and makes the resulting reference ambiguous.
 	ui->bothRadioButton->hide();
+	updateSignalUi();
 	ui->playButton->setToolTip(tr(
 		"The selected playback device must remain the audible Windows default playback device. "
 		"Muted, zero-volume, unreadable, or mismatched endpoints block the calibration signal."));
@@ -286,57 +332,72 @@ void LoudnessCorrectionFilterGUIDialog::on_playButton_clicked()
 	{
 		saveButton->setEnabled(false);
 	}
-	setPlaybackStatus(tr("Preparing pink noise…"), "normal");
 
-	QFile file(":/sounds/pinkNoise.flac");
-	if (!file.open(QIODevice::ReadOnly))
+	const bool use1kHz = ui->sine1kHzRadioButton->isChecked();
+	const bool leftEnabled = ui->leftRadioButton->isChecked() || ui->bothRadioButton->isChecked();
+	const bool rightEnabled = ui->rightRadioButton->isChecked() || ui->bothRadioButton->isChecked();
+
+	if (use1kHz)
 	{
-		setPlaybackStatus(tr("Pink-noise resource could not be opened"), "danger");
-		return;
-	}
-
-	QtSndfileHandle fileHandle(file, SFM_READ);
-	if (fileHandle.error() != SF_ERR_NO_ERROR || fileHandle.samplerate() <= 0)
-	{
-		setPlaybackStatus(tr("Pink-noise resource could not be decoded"), "danger");
-		return;
-	}
-
-	if (!buffer.open(QIODevice::WriteOnly))
-	{
-		setPlaybackStatus(tr("Calibration audio buffer could not be created"), "danger");
-		return;
-	}
-
-	bool writeSucceeded = true;
-	{
-		QtSndfileHandle bufferHandle(buffer, SFM_WRITE, SF_FORMAT_WAV | SF_FORMAT_PCM_24, 2, fileHandle.samplerate());
-		if (bufferHandle.error() != SF_ERR_NO_ERROR)
-			writeSucceeded = false;
-
-		bool leftEnabled = ui->leftRadioButton->isChecked() || ui->bothRadioButton->isChecked();
-		bool rightEnabled = ui->rightRadioButton->isChecked() || ui->bothRadioButton->isChecked();
-
-		int buf[1024];
-		int buf2[2 * ARRAYSIZE(buf)];
-		int samplesRead;
-		while (writeSucceeded && (samplesRead = fileHandle.read(buf, ARRAYSIZE(buf))) > 0)
+		setPlaybackStatus(tr("Preparing 1 kHz reference tone…"), "normal");
+		if (!generate1kHzTone(buffer, leftEnabled, rightEnabled, 48000))
 		{
-			for (int i = 0; i < samplesRead; i++)
-			{
-				buf2[2 * i] = leftEnabled ? buf[i] : 0;
-				buf2[2 * i + 1] = rightEnabled ? buf[i] : 0;
-			}
-			writeSucceeded = bufferHandle.write(buf2, 2 * samplesRead) == 2 * samplesRead;
+			buffer.buffer().clear();
+			setPlaybackStatus(tr("Calibration signal could not be prepared"), "danger");
+			return;
 		}
 	}
-	buffer.close();
-
-	if (!writeSucceeded || buffer.size() == 0)
+	else
 	{
-		buffer.buffer().clear();
-		setPlaybackStatus(tr("Calibration signal could not be prepared"), "danger");
-		return;
+		setPlaybackStatus(tr("Preparing pink noise…"), "normal");
+
+		QFile file(":/sounds/pinkNoise.flac");
+		if (!file.open(QIODevice::ReadOnly))
+		{
+			setPlaybackStatus(tr("Pink-noise resource could not be opened"), "danger");
+			return;
+		}
+
+		QtSndfileHandle fileHandle(file, SFM_READ);
+		if (fileHandle.error() != SF_ERR_NO_ERROR || fileHandle.samplerate() <= 0)
+		{
+			setPlaybackStatus(tr("Pink-noise resource could not be decoded"), "danger");
+			return;
+		}
+
+		if (!buffer.open(QIODevice::WriteOnly))
+		{
+			setPlaybackStatus(tr("Calibration audio buffer could not be created"), "danger");
+			return;
+		}
+
+		bool writeSucceeded = true;
+		{
+			QtSndfileHandle bufferHandle(buffer, SFM_WRITE, SF_FORMAT_WAV | SF_FORMAT_PCM_24, 2, fileHandle.samplerate());
+			if (bufferHandle.error() != SF_ERR_NO_ERROR)
+				writeSucceeded = false;
+
+			int buf[1024];
+			int buf2[2 * ARRAYSIZE(buf)];
+			int samplesRead;
+			while (writeSucceeded && (samplesRead = fileHandle.read(buf, ARRAYSIZE(buf))) > 0)
+			{
+				for (int i = 0; i < samplesRead; i++)
+				{
+					buf2[2 * i] = leftEnabled ? buf[i] : 0;
+					buf2[2 * i + 1] = rightEnabled ? buf[i] : 0;
+				}
+				writeSucceeded = bufferHandle.write(buf2, 2 * samplesRead) == 2 * samplesRead;
+			}
+		}
+		buffer.close();
+
+		if (!writeSucceeded || buffer.size() == 0)
+		{
+			buffer.buffer().clear();
+			setPlaybackStatus(tr("Calibration signal could not be prepared"), "danger");
+			return;
+		}
 	}
 
 	// Decoding above is synchronous, so the Qt timer cannot observe a default
@@ -362,11 +423,22 @@ void LoudnessCorrectionFilterGUIDialog::on_playButton_clicked()
 	{
 		saveButton->setEnabled(true);
 	}
-	setPlaybackStatus(
-		ui->leftRadioButton->isChecked()
-			? tr("Playing on the left speaker")
-			: tr("Playing on the right speaker"),
-		"warning");
+	if (use1kHz)
+	{
+		setPlaybackStatus(
+			ui->leftRadioButton->isChecked()
+				? tr("Playing 1 kHz tone on the left speaker")
+				: tr("Playing 1 kHz tone on the right speaker"),
+			"warning");
+	}
+	else
+	{
+		setPlaybackStatus(
+			ui->leftRadioButton->isChecked()
+				? tr("Playing pink noise on the left speaker")
+				: tr("Playing pink noise on the right speaker"),
+			"warning");
+	}
 }
 
 void LoudnessCorrectionFilterGUIDialog::on_stopButton_clicked()
@@ -391,4 +463,47 @@ void LoudnessCorrectionFilterGUIDialog::on_bothRadioButton_toggled(bool checked)
 {
 	if (checked && buffer.size() > 0)
 		on_playButton_clicked();
+}
+
+void LoudnessCorrectionFilterGUIDialog::on_sine1kHzRadioButton_toggled(bool checked)
+{
+	if (checked)
+	{
+		updateSignalUi();
+		if (buffer.size() > 0)
+			on_playButton_clicked();
+	}
+}
+
+void LoudnessCorrectionFilterGUIDialog::on_pinkNoiseRadioButton_toggled(bool checked)
+{
+	if (checked)
+	{
+		updateSignalUi();
+		if (buffer.size() > 0)
+			on_playButton_clicked();
+	}
+}
+
+void LoudnessCorrectionFilterGUIDialog::updateSignalUi()
+{
+	const bool use1kHz = ui->sine1kHzRadioButton->isChecked();
+	if (use1kHz)
+	{
+		ui->signalHintLabel->setText(tr(
+			"1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. "
+			"Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias."));
+		ui->playButton->setText(tr("Play 1 kHz tone"));
+		ui->playButton->setAccessibleDescription(tr(
+			"Starts a looping 1 kHz calibration sine tone on the selected speaker"));
+	}
+	else
+	{
+		ui->signalHintLabel->setText(tr(
+			"Pink noise distributes equal energy per octave across the spectrum. "
+			"Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response."));
+		ui->playButton->setText(tr("Play pink noise"));
+		ui->playButton->setAccessibleDescription(tr(
+			"Starts a looping pink-noise signal on the selected speaker"));
+	}
 }

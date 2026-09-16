@@ -962,6 +962,57 @@ class UiProductizationTests(unittest.TestCase):
         self.assertIn("equal-loudness contour is temporarily disabled", dialog_text)
         self.assertIn("APO volume follow remains active", dialog_text)
 
+    def test_calibration_supports_1khz_reference_tone_and_pink_noise(self) -> None:
+        import math
+
+        formula_source = (
+            ROOT / "Editor" / "guis" / "LoudnessCorrectionFilterGUIDialog.cpp"
+        ).read_text(encoding="utf-8")
+        formula_ui = (
+            ROOT / "Editor" / "guis" / "LoudnessCorrectionFilterGUIDialog.ui"
+        ).read_text(encoding="utf-8")
+        original_header = (
+            ROOT / "Editor" / "guis" / "OriginalLoudnessCorrectionCalibrationDialog.h"
+        ).read_text(encoding="utf-8")
+        original_source = (
+            ROOT / "Editor" / "guis" / "OriginalLoudnessCorrectionCalibrationDialog.cpp"
+        ).read_text(encoding="utf-8")
+
+        # 1. UI elements and member declarations
+        for token in ("sine1kHzRadioButton", "pinkNoiseRadioButton", "signalHintLabel"):
+            self.assertIn(token, formula_ui)
+            self.assertIn(token, original_header)
+            self.assertIn(token, original_source)
+
+        # 2. Both dialogs provide ISO 226 reference and acoustic guidance
+        for source in (formula_source, original_source):
+            self.assertIn(
+                "1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level",
+                source,
+            )
+            self.assertIn(
+                "Pink noise distributes equal energy per octave across the spectrum",
+                source,
+            )
+            self.assertIn("Play 1 kHz tone", source)
+            self.assertIn("Play pink noise", source)
+            self.assertIn("generate1kHzTone", source)
+
+        # 3. Tone generator mathematical contract (RMS match with pinkNoise.flac)
+        pink_noise_rms = 0.02210515454670527
+        expected_peak = pink_noise_rms * math.sqrt(2.0)
+        self.assertAlmostEqual(expected_peak, 0.03126144, places=6)
+        for source in (formula_source, original_source):
+            self.assertIn("0.02210515454670527", source)
+            self.assertIn("twoPiFreq = 2.0 * 3.14159265358979323846 * 1000.0", source)
+            self.assertIn("sampleRate = 48000", source)
+
+        # 4. Live toggle updates
+        self.assertIn("on_sine1kHzRadioButton_toggled", formula_source)
+        self.assertIn("on_pinkNoiseRadioButton_toggled", formula_source)
+        self.assertIn("connect(sine1kHzRadioButton, &QRadioButton::toggled", original_source)
+        self.assertIn("connect(pinkNoiseRadioButton, &QRadioButton::toggled", original_source)
+
     def test_companion_apps_expose_loading_empty_success_and_failure_states(self) -> None:
         for token in ("loadingPage", "emptyPage", "errorPage", "devicesPage"):
             with self.subTest(device_state=token):

@@ -57,8 +57,11 @@ private slots:
 	void on_leftRadioButton_toggled(bool checked);
 	void on_rightRadioButton_toggled(bool checked);
 	void on_bothRadioButton_toggled(bool checked);
+	void on_sine1kHzRadioButton_toggled(bool checked);
+	void on_pinkNoiseRadioButton_toggled(bool checked);
 
 private:
+	void updateSignalUi();
 	enum PlaybackReadiness
 	{
 		PLAYBACK_READY,

@@ -426,10 +426,10 @@ Automatic tracking sees the Windows endpoint volume only. It cannot detect an ap
 
 Calibration estimates the 1 kHz listening level at 0 dB tracked volume. It does not measure through a microphone automatically. When APO volume follow is enabled, calibration projects from the gain actually produced by the selected curve back to unity output instead of always using the endpoint-reported dB, so Linear and Logarithmic are referenced through their own curves.
 
-1. Start with a safe system or hardware volume. Pink noise can be loud; stop immediately if it is uncomfortable.
-2. Use an SPL meter at the listening position, set to **slow response** and **Z weighting (flat)**.
-3. Measure only one speaker. Tonal correction is temporarily made flat while the calibration dialog is open. If APO volume follow is enabled, its gain stays active so test noise does not suddenly become full volume through a Matrix route.
-4. Set the application playing the test to full application volume, play the built-in pink noise, and enter the measured dB SPL value manually.
+1. Start with a safe system or hardware volume. Test signals can be loud; stop immediately if uncomfortable.
+2. Use an SPL meter at the listening position.
+3. Measure only one speaker. Tonal correction is temporarily made flat while the calibration dialog is open. If APO volume follow is enabled, its gain stays active so test signals do not suddenly become full volume through a Matrix route.
+4. Select the calibration signal and play: the "1 kHz reference tone" is recommended for headphones, near-field monitoring, or calibrators (directly aligns with the reference frequency where dB SPL equals phon level); "Pink noise" is recommended for stereo loudspeakers and room acoustic measurements with an SPL meter set to slow response and Z or C weighting. Enter the measured dB SPL value manually.
 5. Keep using the same Windows-volume or manual-volume method after saving the calibration. If an external hardware knob controls volume, keep its calibrated position or update the manual value.
 
 The built-in player is available only when the selected endpoint is readable and is also the Windows default **Console** playback endpoint. Global binding additionally requires that endpoint to be the default **Multimedia** playback endpoint, because that is the volume source being calibrated. Otherwise playback is blocked to avoid calibrating the wrong speaker. The destination is checked again immediately before playback; if either required default changes during decoding or playback, the noise is not started or is stopped.

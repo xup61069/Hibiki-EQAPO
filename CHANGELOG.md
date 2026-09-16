@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added 1 kHz reference tone calibration and acoustic guidance to loudness calibration dialogs:
+  - Added selectable 1 kHz pure sine tone option alongside pink noise in both formula (`LoudnessCorrectionFilterGUIDialog`) and original (`OriginalLoudnessCorrectionCalibrationDialog`) calibration dialogs.
+  - Implemented seamless 1 kHz pure sine tone generation mathematically matching the exact electrical RMS power of pink noise (-33.11 dBFS) at 48 kHz (1000 full cycles per second, zero phase jump on loop).
+  - Added clear acoustic guidance explaining equal-loudness reference equivalence (dB SPL equals phon level) and when to use 1 kHz (headphones, calibrators, near-field monitoring) vs. pink noise (stereo loudspeakers, room acoustics with Z/C weighting and Slow response).
+  - Provided dynamic button titles, accessibility descriptions, and live signal switching during playback.
+  - Added complete Taiwan Traditional Chinese, Simplified Chinese, German, and French translations with synchronized `.qm` compilations.
 - Deeply integrated Windows master volume takeover into the Loudness Correction filter:
   - Added "Take over Windows volume keys & OSD" (`takeoverVolumeCheckBox`) directly inside the Loudness Correction listening card with `takeoverVolumeKeys` registry persistence.
   - Dynamically aligned intercepted volume keys with the exact playback endpoint selected in Loudness Correction (`refreshEndpoint`).

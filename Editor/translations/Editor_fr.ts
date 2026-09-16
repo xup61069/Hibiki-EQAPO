@@ -2072,6 +2072,62 @@ Alexander Walch</translation>
         <source>Unmute the playback endpoint and raise the Windows volume before playing the calibration signal.</source>
         <translation>Réactivez le son du point de terminaison de lecture et augmentez le volume Windows avant de lire le signal d’étalonnage.</translation>
     </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>Signal d'étalonnage</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>Son de référence 1 kHz (Recommandé)</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>Bruit rose</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>Lire le son 1 kHz</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>Démarre un son sinusoïdal d'étalonnage à 1 kHz en boucle sur le haut-parleur sélectionné</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>Le son pur à 1 kHz est la référence ISO 226 où les dB SPL correspondent au niveau en phons. Recommandé pour les casques, le monitoring de proximité ou les étalonneurs sans biais acoustique de pièce.</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>Le bruit rose distribue une énergie égale par octave sur l'ensemble du spectre. Recommandé pour les enceintes stéréo et les mesures de pièce avec un sonomètre réglé en pondération Z ou C et réponse lente (Slow).</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>Préparation du son de référence 1 kHz…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>Lecture du son de référence 1 kHz sur le haut-parleur gauche</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>Lecture du son de référence 1 kHz sur le haut-parleur droit</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on both speakers</source>
+        <translation>Lecture du son de référence 1 kHz sur les deux haut-parleurs</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone: exactly aligns with ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators.</source>
+        <translation>Son de référence 1 kHz : aligné exactement sur la référence ISO 226 où les dB SPL égalent les phons. Recommandé pour casques, écoute de proximité ou étalonneurs.</translation>
+    </message>
+    <message>
+        <source>Starts a looping calibration signal on the selected speaker</source>
+        <translation>Démarre un signal d'étalonnage en boucle sur le haut-parleur sélectionné</translation>
+    </message>
+    <message>
+        <source>Ready to play calibration signal</source>
+        <translation>Prêt à lire le signal d'étalonnage</translation>
+    </message>
 </context>
 <context>
     <name>LoudnessCorrectionFilterGUIFactory</name>
@@ -3737,6 +3793,54 @@ Voulez-vous exécuter l’application Device Selector (Sélecteur de périphéri
         <location filename="../guis/OriginalLoudnessCorrectionCalibrationDialog.cpp" line="384"/>
         <source>Playing on the right speaker</source>
         <translation type="unfinished">Lecture sur le haut-parleur droit</translation>
+    </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>Signal d'étalonnage</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>Son de référence 1 kHz (Recommandé)</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>Bruit rose</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>Lire le son 1 kHz</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>Démarre un son sinusoïdal d'étalonnage à 1 kHz en boucle sur le haut-parleur sélectionné</translation>
+    </message>
+    <message>
+        <source>Starts a looping pink-noise signal on the selected speaker</source>
+        <translation>Démarre un signal de bruit rose en boucle sur le haut-parleur sélectionné</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>Le son pur à 1 kHz est la référence ISO 226 où les dB SPL correspondent au niveau en phons. Recommandé pour les casques, le monitoring de proximité ou les étalonneurs sans biais acoustique de pièce.</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>Le bruit rose distribue une énergie égale par octave sur l'ensemble du spectre. Recommandé pour les enceintes stéréo et les mesures de pièce avec un sonomètre réglé en pondération Z ou C et réponse lente (Slow).</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>Préparation du son de référence 1 kHz…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>Lecture du son de référence 1 kHz sur le haut-parleur gauche</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>Lecture du son de référence 1 kHz sur le haut-parleur droit</translation>
+    </message>
+    <message>
+        <source>Use a sound-level meter at the listening position. While this window is open, only this original loudness-correction row is temporarily bypassed. Play one speaker, measure the calibration signal, then enter the sound pressure level reading.</source>
+        <translation>Utilisez un sonomètre à la position d'écoute. Tant que cette fenêtre est ouverte, seule cette ligne originale de correction d'intensité sonore est temporairement contournée. Lisez un haut-parleur, mesurez le signal d'étalonnage, puis saisissez le niveau de pression acoustique.</translation>
     </message>
 </context>
 <context>

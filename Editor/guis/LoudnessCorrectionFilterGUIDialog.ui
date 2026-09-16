@@ -81,17 +81,69 @@
      <layout class="QVBoxLayout" name="playbackStepLayout">
       <property name="spacing"><number>6</number></property>
       <item>
+       <layout class="QHBoxLayout" name="signalTypeLayout">
+        <item>
+         <widget class="QRadioButton" name="sine1kHzRadioButton">
+          <property name="text">
+           <string>1 kHz pure tone (ISO 226 reference)</string>
+          </property>
+          <property name="checked">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QRadioButton" name="pinkNoiseRadioButton">
+          <property name="text">
+           <string>Pink noise (broadband)</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <spacer name="signalTypeSpacer">
+          <property name="orientation">
+           <enum>Qt::Horizontal</enum>
+          </property>
+          <property name="sizeHint" stdset="0">
+           <size>
+            <width>40</width>
+            <height>20</height>
+           </size>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QLabel" name="signalHintLabel">
+        <property name="text">
+         <string>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QLabel" name="playbackHintLabel">
-        <property name="text"><string>Set application volume to full, keep your normal Windows or hardware volume position, then play the pink-noise signal.</string></property>
-        <property name="wordWrap"><bool>true</bool></property>
+        <property name="text">
+         <string>Set application volume to full, keep your normal Windows or hardware volume position, then play the calibration signal.</string>
+        </property>
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
        </widget>
       </item>
       <item>
        <layout class="QGridLayout" name="playbackControlsLayout">
         <item row="0" column="0">
          <widget class="QPushButton" name="playButton">
-          <property name="text"><string>Play pink noise</string></property>
-          <property name="accessibleDescription"><string>Starts a looping pink-noise signal on the selected speaker</string></property>
+          <property name="text">
+           <string>Play 1 kHz tone</string>
+          </property>
+          <property name="accessibleDescription">
+           <string>Starts a looping 1 kHz calibration sine tone on the selected speaker</string>
+          </property>
          </widget>
         </item>
         <item row="0" column="1"><widget class="QPushButton" name="stopButton"><property name="text"><string>Stop</string></property></widget></item>

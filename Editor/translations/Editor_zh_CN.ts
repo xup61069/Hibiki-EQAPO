@@ -2060,6 +2060,62 @@ Alexander Walch</source>
         <source>Unmute the playback endpoint and raise the Windows volume before playing the calibration signal.</source>
         <translation>播放校准信号前，请取消播放端点的静音并提高 Windows 音量。</translation>
     </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>校准信号</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>1 kHz 参考音（推荐）</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>粉红噪音</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>在所选扬声器上循环播放 1 kHz 正弦校准音</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>1 kHz 纯音为 ISO 226 的基准频率，此频率下 dB SPL 数值完全等同 phon（方）响度级。推荐用于耳机、近场监听或校准器等不受空间声学影响的场景。</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>粉红噪音在每个倍频程具有均等能量。推荐搭配声级计（设为 Z 或 C 计权、Slow 慢速响应）用于立体声扬声器与房间声学测量。</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>正在准备 1 kHz 参考音…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>正在左侧扬声器播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>正在右侧扬声器播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on both speakers</source>
+        <translation>正在双侧扬声器播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone: exactly aligns with ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators.</source>
+        <translation>1 kHz 参考音：完全对齐 ISO 226 基准（dB SPL 等同 phon 响度级）。推荐用于耳机、近场监听或校准器。</translation>
+    </message>
+    <message>
+        <source>Starts a looping calibration signal on the selected speaker</source>
+        <translation>在所选扬声器上循环播放校准信号</translation>
+    </message>
+    <message>
+        <source>Ready to play calibration signal</source>
+        <translation>已准备好播放校准信号</translation>
+    </message>
 </context>
 <context>
     <name>LoudnessCorrectionFilterGUIFactory</name>
@@ -3779,6 +3835,54 @@ Do you want to run the Device Selector application to fix the problem?</source>
         <location filename="../guis/OriginalLoudnessCorrectionCalibrationDialog.cpp" line="384"/>
         <source>Playing on the right speaker</source>
         <translation type="unfinished">正在右扬声器播放</translation>
+    </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>校准信号</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>1 kHz 参考音（推荐）</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>粉红噪音</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>在所选扬声器上循环播放 1 kHz 正弦校准音</translation>
+    </message>
+    <message>
+        <source>Starts a looping pink-noise signal on the selected speaker</source>
+        <translation>在所选扬声器上循环播放粉红噪音校准信号</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>1 kHz 纯音为 ISO 226 的基准频率，此频率下 dB SPL 数值完全等同 phon（方）响度级。推荐用于耳机、近场监听或校准器等不受空间声学影响的场景。</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>粉红噪音在每个倍频程具有均等能量。推荐搭配声级计（设为 Z 或 C 计权、Slow 慢速响应）用于立体声扬声器与房间声学测量。</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>正在准备 1 kHz 参考音…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>正在左侧扬声器播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>正在右侧扬声器播放 1 kHz 参考音</translation>
+    </message>
+    <message>
+        <source>Use a sound-level meter at the listening position. While this window is open, only this original loudness-correction row is temporarily bypassed. Play one speaker, measure the calibration signal, then enter the sound pressure level reading.</source>
+        <translation>请在聆听位置使用声级计。开启此窗口时，只有此行原版响度校准会暂时旁路。请播放其中一个扬声器、测量校准信号，然后输入声压级读数。</translation>
     </message>
 </context>
 <context>

@@ -2061,6 +2061,62 @@ Alexander Walch</translation>
         <source>Unmute the playback endpoint and raise the Windows volume before playing the calibration signal.</source>
         <translation>Heben Sie die Stummschaltung des Wiedergabeendpunkts auf und erhöhen Sie die Windows-Lautstärke, bevor Sie das Kalibrierungssignal abspielen.</translation>
     </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>Kalibrierungssignal</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>1-kHz-Referenzton (Empfohlen)</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>Rosa Rauschen</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>1-kHz-Ton abspielen</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>Startet einen wiederholten 1-kHz-Sinuston auf dem ausgewählten Lautsprecher</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>Ein reiner 1-kHz-Ton ist die ISO 226-Referenz, bei der dB SPL dem Phon-Pegel entspricht. Empfohlen für Kopfhörer, Nahfeld-Monitoring oder Kalibratoren ohne Raumakustikeinfluss.</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>Rosa Rauschen verteilt gleiche Energie pro Oktave über das Spektrum. Empfohlen für Stereolautsprecher und Raumpegelmessungen mit Z- oder C-Bewertung und langsamer Zeitbewertung (Slow).</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>1-kHz-Referenzton wird vorbereitet…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>1-kHz-Referenzton wird auf dem linken Lautsprecher abgespielt</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>1-kHz-Referenzton wird auf dem rechten Lautsprecher abgespielt</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on both speakers</source>
+        <translation>1-kHz-Referenzton wird auf beiden Lautsprechern abgespielt</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone: exactly aligns with ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators.</source>
+        <translation>1-kHz-Referenzton: entspricht genau der ISO 226-Referenz, bei der dB SPL dem Phon-Pegel gleicht. Empfohlen für Kopfhörer, Nahfeld-Monitoring oder Kalibratoren.</translation>
+    </message>
+    <message>
+        <source>Starts a looping calibration signal on the selected speaker</source>
+        <translation>Startet ein wiederholtes Kalibrierungssignal auf dem ausgewählten Lautsprecher</translation>
+    </message>
+    <message>
+        <source>Ready to play calibration signal</source>
+        <translation>Bereit zum Abspielen des Kalibrierungssignals</translation>
+    </message>
 </context>
 <context>
     <name>LoudnessCorrectionFilterGUIFactory</name>
@@ -3724,6 +3780,54 @@ Möchten Sie die Device Selector-Anwendung starten, um das Problem zu beheben?</
         <location filename="../guis/OriginalLoudnessCorrectionCalibrationDialog.cpp" line="384"/>
         <source>Playing on the right speaker</source>
         <translation type="unfinished">Wiedergabe über den rechten Lautsprecher</translation>
+    </message>
+    <message>
+        <source>Calibration signal</source>
+        <translation>Kalibrierungssignal</translation>
+    </message>
+    <message>
+        <source>1 kHz reference tone (Recommended)</source>
+        <translation>1-kHz-Referenzton (Empfohlen)</translation>
+    </message>
+    <message>
+        <source>Pink noise</source>
+        <translation>Rosa Rauschen</translation>
+    </message>
+    <message>
+        <source>Play 1 kHz tone</source>
+        <translation>1-kHz-Ton abspielen</translation>
+    </message>
+    <message>
+        <source>Starts a looping 1 kHz calibration sine tone on the selected speaker</source>
+        <translation>Startet einen wiederholten 1-kHz-Sinuston auf dem ausgewählten Lautsprecher</translation>
+    </message>
+    <message>
+        <source>Starts a looping pink-noise signal on the selected speaker</source>
+        <translation>Startet ein wiederholtes Rosa-Rauschen-Signal auf dem ausgewählten Lautsprecher</translation>
+    </message>
+    <message>
+        <source>1 kHz pure tone is the ISO 226 reference where dB SPL equals phon level. Recommended for headphones, near-field monitoring, or calibrators without room acoustic bias.</source>
+        <translation>Ein reiner 1-kHz-Ton ist die ISO 226-Referenz, bei der dB SPL dem Phon-Pegel entspricht. Empfohlen für Kopfhörer, Nahfeld-Monitoring oder Kalibratoren ohne Raumakustikeinfluss.</translation>
+    </message>
+    <message>
+        <source>Pink noise distributes equal energy per octave across the spectrum. Recommended for stereo speakers and room measurements with an SPL meter set to Z or C weighting and Slow response.</source>
+        <translation>Rosa Rauschen verteilt gleiche Energie pro Oktave über das Spektrum. Empfohlen für Stereolautsprecher und Raumpegelmessungen mit Z- oder C-Bewertung und langsamer Zeitbewertung (Slow).</translation>
+    </message>
+    <message>
+        <source>Preparing 1 kHz reference tone…</source>
+        <translation>1-kHz-Referenzton wird vorbereitet…</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the left speaker</source>
+        <translation>1-kHz-Referenzton wird auf dem linken Lautsprecher abgespielt</translation>
+    </message>
+    <message>
+        <source>Playing 1 kHz reference tone on the right speaker</source>
+        <translation>1-kHz-Referenzton wird auf dem rechten Lautsprecher abgespielt</translation>
+    </message>
+    <message>
+        <source>Use a sound-level meter at the listening position. While this window is open, only this original loudness-correction row is temporarily bypassed. Play one speaker, measure the calibration signal, then enter the sound pressure level reading.</source>
+        <translation>Verwenden Sie einen Schallpegelmesser an der Hörposition. Während dieses Fenster geöffnet ist, wird nur diese originale Lautheitskorrekturzeile vorübergehend umgangen. Spielen Sie einen Lautsprecher ab, messen Sie das Kalibrierungssignal und geben Sie den Schalldruckpegel ein.</translation>
     </message>
 </context>
 <context>
