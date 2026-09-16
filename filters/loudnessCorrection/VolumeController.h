@@ -37,6 +37,7 @@ public:
 	static const GUID& getEventContextGuid();
 	bool hasVolumeChanged();
 	const std::wstring& getEndpointId() const { return _endpointId; }
+	const std::wstring& getRequestedEndpointId() const { return _requestedEndpointId; }
 
 private:
 	bool initEndpoint();

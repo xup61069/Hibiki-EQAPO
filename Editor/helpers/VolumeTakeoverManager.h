@@ -12,6 +12,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include "filters/loudnessCorrection/VolumeController.h"
+#include "filters/loudnessCorrection/LoudnessCorrectionFilter.h"
 
 class VolumeOsdWidget;
 
@@ -32,6 +33,8 @@ public:
 	bool isOsdEnabled() const { return osdEnabled; }
 
 	void setReferenceParameters(double refLevel, double refOffset);
+	void setVolumeFollowMode(LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode mode);
+	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode getVolumeFollowMode() const { return volumeFollowMode; }
 	void setManualMode(bool manual, double manualDb = 0.0);
 	bool isManualMode() const { return manualMode; }
 	void setManualVolumeDb(double manualDb);
@@ -56,7 +59,7 @@ private:
 
 	void installHook();
 	void removeHook();
-	double calculateCurrentPhon(double volumeDb) const;
+	double calculateCurrentPhon(double volumeDb, double scalar = 1.0) const;
 
 	static VolumeTakeoverManager* s_instance;
 	static HHOOK s_keyboardHook;
@@ -72,5 +75,7 @@ private:
 	bool manualMuted = false;
 	double referenceLevel = 80.0;
 	double referenceOffset = 0.0;
+	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode volumeFollowMode =
+		LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF;
 	EndpointVolumeState lastState;
 };

@@ -64,6 +64,39 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn("void takeoverToggled(bool enabled);", mgr_header)
         self.assertIn("void setManualMode(bool manual", mgr_header)
 
+    def test_volume_and_ui_synchronization_contract(self):
+        gui_source = (ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
+        mgr_source = (ROOT / "Editor/helpers/VolumeTakeoverManager.cpp").read_text(encoding="utf-8")
+        mgr_header = (ROOT / "Editor/helpers/VolumeTakeoverManager.h").read_text(encoding="utf-8")
+        vc_header = (ROOT / "filters/loudnessCorrection/VolumeController.h").read_text(encoding="utf-8")
+
+        # 1. VolumeController exposes getRequestedEndpointId
+        self.assertIn("getRequestedEndpointId()", vc_header)
+
+        # 2. VolumeTakeoverManager compares against requested endpoint ID
+        self.assertIn("getRequestedEndpointId() == endpointId", mgr_source)
+
+        # 3. VolumeTakeoverManager supports volumeFollowMode and uses calculateListeningVolumeDb for phon
+        self.assertIn("void setVolumeFollowMode(", mgr_header)
+        self.assertIn("calculateListeningVolumeDb(", mgr_source)
+
+        # 4. LoudnessCorrectionFilterGUI updates lastEndpointState completely on external volume change
+        external_lambda = gui_source.split("&VolumeTakeoverManager::volumeChangedExternal", 1)[1].split(
+            "updateAutomaticVolumeUi();", 1
+        )[0]
+        self.assertIn("lastEndpointState.levelDb = levelDb;", external_lambda)
+        self.assertIn("lastEndpointState.scalar = scalar;", external_lambda)
+        self.assertIn("lastEndpointState.muted = muted;", external_lambda)
+
+        # 5. Manual mode in on_volumeSpinBox_valueChanged does NOT set Windows endpoint volume
+        manual_spin = gui_source.split("void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged", 1)[1].split(
+            "void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled", 1
+        )[0]
+        self.assertNotIn("volumeController->setVolume(", manual_spin)
+
+        # 6. Volume step in VolumeTakeoverManager quantizes to integer percentage to match Windows steps
+        self.assertIn("std::round(state.scalar * 100.0)", mgr_source)
+
 
 if __name__ == "__main__":
     unittest.main()

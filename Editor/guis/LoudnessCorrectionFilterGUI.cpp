@@ -152,14 +152,16 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 	connect(&timer, SIGNAL(timeout()), this, SLOT(updateVolume()));
 	VolumeTakeoverManager::instance()->setReferenceParameters(
 		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
+	VolumeTakeoverManager::instance()->setVolumeFollowMode(getVolumeFollowMode());
 	VolumeTakeoverManager::instance()->setManualMode(
 		useManualVolume, ui->volumeSpinBox->value());
 	VolumeTakeoverManager::instance()->refreshEndpoint(getRequestedEndpointId());
 
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::volumeChangedExternal,
 		this, [this](double levelDb, double scalar, bool muted) {
-			Q_UNUSED(scalar);
-			Q_UNUSED(muted);
+			lastEndpointState.levelDb = levelDb;
+			lastEndpointState.scalar = scalar;
+			lastEndpointState.muted = muted;
 			if (ui->manualVolumeCheckBox->isChecked())
 			{
 				ui->volumeSpinBox->setValue(levelDb);
@@ -174,7 +176,6 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 				ui->volumeSpinBox->setValue(levelDb);
 				updateVolumeReadout();
 				StudioMotion::feedback(ui->volumeSpinBox);
-				emit updateModel();
 			}
 		});
 	updateAutomaticVolumeUi();
@@ -335,11 +336,28 @@ void LoudnessCorrectionFilterGUI::updateVolumeReadout()
 	const double sourceDb = manual ? ui->volumeSpinBox->value() : lastEndpointState.levelDb;
 	const double scalar = manual ? (sourceDb + 100.0) / 100.0 : lastEndpointState.scalar;
 	const bool available = manual || automaticVolumeAvailable;
-	ui->volumeSourceLabel->setText(available ?
-		(manual ? tr("Manual input: %1 dB · control %2%") :
-			tr("Endpoint: %1 dB · control %2%"))
-			.arg(sourceDb, 0, 'f', 1).arg(qBound(0.0, scalar * 100.0, 100.0), 0, 'f', 1) :
-		tr("Endpoint unavailable"));
+	if (!available)
+	{
+		ui->volumeSourceLabel->setText(tr("Endpoint unavailable"));
+	}
+	else if (manual)
+	{
+		ui->volumeSourceLabel->setText(
+			tr("Manual input: %1 dB · control %2%")
+				.arg(sourceDb, 0, 'f', 1).arg(qBound(0.0, scalar * 100.0, 100.0), 0, 'f', 1));
+	}
+	else if (lastEndpointState.muted)
+	{
+		ui->volumeSourceLabel->setText(
+			tr("Endpoint: %1 dB · control %2% (Muted)")
+				.arg(sourceDb, 0, 'f', 1).arg(qBound(0.0, scalar * 100.0, 100.0), 0, 'f', 1));
+	}
+	else
+	{
+		ui->volumeSourceLabel->setText(
+			tr("Endpoint: %1 dB · control %2%")
+				.arg(sourceDb, 0, 'f', 1).arg(qBound(0.0, scalar * 100.0, 100.0), 0, 'f', 1));
+	}
 	QString target;
 	if (!state)
 		target = tr("APO follow target: 0.00 dB (bypassed)");
@@ -464,8 +482,6 @@ void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged(double value)
 	{
 		lastVolume = value;
 		VolumeTakeoverManager::instance()->setManualVolumeDb(value);
-		if (volumeController)
-			volumeController->setVolume(value);
 		updateVolumeReadout();
 		emit updateModel();
 	}
@@ -475,6 +491,7 @@ void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked
 {
 	VolumeTakeoverManager::instance()->setReferenceParameters(
 		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
+	VolumeTakeoverManager::instance()->setVolumeFollowMode(getVolumeFollowMode());
 	VolumeTakeoverManager::instance()->setManualMode(
 		ui->manualVolumeCheckBox->isChecked(), ui->volumeSpinBox->value());
 	VolumeTakeoverManager::instance()->refreshEndpoint(getRequestedEndpointId());
@@ -500,6 +517,7 @@ void LoudnessCorrectionFilterGUI::on_volumeFollowComboBox_currentIndexChanged(
 	int index)
 {
 	(void)index;
+	VolumeTakeoverManager::instance()->setVolumeFollowMode(getVolumeFollowMode());
 	updateAutomaticVolumeUi();
 	updateVolumeReadout();
 	emit updateModel();

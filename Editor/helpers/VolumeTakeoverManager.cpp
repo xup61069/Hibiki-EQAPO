@@ -85,9 +85,15 @@ void VolumeTakeoverManager::setManualVolumeDb(double manualDb)
 		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualDb));
 }
 
+void VolumeTakeoverManager::setVolumeFollowMode(
+	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode mode)
+{
+	volumeFollowMode = mode;
+}
+
 void VolumeTakeoverManager::refreshEndpoint(const std::wstring& endpointId)
 {
-	if (volumeController && volumeController->getEndpointId() == endpointId && !endpointId.empty())
+	if (volumeController && volumeController->getRequestedEndpointId() == endpointId)
 		return;
 	volumeController = std::make_unique<VolumeController>(endpointId);
 	if (volumeController)
@@ -143,9 +149,15 @@ LRESULT CALLBACK VolumeTakeoverManager::LowLevelKeyboardProc(
 	return CallNextHookEx(s_keyboardHook, nCode, wParam, lParam);
 }
 
-double VolumeTakeoverManager::calculateCurrentPhon(double volumeDb) const
+double VolumeTakeoverManager::calculateCurrentPhon(double volumeDb, double scalar) const
 {
-	double phon = referenceLevel + volumeDb - referenceOffset;
+	double effectiveDb = volumeDb;
+	if (volumeFollowMode != LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
+	{
+		effectiveDb = LoudnessCorrectionFilter::calculateListeningVolumeDb(
+			volumeFollowMode, volumeDb, scalar);
+	}
+	double phon = referenceLevel + effectiveDb - referenceOffset;
 	return (std::max)(0.0, (std::min)(100.0, phon));
 }
 
@@ -163,7 +175,7 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		{
 			osdWidget->showVolume(
 				manualVolumeDb, scalar, manualMuted,
-				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb));
+				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(manualVolumeDb, scalar, manualMuted);
 		return;
@@ -183,8 +195,12 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		state.muted = false;
 	}
 
-	double newScalar = state.scalar + (up ? stepScalar : -stepScalar);
-	newScalar = (std::max)(0.0, (std::min)(1.0, newScalar));
+	// Quantize to integer percentage (0..100) to match Windows master volume steps perfectly
+	int currentPercent = static_cast<int>(std::round(state.scalar * 100.0));
+	int stepPercent = static_cast<int>(std::round(stepScalar * 100.0));
+	if (stepPercent <= 0) stepPercent = 2;
+	int newPercent = std::clamp(currentPercent + (up ? stepPercent : -stepPercent), 0, 100);
+	double newScalar = newPercent / 100.0;
 
 	if (SUCCEEDED(volumeController->setVolumeScalar(newScalar)))
 	{
@@ -194,7 +210,7 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		{
 			osdWidget->showVolume(
 				state.levelDb, state.scalar, state.muted,
-				calculateCurrentPhon(state.levelDb));
+				calculateCurrentPhon(state.levelDb, state.scalar));
 		}
 		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
 	}
@@ -211,7 +227,7 @@ void VolumeTakeoverManager::toggleMute()
 		{
 			osdWidget->showVolume(
 				db, scalar, manualMuted,
-				manualMuted ? 0.0 : calculateCurrentPhon(db));
+				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(db, scalar, manualMuted);
 		return;
@@ -233,7 +249,7 @@ void VolumeTakeoverManager::toggleMute()
 		{
 			osdWidget->showVolume(
 				state.levelDb, state.scalar, state.muted,
-				calculateCurrentPhon(state.levelDb));
+				calculateCurrentPhon(state.levelDb, state.scalar));
 		}
 		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
 	}
@@ -250,7 +266,7 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 		const double db = manualMuted ? -100.0 : manualVolumeDb;
 		osdWidget->showVolume(
 			db, scalar, manualMuted,
-			manualMuted ? 0.0 : calculateCurrentPhon(db));
+			manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		return;
 	}
 
@@ -262,7 +278,7 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 	{
 		osdWidget->showVolume(
 			state.levelDb, state.scalar, state.muted,
-			calculateCurrentPhon(state.levelDb));
+			calculateCurrentPhon(state.levelDb, state.scalar));
 	}
 }
 
@@ -289,7 +305,7 @@ void VolumeTakeoverManager::checkVolumeChange()
 				{
 					osdWidget->showVolume(
 						state.levelDb, state.scalar, state.muted,
-						calculateCurrentPhon(state.levelDb));
+						calculateCurrentPhon(state.levelDb, state.scalar));
 				}
 				emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
 			}
