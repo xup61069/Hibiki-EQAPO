@@ -1,16 +1,17 @@
-# AI 交接快照：響度校正接管 Windows 音量條與等響度 HUD
+# AI 交接快照：響度音量與 UI 同步全面檢視與修復
 
-最後更新：2026-09-12（Asia/Taipei）
+最後更新：2026-09-16（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成「讓響度校正完全接管 Windows 音量條」實作：
-  - 端點隔離：在 `VolumeController` 引入專屬 `HIBIKI_VOLUME_EVENT_CONTEXT` GUID，消除雙向同步迴圈（Feedback loop），並提供端點 scalar / mute 存取。
-  - 硬體全域按鍵接管：新增 `VolumeTakeoverManager`，使用 `WH_KEYBOARD_LL` 攔截 `VK_VOLUME_UP`、`VK_VOLUME_DOWN`、`VK_VOLUME_MUTE`。
-  - 自訂等響度浮動 OSD：新增 `VolumeOsdWidget`，具備半透明毛玻璃、置頂不搶焦點、平滑進出淡出動畫、百分比、衰減 dB、即時 phon 計算值與靜音狀態提示。
-  - Configuration Editor 整合：主功能表設定與系統匣均提供「接管 Windows 音量鍵與螢幕顯示」選項，支援登錄檔持久化；響度控制項與端點音量雙向連動。
-  - 完整多語系翻譯與 `.qm` 同步（繁體中文 0 unfinished）。
-  - 通過全部 404 項 Python 測試、全部原生 x64 C++ 單元測試、Release Build 及原生響度效能基準測試。
+- 本輪已完成「音量跟UI對不上」全面檢視與修復：
+  - 外部音量更新同步：在 `LoudnessCorrectionFilterGUI` 中修復 `volumeChangedExternal` Lambda，完整更新 `lastEndpointState.levelDb`、`lastEndpointState.scalar` 與 `lastEndpointState.muted`，解決 `volumeSpinBox` 與下方 Endpoint 標籤矛盾之根本原因。
+  - 手動模式端點保護：移除 `on_volumeSpinBox_valueChanged` 中對 Windows 實體主音量的 `setVolume` 呼叫，徹底防止手動模式在 DAC/硬體旋鈕情境下拉動 Windows 音量導致雙重衰減。
+  - 端點重複重建修復：在 `VolumeController` 引入 `getRequestedEndpointId()`，使 `VolumeTakeoverManager::refreshEndpoint` 依據請求 GUID 精準比對，消除每次無效銷毀與重建 COM 端點之開銷。
+  - 等響度 Phon 與 VolumeFollow 曲線連動：`VolumeTakeoverManager` 接入 `setVolumeFollowMode`，透過 `calculateListeningVolumeDb` 計算實際聆聽增益，確保 OSD 浮動 HUD 顯示的 Phon 數值與 Equalizer APO 核心即時 DSP 的 ISO 226 等響度輪廓基準 100% 一致。
+  - 音量步進量化：`stepVolume` 將 scalar 量化至整數百分比（以 2% 步進），確保與 Windows 實體工作列音量滑桿完美對齊。
+  - 靜音狀態標籤明確化：在 `volumeSourceLabel` 標籤中針對端點靜音狀態明確顯示 `(Muted)`。
+  - 通過全部 408 項 Python 測試（包含新增的音量-UI同步契約測試）、Release Build、原生響度測試，並重新打包最新安裝程式。
 
 ---
 
