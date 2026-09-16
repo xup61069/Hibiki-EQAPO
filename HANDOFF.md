@@ -1,25 +1,33 @@
-# AI 交接快照：多螢幕 OSD、原版響度靜音狀態與例外捕捉安全強化
+# AI 交接快照：音量跟隨衰減度排序、懸停簡介提示與全介面文案潤飾
 
 最後更新：2026-09-16（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成多螢幕 OSD、原版響度靜音狀態與例外捕捉安全強化檢視與修復：
-  1. **`VolumeTakeoverManager` 生命週期與健全清理**：在 `instance()` 中以 `qApp` 作為父物件（`new VolumeTakeoverManager(qApp)`），確保 Qt 應用程式退出時觸發解構函式，乾淨解除 Windows 低階鍵盤勾點（`removeHook()`），釋放 COM 資源與 OSD 元件。
-  2. **高頻連發與重試回退機制**：在 `VolumeTakeoverManager::stepVolume` 與 `toggleMute` 中增加狀態回退保護，若連發或高速點擊時 Core Audio 瞬間重試競爭失敗，直接採用已成功的 `newScalar` 或 `newMute` 更新狀態，確保 OSD 與外部 UI 信號永不漏發或卡頓。
-  3. **`VolumeOsdWidget` 游標感知多螢幕彈出**：`updateGeometryPosition()` 改採 `QGuiApplication::screenAt(QCursor::pos())`（主螢幕 fallback），讓音量 HUD 自動顯示在使用者目前游標工作或焦點所在的螢幕底部，並在連續調整中支援跨螢幕定位。
-  4. **原版響度校正 (`OriginalLoudnessCorrectionFilterGUI`) 靜音狀態與校準防護**：
-     - 端點靜音時，狀態標籤顯示 `Following Windows volume (Muted)`（已靜音），並設定 `warning` 狀態色，即時提醒使用者。
-     - 靜音時自動停用「Calibrate original…」按鈕，防止使用者點擊後彈出錯誤對話框；解靜音後即時恢復。
-  5. **`RegistryException` 例外捕捉與運算子清晰度**：
-     - 將 `DeviceSelector`、`DeviceTestDialog`、`ConvolutionFilterGUI`、`IncludeFilterGUI` 與 `VSTPluginFilterGUI` 中 8 處 `catch (RegistryException e)` 改為常數參考 `catch (const RegistryException& e)` / `catch (const RegistryException&)`，消除字串複製開銷與潛在物件切片。
-     - `DeviceSelector.cpp` `isChanged()` 增加明確邏輯括號，消除運算子優先順序警告。
-  6. **驗證結果**：
-     - 409 項 Python 測試全數通過（含新增之 OSD 游標螢幕、生命週期與原版靜音契約測試）。
+- 本輪已完成音量跟隨衰減度排序、選項懸停簡介提示、下拉選單 UserRole 解耦以及全介面文案與換行全面檢視：
+  1. **音量跟隨衰減（`volumeFollowComboBox`）依 50% 位置衰減幅度單調遞增排序**：
+     - `Off`（0 dB，單位增益不衰減）
+     - `Linear amplitude`（$s$，50% 位置約 -6.02 dB）
+     - `Squared amplitude`（$s^2$，50% 位置約 -12.04 dB）
+     - `Cubic taper (s³)`（$s^3$，50% 位置約 -18.06 dB，模擬類比雙聯電位器 A 型曲線）
+     - `Perceptual (-60 dB)`（$10^{-60(1-s)/20}$，50% 位置約 -30.00 dB，人耳等感知對數曲線）
+     - `Follow dB`（$10^{d/20}$，直接分貝數值衰減）
+  2. **下拉選單懸停提示與即時狀態更新**：
+     - 每個選項在清單中設定 `Qt::ToolTipRole` 繁中／英文等多語簡介，並開啟 `ui->volumeFollowComboBox->view()->setMouseTracking(true)`，滑鼠移過即可即時顯示說明。
+     - 項目使用 `Qt::UserRole` 綁定 `VolumeFollowMode` 列舉值，徹底解除 UI 排列順序與內部邏輯索引用值的相依。
+     - 切換選項時動態更新下拉選單本體之 `toolTip`，收合狀態懸停即可快速查閱目前啟用的衰減模式特性。
+  3. **介面文字與換行完整檢視**：
+     - `LoudnessCorrectionStudioDialog` 調整校準按鈕提示為「套用這些數值，並開啟聆聽音量校準流程」，準確涵蓋 1 kHz 純音與粉紅噪音雙選項。
+     - 全面檢查所有 `.ui` 與動態產生的 C++ 標籤，長文字與動態回報標籤（`volumeFollowStatusLabel`、`instructions`、`signalHintLabel` 等）均已啟用 `wordWrap`。
+  4. **多語系與測試契約同步**：
+     - 繁體中文（台灣用語）、簡體中文、德文、法文翻譯檔同步更新，編譯產出相符 `.qm`，`zh_TW` 達成 0 unfinished。
+     - 更新 `tests/test_volume_follow_ui.py` 與 `Editor/MainWindow.cpp` 密度快照測試。
+  5. **驗證結果**：
+     - 410 項 Python 測試全數通過（409 passed, 1 skipped: Win32 global mapping privilege）。
      - `git diff --check` 完全通過，無格式或空白錯誤。
-     - `build-qt-apps-x64.ps1 -Configuration Release` 編譯通過。
-     - `test-runtime-loudness.ps1 -Configuration Release` 原生響度與安全交接測試全數通過。
-     - `build-installer-x64.ps1 -Configuration Release` 成功產出 `Setup\Hibiki-EQAPO-x64-3.1.4.exe`（SHA-256: `8ac939dced71275365292c4fa06eb96b336d708f8a223dc69a6ba82f2a171b51`）。
+     - `test-runtime-loudness.ps1 -Configuration Release` 通過。
+     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.4.exe`。
+     - 變更已明確 stage、commit 並成功 push 至 `origin/main`（HEAD: `086fbf7`）。
 
 ---
 
