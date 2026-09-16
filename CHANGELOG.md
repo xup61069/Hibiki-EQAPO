@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 3.1.5
+
 - Corrected volume OSD readout to reflect actual APO follow target and eliminated animation stutter:
   - Fixed `VolumeTakeoverManager` passing raw endpoint level instead of calculated APO follow target attenuation dB (`calculateApoFollowTargetDb`) to `VolumeOsdWidget`.
   - Formatted OSD decibel readout to two decimal places (`%.2f dB`) to align with Configuration Editor target precision.
