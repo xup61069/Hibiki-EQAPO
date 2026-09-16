@@ -80,7 +80,7 @@ int main(int argc, char* argv[])
 					if (apoInfo->isInstalled())
 						apoInfo->uninstall();
 				}
-				catch (RegistryException e)
+				catch (const RegistryException& e)
 				{
 					if (!silentMode)
 					{

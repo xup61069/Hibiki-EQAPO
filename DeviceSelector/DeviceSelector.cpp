@@ -176,7 +176,7 @@ void DeviceSelector::loadDevices()
 		if (inputDevices.empty())
 			delete inputNode;
 	}
-	catch (RegistryException e)
+	catch (const RegistryException& e)
 	{
 		ui.deviceTreeWidget->clear();
 		const QString message = QString::fromStdWString(e.getMessage());
@@ -406,7 +406,7 @@ void DeviceSelector::onDialogAccepted()
 						deviceUpdated = true;
 				}
 			}
-			catch (RegistryException e)
+			catch (const RegistryException& e)
 			{
 				QMessageBox::critical(this, tr("Error while accessing the registry"), QString::fromStdWString(e.getMessage()));
 			}
@@ -727,8 +727,8 @@ bool DeviceSelector::isChanged()
 			if (!apoInfo)
 				continue;
 			bool checked = item->checkState(0) == Qt::Checked;
-			if (checked != apoInfo->isInstalled()
-				|| checked && apoInfo->isInstalled() && (apoInfo->canBeUpgraded() || apoInfo->hasChanges() || apoInfo->isEnhancementsDisabled()))
+			if ((checked != apoInfo->isInstalled())
+				|| (checked && apoInfo->isInstalled() && (apoInfo->canBeUpgraded() || apoInfo->hasChanges() || apoInfo->isEnhancementsDisabled())))
 			{
 				changed = true;
 				break;

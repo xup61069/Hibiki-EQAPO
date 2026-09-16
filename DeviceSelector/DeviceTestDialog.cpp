@@ -98,7 +98,7 @@ DeviceTestDialog::DeviceTestDialog(QWidget* parent)
 			devices.append(QVector<std::shared_ptr<DeviceAPOInfo>>(inputDevices.begin(), inputDevices.end()));
 		}
 	}
-	catch (RegistryException e)
+	catch (const RegistryException& e)
 	{
 		initializationFailed = true;
 		const QString message = QString::fromStdWString(e.getMessage());

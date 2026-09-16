@@ -97,6 +97,28 @@ class VolumeFollowUiTests(unittest.TestCase):
         # 6. Volume step in VolumeTakeoverManager quantizes to integer percentage to match Windows steps
         self.assertIn("std::round(state.scalar * 100.0)", mgr_source)
 
+        # 7. VolumeTakeoverManager lifecycle uses qApp as parent for clean destruction
+        self.assertIn("s_instance = new VolumeTakeoverManager(qApp);", mgr_source)
+
+        # 8. Rapid step and mute fallback in VolumeTakeoverManager
+        self.assertIn("state.scalar = newScalar;", mgr_source)
+        self.assertIn("state.muted = newMute;", mgr_source)
+
+    def test_original_loudness_ui_and_osd_contract(self):
+        orig_header = (ROOT / "Editor/guis/OriginalLoudnessCorrectionFilterGUI.h").read_text(encoding="utf-8")
+        orig_source = (ROOT / "Editor/guis/OriginalLoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
+        osd_source = (ROOT / "Editor/widgets/VolumeOsdWidget.cpp").read_text(encoding="utf-8")
+
+        # 1. Original loudness GUI tracks muted state
+        self.assertIn("bool volumeMuted = false;", orig_header)
+        self.assertIn("volumeMuted = muted;", orig_source)
+        self.assertIn('tr("Muted")', orig_source)
+        self.assertIn("calibrateButton->setEnabled(!volumeMuted);", orig_source)
+
+        # 2. OSD targets cursor screen with primary fallback
+        self.assertIn("QScreen* screen = QGuiApplication::screenAt(QCursor::pos());", osd_source)
+        self.assertIn("screen = QGuiApplication::primaryScreen();", osd_source)
+
 
 if __name__ == "__main__":
     unittest.main()

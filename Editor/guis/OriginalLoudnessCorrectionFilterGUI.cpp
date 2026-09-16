@@ -326,10 +326,18 @@ void OriginalLoudnessCorrectionFilterGUI::updateVolumeUi()
 	if (volumeAvailable)
 	{
 		volumeSpinBox->setSpecialValueText(QString());
-		volumeStatusLabel->setText(tr(
-			"Following Windows volume"));
-		volumeStatusLabel->setProperty("statusLevel", "normal");
-		calibrateButton->setEnabled(true);
+		if (volumeMuted)
+		{
+			volumeStatusLabel->setText(
+				tr("Following Windows volume") + QStringLiteral(" (") + tr("Muted") + QStringLiteral(")"));
+			volumeStatusLabel->setProperty("statusLevel", "warning");
+		}
+		else
+		{
+			volumeStatusLabel->setText(tr("Following Windows volume"));
+			volumeStatusLabel->setProperty("statusLevel", "normal");
+		}
+		calibrateButton->setEnabled(!volumeMuted);
 	}
 	else
 	{
@@ -350,11 +358,13 @@ void OriginalLoudnessCorrectionFilterGUI::updateVolume()
 {
 	EndpointVolumeState state;
 	const bool available = readDefaultVolume(state);
+	const bool muted = available && state.muted;
 	if (available)
 		volumeSpinBox->setValue(state.levelDb);
-	if (available != volumeAvailable)
+	if (available != volumeAvailable || muted != volumeMuted)
 	{
 		volumeAvailable = available;
+		volumeMuted = muted;
 		updateVolumeUi();
 	}
 }

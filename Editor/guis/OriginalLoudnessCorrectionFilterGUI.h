@@ -72,5 +72,6 @@ private:
 	std::wstring resolvedEndpointId;
 	QTimer volumeTimer;
 	bool volumeAvailable = false;
+	bool volumeMuted = false;
 	int responsiveColumnCount = 0;
 };

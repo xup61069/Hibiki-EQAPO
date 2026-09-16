@@ -1,17 +1,25 @@
-# AI 交接快照：響度音量與 UI 同步全面檢視與修復
+# AI 交接快照：多螢幕 OSD、原版響度靜音狀態與例外捕捉安全強化
 
 最後更新：2026-09-16（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成「音量跟UI對不上」全面檢視與修復：
-  - 外部音量更新同步：在 `LoudnessCorrectionFilterGUI` 中修復 `volumeChangedExternal` Lambda，完整更新 `lastEndpointState.levelDb`、`lastEndpointState.scalar` 與 `lastEndpointState.muted`，解決 `volumeSpinBox` 與下方 Endpoint 標籤矛盾之根本原因。
-  - 手動模式端點保護：移除 `on_volumeSpinBox_valueChanged` 中對 Windows 實體主音量的 `setVolume` 呼叫，徹底防止手動模式在 DAC/硬體旋鈕情境下拉動 Windows 音量導致雙重衰減。
-  - 端點重複重建修復：在 `VolumeController` 引入 `getRequestedEndpointId()`，使 `VolumeTakeoverManager::refreshEndpoint` 依據請求 GUID 精準比對，消除每次無效銷毀與重建 COM 端點之開銷。
-  - 等響度 Phon 與 VolumeFollow 曲線連動：`VolumeTakeoverManager` 接入 `setVolumeFollowMode`，透過 `calculateListeningVolumeDb` 計算實際聆聽增益，確保 OSD 浮動 HUD 顯示的 Phon 數值與 Equalizer APO 核心即時 DSP 的 ISO 226 等響度輪廓基準 100% 一致。
-  - 音量步進量化：`stepVolume` 將 scalar 量化至整數百分比（以 2% 步進），確保與 Windows 實體工作列音量滑桿完美對齊。
-  - 靜音狀態標籤明確化：在 `volumeSourceLabel` 標籤中針對端點靜音狀態明確顯示 `(Muted)`。
-  - 通過全部 408 項 Python 測試（包含新增的音量-UI同步契約測試）、Release Build、原生響度測試，並重新打包最新安裝程式。
+- 本輪已完成多螢幕 OSD、原版響度靜音狀態與例外捕捉安全強化檢視與修復：
+  1. **`VolumeTakeoverManager` 生命週期與健全清理**：在 `instance()` 中以 `qApp` 作為父物件（`new VolumeTakeoverManager(qApp)`），確保 Qt 應用程式退出時觸發解構函式，乾淨解除 Windows 低階鍵盤勾點（`removeHook()`），釋放 COM 資源與 OSD 元件。
+  2. **高頻連發與重試回退機制**：在 `VolumeTakeoverManager::stepVolume` 與 `toggleMute` 中增加狀態回退保護，若連發或高速點擊時 Core Audio 瞬間重試競爭失敗，直接採用已成功的 `newScalar` 或 `newMute` 更新狀態，確保 OSD 與外部 UI 信號永不漏發或卡頓。
+  3. **`VolumeOsdWidget` 游標感知多螢幕彈出**：`updateGeometryPosition()` 改採 `QGuiApplication::screenAt(QCursor::pos())`（主螢幕 fallback），讓音量 HUD 自動顯示在使用者目前游標工作或焦點所在的螢幕底部，並在連續調整中支援跨螢幕定位。
+  4. **原版響度校正 (`OriginalLoudnessCorrectionFilterGUI`) 靜音狀態與校準防護**：
+     - 端點靜音時，狀態標籤顯示 `Following Windows volume (Muted)`（已靜音），並設定 `warning` 狀態色，即時提醒使用者。
+     - 靜音時自動停用「Calibrate original…」按鈕，防止使用者點擊後彈出錯誤對話框；解靜音後即時恢復。
+  5. **`RegistryException` 例外捕捉與運算子清晰度**：
+     - 將 `DeviceSelector`、`DeviceTestDialog`、`ConvolutionFilterGUI`、`IncludeFilterGUI` 與 `VSTPluginFilterGUI` 中 8 處 `catch (RegistryException e)` 改為常數參考 `catch (const RegistryException& e)` / `catch (const RegistryException&)`，消除字串複製開銷與潛在物件切片。
+     - `DeviceSelector.cpp` `isChanged()` 增加明確邏輯括號，消除運算子優先順序警告。
+  6. **驗證結果**：
+     - 409 項 Python 測試全數通過（含新增之 OSD 游標螢幕、生命週期與原版靜音契約測試）。
+     - `git diff --check` 完全通過，無格式或空白錯誤。
+     - `build-qt-apps-x64.ps1 -Configuration Release` 編譯通過。
+     - `test-runtime-loudness.ps1 -Configuration Release` 原生響度與安全交接測試全數通過。
+     - `build-installer-x64.ps1 -Configuration Release` 成功產出 `Setup\Hibiki-EQAPO-x64-3.1.4.exe`（SHA-256: `8ac939dced71275365292c4fa06eb96b336d708f8a223dc69a6ba82f2a171b51`）。
 
 ---
 

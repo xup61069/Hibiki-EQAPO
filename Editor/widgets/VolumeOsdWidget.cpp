@@ -11,6 +11,7 @@
 #include <QLinearGradient>
 #include <QGuiApplication>
 #include <QScreen>
+#include <QCursor>
 #include <QEasingCurve>
 #include <algorithm>
 #include <cmath>
@@ -46,7 +47,9 @@ VolumeOsdWidget::VolumeOsdWidget(QWidget* parent)
 
 void VolumeOsdWidget::updateGeometryPosition()
 {
-	QScreen* screen = QGuiApplication::primaryScreen();
+	QScreen* screen = QGuiApplication::screenAt(QCursor::pos());
+	if (!screen)
+		screen = QGuiApplication::primaryScreen();
 	if (!screen)
 		return;
 
@@ -112,6 +115,10 @@ void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, dou
 		}
 		updateGeometryPosition();
 		show();
+	}
+	else
+	{
+		updateGeometryPosition();
 	}
 
 	raise();

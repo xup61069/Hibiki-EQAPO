@@ -5,6 +5,7 @@
 
 #include "VolumeTakeoverManager.h"
 #include "Editor/widgets/VolumeOsdWidget.h"
+#include <QCoreApplication>
 #include <algorithm>
 #include <cmath>
 
@@ -14,7 +15,7 @@ HHOOK VolumeTakeoverManager::s_keyboardHook = NULL;
 VolumeTakeoverManager* VolumeTakeoverManager::instance()
 {
 	if (!s_instance)
-		s_instance = new VolumeTakeoverManager();
+		s_instance = new VolumeTakeoverManager(qApp);
 	return s_instance;
 }
 
@@ -204,7 +205,13 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 
 	if (SUCCEEDED(volumeController->setVolumeScalar(newScalar)))
 	{
-		volumeController->getVolumeState(state);
+		if (FAILED(volumeController->getVolumeState(state)))
+		{
+			state.scalar = newScalar;
+			double db = 0.0;
+			if (SUCCEEDED(volumeController->getVolume(db)))
+				state.levelDb = db;
+		}
 		lastState = state;
 		if (osdEnabled && osdWidget)
 		{
@@ -243,7 +250,10 @@ void VolumeTakeoverManager::toggleMute()
 	const bool newMute = !state.muted;
 	if (SUCCEEDED(volumeController->setMute(newMute)))
 	{
-		volumeController->getVolumeState(state);
+		if (FAILED(volumeController->getVolumeState(state)))
+		{
+			state.muted = newMute;
+		}
 		lastState = state;
 		if (osdEnabled && osdWidget)
 		{
