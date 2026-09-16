@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <EndpointVolume.h>
 #include <atomic>
+#include <cstdint>
 #include <string>
 
 class EndpointVolumeCallback;
@@ -36,6 +37,7 @@ public:
 	HRESULT getVolumeRange(float& minDb, float& maxDb, float& stepDb);
 	static const GUID& getEventContextGuid();
 	bool hasVolumeChanged();
+	bool isTakeoverActive() const;
 	const std::wstring& getEndpointId() const { return _endpointId; }
 	const std::wstring& getRequestedEndpointId() const { return _requestedEndpointId; }
 
@@ -43,6 +45,9 @@ private:
 	bool initEndpoint();
 	bool refreshEndpointIfChanged();
 	void cleanup();
+	void openTakeoverSharedMemory();
+	void closeTakeoverSharedMemory();
+	bool readTakeoverState(EndpointVolumeState& state);
 
 	IAudioEndpointVolume* _endpointVolume;
 	EndpointVolumeCallback* _callback;
@@ -54,4 +59,8 @@ private:
 	std::wstring _requestedEndpointId;
 	std::wstring _endpointId;
 	ULONGLONG _nextEndpointCheck;
+	HANDLE _takeoverMapping;
+	struct HibikiVolumeTakeoverSharedData* _takeoverShared;
+	uint64_t _lastTakeoverSequence;
+	bool _takeoverWasActive;
 };

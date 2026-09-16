@@ -333,6 +333,7 @@ HEADERS  += \
 	../filters/loudnessCorrection/LoudnessCorrectionFilter.h \
 	../filters/loudnessCorrection/LoudnessCorrectionFilterFactory.h \
 	../filters/loudnessCorrection/ParameterArchive.h \
+	../filters/loudnessCorrection/HibikiVolumeTakeoverShared.h \
 	../filters/loudnessCorrection/VolumeController.h \
 	guis/LoudnessCorrectionFilterGUIDialog.h \
 	helpers/QtSndfileHandle.h \

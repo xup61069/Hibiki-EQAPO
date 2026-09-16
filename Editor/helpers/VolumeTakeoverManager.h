@@ -40,6 +40,10 @@ public:
 	void setManualVolumeDb(double manualDb);
 	double getManualVolumeDb() const { return manualVolumeDb; }
 
+	double getTakeoverScalar() const { return takeoverScalar; }
+	double getTakeoverLevelDb() const { return takeoverLevelDb; }
+	bool isTakeoverMuted() const { return takeoverMuted; }
+
 	double calculateApoFollowTargetDb(double volumeDb, double scalar = 1.0, bool muted = false) const;
 
 	void stepVolume(bool up, double stepScalar = 0.02);
@@ -48,6 +52,9 @@ public:
 
 	VolumeController* getVolumeController() { return volumeController.get(); }
 	void refreshEndpoint(const std::wstring& endpointId = L"");
+
+	void enforceWindowsVolume100();
+	void publishTakeoverSharedData();
 
 public slots:
 	void checkVolumeChange();
@@ -61,6 +68,8 @@ private:
 
 	void installHook();
 	void removeHook();
+	void openSharedMemory();
+	void closeSharedMemory();
 	double calculateCurrentPhon(double volumeDb, double scalar = 1.0) const;
 
 	static VolumeTakeoverManager* s_instance;
@@ -80,4 +89,11 @@ private:
 	LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode volumeFollowMode =
 		LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF;
 	EndpointVolumeState lastState;
+
+	double takeoverScalar = 1.0;
+	double takeoverLevelDb = 0.0;
+	bool takeoverMuted = false;
+
+	HANDLE takeoverMapping = NULL;
+	struct HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;
 };

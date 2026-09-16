@@ -23,10 +23,14 @@
   - Added clear acoustic guidance explaining equal-loudness reference equivalence (dB SPL equals phon level) and when to use 1 kHz (headphones, calibrators, near-field monitoring) vs. pink noise (stereo loudspeakers, room acoustics with Z/C weighting and Slow response).
   - Provided dynamic button titles, accessibility descriptions, and live signal switching during playback.
   - Added complete Taiwan Traditional Chinese, Simplified Chinese, German, and French translations with synchronized `.qm` compilations.
-- Deeply integrated Windows master volume takeover into the Loudness Correction filter:
+- Deeply integrated audiophile bit-perfect Windows master volume takeover (Scheme B) into the Loudness Correction filter:
   - Added "Take over Windows volume keys & OSD" (`takeoverVolumeCheckBox`) directly inside the Loudness Correction listening card with `takeoverVolumeKeys` registry persistence.
+  - Locked the Windows master endpoint volume (`IAudioEndpointVolume`) at 100% full scale (scalar 1.0, 0 dB, unmuted) while takeover is active, ensuring the Windows Audio Engine applies 0 dB digital attenuation to deliver pure bit-perfect PCM to external DACs and amplifiers.
+  - Intercepts multimedia volume keys (`VK_VOLUME_UP`, `VK_VOLUME_DOWN`, `VK_VOLUME_MUTE`) and communicates internal volume attenuation directly to `audiodg.exe` (`VolumeController`) via lock-free zero-allocation Named Shared Memory (`Local\HibikiEQAPO_VolumeTakeover`) protected by a seqlock and cross-integrity DACL.
+  - Automatically activates `VolumeFollow` (`Follow dB` / `VOLUME_FOLLOW_WINDOWS`) when volume takeover is enabled if previously set to `Off`, ensuring Equalizer APO carries out high-precision 64-bit float digital volume attenuation with smooth 10 ms ramps.
   - Dynamically aligned intercepted volume keys with the exact playback endpoint selected in Loudness Correction (`refreshEndpoint`).
-  - Added manual volume mode support: when manual volume is enabled, volume keys adjust Hibiki EQAPO's manual dB directly while keeping the Windows endpoint at 100% full scale (preserving bit-perfect output for external DACs).
+  - Added manual volume mode support: when manual volume is enabled, volume keys adjust Hibiki EQAPO's manual dB directly while keeping the Windows endpoint at 100% full scale.
+  - Smoothly restores Windows master endpoint volume back to the current listening level and mute state upon exiting Editor or disabling takeover before releasing shared memory, preventing volume jumps.
   - Synchronized volume takeover state bidirectionally across the Loudness Correction GUI, Configuration Editor menu, and system tray icon.
 - Modernized the Loudness Volume OSD (`VolumeOsdWidget`) with Windows Fluent design:
   - Added dynamic Windows accent color detection (`DwmGetColorizationColor`) and dual-ring glowing card aesthetics.

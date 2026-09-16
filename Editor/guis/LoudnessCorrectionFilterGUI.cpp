@@ -189,6 +189,16 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 		this, [this](bool enabled) {
 			QSignalBlocker blocker(ui->takeoverVolumeCheckBox);
 			ui->takeoverVolumeCheckBox->setChecked(enabled);
+			if (enabled && getVolumeFollowMode() == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
+			{
+				int followIndex = ui->volumeFollowComboBox->findData(
+					static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS),
+					Qt::UserRole);
+				if (followIndex >= 0)
+					ui->volumeFollowComboBox->setCurrentIndex(followIndex);
+			}
+			updateVolumeReadout();
+			emit updateModel();
 		});
 
 	connect(&timer, SIGNAL(timeout()), this, SLOT(updateVolume()));
@@ -520,6 +530,15 @@ void LoudnessCorrectionFilterGUI::on_volumeSpinBox_valueChanged(double value)
 
 void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked)
 {
+	if (checked && getVolumeFollowMode() == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
+	{
+		int followIndex = ui->volumeFollowComboBox->findData(
+			static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS),
+			Qt::UserRole);
+		if (followIndex >= 0)
+			ui->volumeFollowComboBox->setCurrentIndex(followIndex);
+	}
+
 	VolumeTakeoverManager::instance()->setReferenceParameters(
 		ui->refLevelSpinBox->value(), ui->refOffsetSpinBox->value());
 	VolumeTakeoverManager::instance()->setVolumeFollowMode(getVolumeFollowMode());
@@ -531,11 +550,13 @@ void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked
 	QSettings settings;
 	settings.setValue(QStringLiteral("takeoverVolumeKeys"), checked);
 
+	updateVolumeReadout();
 	if (checked)
 	{
 		VolumeTakeoverManager::instance()->showCurrentVolumeOsd();
 		StudioMotion::feedback(ui->takeoverVolumeCheckBox);
 	}
+	emit updateModel();
 }
 
 void LoudnessCorrectionFilterGUI::on_fastEngineCheckBox_toggled(bool checked)

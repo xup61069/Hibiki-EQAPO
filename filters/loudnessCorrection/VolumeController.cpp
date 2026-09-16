@@ -6,6 +6,7 @@
 
 #include "stdafx.h"
 #include "VolumeController.h"
+#include "HibikiVolumeTakeoverShared.h"
 #include <mmdeviceapi.h>
 #include <algorithm>
 #include <cmath>
@@ -148,7 +149,11 @@ VolumeController::VolumeController(const std::wstring& endpointId)
 	  _volumeChanged(true),
 	  _lastVolume(0.0),
 	  _requestedEndpointId(endpointId),
-	  _nextEndpointCheck(0)
+	  _nextEndpointCheck(0),
+	  _takeoverMapping(NULL),
+	  _takeoverShared(NULL),
+	  _lastTakeoverSequence(0),
+	  _takeoverWasActive(false)
 {
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 	if (SUCCEEDED(hr))
@@ -160,17 +165,102 @@ VolumeController::VolumeController(const std::wstring& endpointId)
 		// COM already initialized on this thread with different apartment model; valid
 		_comInitialized = false;
 	}
+	openTakeoverSharedMemory();
 	initEndpoint();
 }
 
 VolumeController::~VolumeController()
 {
 	cleanup();
+	closeTakeoverSharedMemory();
 	if (_comInitialized)
 	{
 		CoUninitialize();
 		_comInitialized = false;
 	}
+}
+
+void VolumeController::openTakeoverSharedMemory()
+{
+	if (_takeoverShared != NULL)
+		return;
+
+	if (_takeoverMapping == NULL)
+	{
+		_takeoverMapping = HibikiTakeoverIpc::createOrOpenSharedMapping(false);
+	}
+	if (_takeoverMapping != NULL)
+	{
+		_takeoverShared = static_cast<HibikiVolumeTakeoverSharedData*>(
+			MapViewOfFile(_takeoverMapping, FILE_MAP_READ, 0, 0, sizeof(HibikiVolumeTakeoverSharedData)));
+		if (_takeoverShared == NULL)
+		{
+			CloseHandle(_takeoverMapping);
+			_takeoverMapping = NULL;
+		}
+	}
+}
+
+void VolumeController::closeTakeoverSharedMemory()
+{
+	if (_takeoverShared != NULL)
+	{
+		UnmapViewOfFile(_takeoverShared);
+		_takeoverShared = NULL;
+	}
+	if (_takeoverMapping != NULL)
+	{
+		CloseHandle(_takeoverMapping);
+		_takeoverMapping = NULL;
+	}
+	_lastTakeoverSequence = 0;
+	_takeoverWasActive = false;
+}
+
+bool VolumeController::readTakeoverState(EndpointVolumeState& state)
+{
+	if (_takeoverShared == NULL)
+		openTakeoverSharedMemory();
+	if (_takeoverShared == NULL)
+		return false;
+
+	HibikiVolumeTakeoverSharedData snap = {};
+	if (!HibikiTakeoverIpc::readTakeoverSnapshot(_takeoverShared, snap))
+		return false;
+
+	if (snap.active == 0)
+		return false;
+
+	ULONGLONG now = GetTickCount64();
+	if (snap.lastHeartbeatTick > 0 && now >= snap.lastHeartbeatTick && (now - snap.lastHeartbeatTick) > 3500)
+	{
+		return false;
+	}
+
+	if (snap.endpointId[0] != L'\0')
+	{
+		if (!_requestedEndpointId.empty() && _wcsicmp(snap.endpointId, _requestedEndpointId.c_str()) != 0)
+		{
+			if (_endpointId.empty() || _wcsicmp(snap.endpointId, _endpointId.c_str()) != 0)
+				return false;
+		}
+		else if (_requestedEndpointId.empty() && !_endpointId.empty() && _wcsicmp(snap.endpointId, _endpointId.c_str()) != 0)
+		{
+			return false;
+		}
+	}
+
+	state.levelDb = snap.levelDb;
+	state.scalar = (std::max)(0.0, (std::min)(1.0, snap.scalar));
+	state.muted = (snap.muted != 0);
+	return true;
+}
+
+bool VolumeController::isTakeoverActive() const
+{
+	if (_takeoverShared == NULL)
+		return false;
+	return _takeoverShared->active != 0;
 }
 
 void VolumeController::cleanup()
@@ -327,6 +417,14 @@ bool VolumeController::refreshEndpointIfChanged()
 
 HRESULT VolumeController::getVolume(double& currentVolume)
 {
+	EndpointVolumeState takeoverState;
+	if (readTakeoverState(takeoverState))
+	{
+		currentVolume = takeoverState.levelDb;
+		_lastVolume = takeoverState.levelDb;
+		return S_OK;
+	}
+
 	if (!refreshEndpointIfChanged())
 	{
 		currentVolume = _lastVolume;
@@ -364,6 +462,16 @@ HRESULT VolumeController::getVolume(double& currentVolume)
 
 HRESULT VolumeController::getVolumeState(EndpointVolumeState& state)
 {
+	EndpointVolumeState takeoverState;
+	if (readTakeoverState(takeoverState))
+	{
+		state = takeoverState;
+		_lastVolume = takeoverState.levelDb;
+		_takeoverWasActive = true;
+		return S_OK;
+	}
+	_takeoverWasActive = false;
+
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (_endpointVolume == NULL && !initEndpoint())
@@ -489,6 +597,13 @@ HRESULT VolumeController::setMute(bool mute)
 
 HRESULT VolumeController::getMute(bool& mute)
 {
+	EndpointVolumeState takeoverState;
+	if (readTakeoverState(takeoverState))
+	{
+		mute = takeoverState.muted;
+		return S_OK;
+	}
+
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (!_endpointVolume && !initEndpoint())
@@ -503,6 +618,13 @@ HRESULT VolumeController::getMute(bool& mute)
 
 HRESULT VolumeController::getVolumeScalar(double& scalar)
 {
+	EndpointVolumeState takeoverState;
+	if (readTakeoverState(takeoverState))
+	{
+		scalar = takeoverState.scalar;
+		return S_OK;
+	}
+
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (!_endpointVolume && !initEndpoint())
@@ -538,5 +660,27 @@ bool VolumeController::hasVolumeChanged()
 	bool changed = _volumeChanged.exchange(false, std::memory_order_acq_rel);
 	if (_callback != NULL)
 		changed = _callback->consumeChanged() || changed;
+
+	if (_takeoverShared != NULL)
+	{
+		volatile const LONG64* seq = reinterpret_cast<volatile const LONG64*>(&_takeoverShared->sequence);
+		LONG64 currentSeq = *seq;
+		bool currentActive = (_takeoverShared->active != 0);
+		if (currentSeq != _lastTakeoverSequence || currentActive != _takeoverWasActive)
+		{
+			_lastTakeoverSequence = currentSeq;
+			_takeoverWasActive = currentActive;
+			changed = true;
+		}
+	}
+	else
+	{
+		openTakeoverSharedMemory();
+		if (_takeoverShared != NULL && _takeoverShared->active != 0)
+		{
+			changed = true;
+		}
+	}
+
 	return changed;
 }

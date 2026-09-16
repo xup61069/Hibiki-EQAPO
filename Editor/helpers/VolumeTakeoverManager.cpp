@@ -5,6 +5,7 @@
 
 #include "VolumeTakeoverManager.h"
 #include "Editor/widgets/VolumeOsdWidget.h"
+#include "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h"
 #include <QCoreApplication>
 #include <algorithm>
 #include <cmath>
@@ -26,7 +27,12 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 	  takeoverEnabled(false),
 	  osdEnabled(true),
 	  referenceLevel(80.0),
-	  referenceOffset(0.0)
+	  referenceOffset(0.0),
+	  takeoverScalar(1.0),
+	  takeoverLevelDb(0.0),
+	  takeoverMuted(false),
+	  takeoverMapping(NULL),
+	  takeoverShared(nullptr)
 {
 	s_instance = this;
 	lastState.levelDb = 0.0;
@@ -34,7 +40,12 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 	lastState.muted = false;
 
 	if (volumeController)
+	{
 		volumeController->getVolumeState(lastState);
+		takeoverScalar = lastState.scalar;
+		takeoverLevelDb = lastState.levelDb;
+		takeoverMuted = lastState.muted;
+	}
 
 	connect(&pollTimer, &QTimer::timeout, this, &VolumeTakeoverManager::checkVolumeChange);
 	pollTimer.start(250);
@@ -42,8 +53,27 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 
 VolumeTakeoverManager::~VolumeTakeoverManager()
 {
-	removeHook();
 	pollTimer.stop();
+	if (takeoverEnabled)
+	{
+		removeHook();
+		takeoverEnabled = false;
+		if (takeoverShared)
+		{
+			std::wstring epId;
+			if (volumeController)
+				epId = volumeController->getRequestedEndpointId();
+			HibikiTakeoverIpc::writeTakeoverSnapshot(
+				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted,
+				epId.c_str(), GetCurrentProcessId());
+		}
+		if (volumeController)
+		{
+			volumeController->setVolumeScalar(takeoverScalar);
+			volumeController->setMute(takeoverMuted);
+		}
+	}
+	closeSharedMemory();
 	if (osdWidget)
 	{
 		delete osdWidget;
@@ -53,16 +83,124 @@ VolumeTakeoverManager::~VolumeTakeoverManager()
 		s_instance = nullptr;
 }
 
+void VolumeTakeoverManager::openSharedMemory()
+{
+	if (takeoverShared != nullptr)
+		return;
+
+	if (takeoverMapping == NULL)
+	{
+		takeoverMapping = HibikiTakeoverIpc::createOrOpenSharedMapping(true);
+	}
+	if (takeoverMapping != NULL)
+	{
+		takeoverShared = static_cast<HibikiVolumeTakeoverSharedData*>(
+			MapViewOfFile(takeoverMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(HibikiVolumeTakeoverSharedData)));
+		if (takeoverShared == nullptr)
+		{
+			CloseHandle(takeoverMapping);
+			takeoverMapping = NULL;
+		}
+	}
+}
+
+void VolumeTakeoverManager::closeSharedMemory()
+{
+	if (takeoverShared != nullptr)
+	{
+		UnmapViewOfFile(takeoverShared);
+		takeoverShared = nullptr;
+	}
+	if (takeoverMapping != NULL)
+	{
+		CloseHandle(takeoverMapping);
+		takeoverMapping = NULL;
+	}
+}
+
+void VolumeTakeoverManager::publishTakeoverSharedData()
+{
+	if (!takeoverShared)
+		openSharedMemory();
+	if (!takeoverShared)
+		return;
+
+	std::wstring epId;
+	if (volumeController)
+		epId = volumeController->getRequestedEndpointId();
+
+	HibikiTakeoverIpc::writeTakeoverSnapshot(
+		takeoverShared,
+		takeoverEnabled,
+		takeoverLevelDb,
+		takeoverScalar,
+		takeoverMuted,
+		epId.c_str(),
+		GetCurrentProcessId());
+}
+
+void VolumeTakeoverManager::enforceWindowsVolume100()
+{
+	if (!volumeController)
+		return;
+
+	double scalar = 0.0;
+	bool mute = false;
+	if (SUCCEEDED(volumeController->getVolumeScalar(scalar)) && scalar < 0.999)
+	{
+		volumeController->setVolumeScalar(1.0);
+	}
+	if (SUCCEEDED(volumeController->getMute(mute)) && mute)
+	{
+		volumeController->setMute(false);
+	}
+}
+
 void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 {
 	if (takeoverEnabled == enabled)
 		return;
 	takeoverEnabled = enabled;
 	if (takeoverEnabled)
+	{
+		openSharedMemory();
+		if (manualMode)
+		{
+			takeoverLevelDb = manualVolumeDb;
+			takeoverScalar = (manualVolumeDb + 100.0) / 100.0;
+			takeoverMuted = manualMuted;
+		}
+		else if (volumeController)
+		{
+			EndpointVolumeState currentEndpointState;
+			if (SUCCEEDED(volumeController->getVolumeState(currentEndpointState)))
+			{
+				takeoverScalar = currentEndpointState.scalar;
+				takeoverLevelDb = currentEndpointState.levelDb;
+				takeoverMuted = currentEndpointState.muted;
+			}
+		}
+		if (volumeController)
+		{
+			volumeController->setVolumeScalar(1.0);
+			volumeController->setMute(false);
+		}
+		publishTakeoverSharedData();
 		installHook();
+	}
 	else
+	{
 		removeHook();
+		publishTakeoverSharedData();
+		if (volumeController)
+		{
+			volumeController->setVolumeScalar(takeoverScalar);
+			volumeController->setMute(takeoverMuted);
+			volumeController->getVolumeState(lastState);
+		}
+	}
 	emit takeoverToggled(enabled);
+	emit volumeChangedExternal(takeoverLevelDb, takeoverScalar, takeoverMuted);
 }
 
 void VolumeTakeoverManager::setReferenceParameters(double refLevel, double refOffset)
@@ -77,13 +215,29 @@ void VolumeTakeoverManager::setManualMode(bool manual, double manualDb)
 {
 	manualMode = manual;
 	if (std::isfinite(manualDb))
+	{
 		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualDb));
+		if (takeoverEnabled && manual)
+		{
+			takeoverLevelDb = manualVolumeDb;
+			takeoverScalar = (manualVolumeDb + 100.0) / 100.0;
+			publishTakeoverSharedData();
+		}
+	}
 }
 
 void VolumeTakeoverManager::setManualVolumeDb(double manualDb)
 {
 	if (std::isfinite(manualDb))
+	{
 		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualDb));
+		if (takeoverEnabled && manualMode)
+		{
+			takeoverLevelDb = manualVolumeDb;
+			takeoverScalar = (manualVolumeDb + 100.0) / 100.0;
+			publishTakeoverSharedData();
+		}
+	}
 }
 
 void VolumeTakeoverManager::setVolumeFollowMode(
@@ -98,7 +252,14 @@ void VolumeTakeoverManager::refreshEndpoint(const std::wstring& endpointId)
 		return;
 	volumeController = std::make_unique<VolumeController>(endpointId);
 	if (volumeController)
+	{
 		volumeController->getVolumeState(lastState);
+		if (takeoverEnabled)
+		{
+			enforceWindowsVolume100();
+			publishTakeoverSharedData();
+		}
+	}
 }
 
 void VolumeTakeoverManager::installHook()
@@ -185,6 +346,14 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		}
 		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualVolumeDb + (up ? 1.0 : -1.0)));
 		const double scalar = (manualVolumeDb + 100.0) / 100.0;
+		takeoverLevelDb = manualVolumeDb;
+		takeoverScalar = scalar;
+		takeoverMuted = manualMuted;
+		if (takeoverEnabled)
+		{
+			enforceWindowsVolume100();
+			publishTakeoverSharedData();
+		}
 		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, scalar, manualMuted);
 		if (osdEnabled && osdWidget)
 		{
@@ -193,6 +362,45 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(manualVolumeDb, scalar, manualMuted);
+		return;
+	}
+
+	if (takeoverEnabled)
+	{
+		EndpointVolumeState state;
+		state.scalar = takeoverScalar;
+		state.levelDb = takeoverLevelDb;
+		state.muted = takeoverMuted;
+
+		if (state.muted && up)
+		{
+			state.muted = false;
+			takeoverMuted = false;
+		}
+
+		int currentPercent = static_cast<int>(std::round(state.scalar * 100.0));
+		int stepPercent = static_cast<int>(std::round(stepScalar * 100.0));
+		if (stepPercent <= 0) stepPercent = 2;
+		int newPercent = std::clamp(currentPercent + (up ? stepPercent : -stepPercent), 0, 100);
+		double newScalar = newPercent / 100.0;
+
+		state.scalar = newScalar;
+		state.levelDb = (newPercent == 0) ? -100.0 : (newPercent - 100.0);
+		takeoverScalar = state.scalar;
+		takeoverLevelDb = state.levelDb;
+		lastState = state;
+
+		enforceWindowsVolume100();
+		publishTakeoverSharedData();
+
+		if (osdEnabled && osdWidget)
+		{
+			const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
+			osdWidget->showVolume(
+				apoDb, state.scalar, state.muted,
+				calculateCurrentPhon(state.levelDb, state.scalar));
+		}
+		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
 		return;
 	}
 
@@ -245,6 +453,14 @@ void VolumeTakeoverManager::toggleMute()
 		manualMuted = !manualMuted;
 		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
 		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		takeoverLevelDb = db;
+		takeoverScalar = scalar;
+		takeoverMuted = manualMuted;
+		if (takeoverEnabled)
+		{
+			enforceWindowsVolume100();
+			publishTakeoverSharedData();
+		}
 		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, scalar, manualMuted);
 		if (osdEnabled && osdWidget)
 		{
@@ -253,6 +469,30 @@ void VolumeTakeoverManager::toggleMute()
 				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, scalar));
 		}
 		emit volumeChangedExternal(db, scalar, manualMuted);
+		return;
+	}
+
+	if (takeoverEnabled)
+	{
+		const bool newMute = !takeoverMuted;
+		takeoverMuted = newMute;
+		EndpointVolumeState state;
+		state.scalar = takeoverScalar;
+		state.levelDb = takeoverLevelDb;
+		state.muted = newMute;
+		lastState = state;
+
+		enforceWindowsVolume100();
+		publishTakeoverSharedData();
+
+		if (osdEnabled && osdWidget)
+		{
+			const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
+			osdWidget->showVolume(
+				apoDb, state.scalar, state.muted,
+				calculateCurrentPhon(state.levelDb, state.scalar));
+		}
+		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
 		return;
 	}
 
@@ -297,6 +537,15 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 		return;
 	}
 
+	if (takeoverEnabled)
+	{
+		const double apoDb = calculateApoFollowTargetDb(takeoverLevelDb, takeoverScalar, takeoverMuted);
+		osdWidget->showVolume(
+			apoDb, takeoverScalar, takeoverMuted,
+			takeoverMuted ? 0.0 : calculateCurrentPhon(takeoverLevelDb, takeoverScalar));
+		return;
+	}
+
 	if (!volumeController)
 		return;
 
@@ -312,6 +561,13 @@ void VolumeTakeoverManager::showCurrentVolumeOsd()
 
 void VolumeTakeoverManager::checkVolumeChange()
 {
+	if (takeoverEnabled)
+	{
+		HibikiTakeoverIpc::updateHeartbeat(takeoverShared);
+		enforceWindowsVolume100();
+		return;
+	}
+
 	if (manualMode)
 		return;
 

@@ -136,6 +136,46 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertNotIn("updateGeometryPosition()", fade_changed)
         self.assertNotIn("move(", fade_changed)
 
+    def test_volume_takeover_scheme_b_shared_memory_and_lock_contract(self):
+        shared_header = (ROOT / "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h").read_text(encoding="utf-8")
+        vc_header = (ROOT / "filters/loudnessCorrection/VolumeController.h").read_text(encoding="utf-8")
+        vc_source = (ROOT / "filters/loudnessCorrection/VolumeController.cpp").read_text(encoding="utf-8")
+        mgr_header = (ROOT / "Editor/helpers/VolumeTakeoverManager.h").read_text(encoding="utf-8")
+        mgr_source = (ROOT / "Editor/helpers/VolumeTakeoverManager.cpp").read_text(encoding="utf-8")
+        gui_source = (ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
+
+        # 1. Shared memory header defines structure with lock-free sequence and heartbeat
+        self.assertIn("HIBIKI_VOLUME_TAKEOVER_SHARED_NAME", shared_header)
+        self.assertIn("struct HibikiVolumeTakeoverSharedData", shared_header)
+        self.assertIn("uint64_t sequence;", shared_header)
+        self.assertIn("uint64_t lastHeartbeatTick;", shared_header)
+        self.assertIn("readTakeoverSnapshot(", shared_header)
+        self.assertIn("writeTakeoverSnapshot(", shared_header)
+
+        # 2. VolumeController implements takeover shared memory path
+        self.assertIn("bool isTakeoverActive() const;", vc_header)
+        self.assertIn("bool readTakeoverState(", vc_header)
+        self.assertIn("readTakeoverState(takeoverState)", vc_source)
+        self.assertIn("openTakeoverSharedMemory()", vc_source)
+        self.assertIn("closeTakeoverSharedMemory()", vc_source)
+
+        # 3. VolumeTakeoverManager implements 100% Windows lock, shared memory IPC, and restore on disable
+        self.assertIn("void enforceWindowsVolume100();", mgr_header)
+        self.assertIn("void publishTakeoverSharedData();", mgr_header)
+        self.assertIn("enforceWindowsVolume100()", mgr_source)
+        self.assertIn("publishTakeoverSharedData()", mgr_source)
+        self.assertIn("volumeController->setVolumeScalar(1.0);", mgr_source)
+        self.assertIn("volumeController->setMute(false);", mgr_source)
+        self.assertIn("volumeController->setVolumeScalar(takeoverScalar);", mgr_source)
+        self.assertIn("volumeController->setMute(takeoverMuted);", mgr_source)
+
+        # 4. LoudnessCorrectionFilterGUI activates VolumeFollow if it was Off when takeover is enabled
+        toggle = gui_source.split("void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled", 1)[1].split(
+            "void LoudnessCorrectionFilterGUI::on_fastEngineCheckBox_toggled", 1
+        )[0]
+        self.assertIn("VOLUME_FOLLOW_WINDOWS", toggle)
+        self.assertIn("volumeFollowComboBox->setCurrentIndex", toggle)
+
 
 if __name__ == "__main__":
     unittest.main()

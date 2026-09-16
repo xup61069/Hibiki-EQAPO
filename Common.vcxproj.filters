@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
@@ -229,6 +229,9 @@
     <ClInclude Include="IFilter.h" />
     <ClInclude Include="IFilterFactory.h" />
     <ClInclude Include="filters\loudnessCorrection\ParameterArchive.h">
+      <Filter>filters\loudnessCorrection</Filter>
+    </ClInclude>
+    <ClInclude Include="filters\loudnessCorrection\HibikiVolumeTakeoverShared.h">
       <Filter>filters\loudnessCorrection</Filter>
     </ClInclude>
     <ClInclude Include="filters\loudnessCorrection\VolumeController.h">
