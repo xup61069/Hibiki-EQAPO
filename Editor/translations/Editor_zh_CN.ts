@@ -1544,6 +1544,30 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>No digital attenuation (unity gain). Use when Windows or hardware knob already controls volume to prevent double attenuation.</source>
+        <translation>不额外数字衰减（单位增益）。当 Windows 或硬件旋钮已负责控制音量时使用，避免重复衰减。</translation>
+    </message>
+    <message>
+        <source>Mildest attenuation (-6 dB at 50% position). Linear amplitude reduction proportional to slider position.</source>
+        <translation>最轻微衰减（50% 位置约 -6 dB）。依滑块位置作线性振幅衰减。</translation>
+    </message>
+    <message>
+        <source>Moderate attenuation (-12 dB at 50% position). Squared amplitude power taper providing smooth volume reduction.</source>
+        <translation>中度衰减（50% 位置约 -12 dB）。平方功率衰减曲线，提供平滑自然的音量渐降。</translation>
+    </message>
+    <message>
+        <source>Medium-strong attenuation (-18 dB at 50% position). Replicates analog stereo potentiometer (A-taper) knob response.</source>
+        <translation>中强衰减（50% 位置约 -18 dB）。模拟立体声模拟电位器（A 型对数）旋钮响应曲线。</translation>
+    </message>
+    <message>
+        <source>Deep attenuation (-30 dB at 50% position). Follows human hearing loudness perception evenly across a 60 dB range.</source>
+        <translation>深度衰减（50% 位置约 -30 dB）。在 60 dB 范围内均匀符合人耳听觉响度感知。</translation>
+    </message>
+    <message>
+        <source>Direct decibel attenuation. Directly applies the Windows endpoint or manual dB value (10^(d/20)).</source>
+        <translation>直接分贝衰减。直接应用 Windows 端点或手动分贝数值（10^(d/20)）。</translation>
+    </message>
+    <message>
         <source>Linear amplitude</source>
         <translation>振幅线性</translation>
     </message>
@@ -2224,7 +2248,7 @@ Alexander Walch</source>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="455"/>
-        <source>Apply these values, then open the existing pink-noise calibration flow.</source>
+        <source>Apply these values, then open the listening-level calibration flow.</source>
         <translation>应用这些值，然后打开现有的粉红噪声校准流程。</translation>
     </message>
     <message>

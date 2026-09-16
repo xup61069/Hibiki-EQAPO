@@ -34,8 +34,12 @@ class VolumeFollowUiTests(unittest.TestCase):
         ui = ET.parse(ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.ui").getroot()
         combo = ui.find(".//widget[@name='volumeFollowComboBox']")
         self.assertEqual([node.text for node in combo.findall("item/property/string")],
-                         ["Off", "Linear amplitude", "Squared amplitude", "Follow dB",
-                          "Perceptual (-60 dB)", "Cubic taper (s³)"])
+                         ["Off", "Linear amplitude", "Squared amplitude", "Cubic taper (s³)",
+                          "Perceptual (-60 dB)", "Follow dB"])
+        gui_cpp = (ROOT / "Editor/guis/LoudnessCorrectionFilterGUI.cpp").read_text(encoding="utf-8")
+        self.assertIn("ui->volumeFollowComboBox->view()->setMouseTracking(true)", gui_cpp)
+        self.assertIn("ui->volumeFollowComboBox->setItemData(", gui_cpp)
+        self.assertIn("Qt::ToolTipRole", gui_cpp)
         for name in ("volumeFollowStatusLabel", "volumeSourceLabel"):
             label = ui.find(f".//widget[@name='{name}']")
             self.assertEqual(label.findtext("property[@name='wordWrap']/bool"), "true")

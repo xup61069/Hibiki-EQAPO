@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Reordered volume-follow attenuation options by attenuation degree and added option hover tooltips:
+  - Reordered dropdown items monotonically from gentlest to deepest attenuation at 50% position: `Off` (0 dB) < `Linear amplitude` (-6 dB) < `Squared amplitude` (-12 dB) < `Cubic taper (s³)` (-18 dB) < `Perceptual (-60 dB)` (-30 dB) < `Follow dB` (direct decibels).
+  - Attached concise explanatory hover tooltips to each combobox item using `Qt::ToolTipRole` with active mouse tracking on the popup list.
+  - Decoupled internal mode resolution from item order via `Qt::UserRole` to prevent ordering bugs.
+  - Dynamically updated the combobox's tooltip on selection change to summarize the active mode when collapsed.
+  - Updated calibration button tooltip in Loudness Studio to reflect both 1 kHz pure tone and pink noise options.
+  - Shipped complete finished translations across Traditional Chinese (`zh_TW`), Simplified Chinese (`zh_CN`), German (`de`), and French (`fr`) with synchronized `.qm` compilations.
+
 - Added 1 kHz reference tone calibration and acoustic guidance to loudness calibration dialogs:
   - Added selectable 1 kHz pure sine tone option alongside pink noise in both formula (`LoudnessCorrectionFilterGUIDialog`) and original (`OriginalLoudnessCorrectionCalibrationDialog`) calibration dialogs.
   - Implemented seamless 1 kHz pure sine tone generation mathematically matching the exact electrical RMS power of pink noise (-33.11 dBFS) at 48 kHz (1000 full cycles per second, zero phase jump on loop).

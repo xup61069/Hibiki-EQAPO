@@ -1576,6 +1576,30 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>No digital attenuation (unity gain). Use when Windows or hardware knob already controls volume to prevent double attenuation.</source>
+        <translation>不額外數位衰減（單位增益）。當 Windows 或硬體旋鈕已負責控制音量時使用，避免重複衰減。</translation>
+    </message>
+    <message>
+        <source>Mildest attenuation (-6 dB at 50% position). Linear amplitude reduction proportional to slider position.</source>
+        <translation>最輕微衰減（50% 位置約 -6 dB）。依滑桿位置作線性振幅衰減。</translation>
+    </message>
+    <message>
+        <source>Moderate attenuation (-12 dB at 50% position). Squared amplitude power taper providing smooth volume reduction.</source>
+        <translation>中度衰減（50% 位置約 -12 dB）。平方功率衰減曲線，提供平滑自然的音量漸降。</translation>
+    </message>
+    <message>
+        <source>Medium-strong attenuation (-18 dB at 50% position). Replicates analog stereo potentiometer (A-taper) knob response.</source>
+        <translation>中強衰減（50% 位置約 -18 dB）。模擬類比音響音量旋鈕（A 型對數雙聯可變電阻）阻值曲線。</translation>
+    </message>
+    <message>
+        <source>Deep attenuation (-30 dB at 50% position). Follows human hearing loudness perception evenly across a 60 dB range.</source>
+        <translation>深度衰減（50% 位置約 -30 dB）。在 60 dB 範圍內均勻符合人耳聽覺響度感知。</translation>
+    </message>
+    <message>
+        <source>Direct decibel attenuation. Directly applies the Windows endpoint or manual dB value (10^(d/20)).</source>
+        <translation>直接分貝衰減。直接套用 Windows 端點或手動分貝數值（10^(d/20)）。</translation>
+    </message>
+    <message>
         <source>Linear amplitude</source>
         <translation>振幅線性</translation>
     </message>
@@ -2260,7 +2284,7 @@ Alexander Walch</source>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="455"/>
-        <source>Apply these values, then open the existing pink-noise calibration flow.</source>
+        <source>Apply these values, then open the listening-level calibration flow.</source>
         <translation>套用這些值，接著開啟既有的粉紅雜訊校正流程。</translation>
     </message>
     <message>

@@ -4870,7 +4870,7 @@ bool MainWindow::snapshotLayoutIsValid() const
 			return invalid(__LINE__);
 		curve->setCurrentIndex(2);
 		if (!target->text().contains("-12.04")) return invalid(__LINE__);
-		curve->setCurrentIndex(3);
+		curve->setCurrentIndex(curve->findData(static_cast<int>(Parameters::VOLUME_FOLLOW_WINDOWS)));
 		if (!target->text().contains("-50.00")) return invalid(__LINE__);
 		volume->setValue(-20);
 		if (!target->text().contains("-20.00")) return invalid(__LINE__);

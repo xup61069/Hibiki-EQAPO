@@ -482,7 +482,7 @@
         </item>
         <item>
          <property name="text">
-          <string>Follow dB</string>
+          <string>Cubic taper (s³)</string>
          </property>
         </item>
         <item>
@@ -492,7 +492,7 @@
         </item>
         <item>
          <property name="text">
-          <string>Cubic taper (s³)</string>
+          <string>Follow dB</string>
          </property>
         </item>
        </widget>

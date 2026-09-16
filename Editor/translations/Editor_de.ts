@@ -1544,6 +1544,30 @@ Change the file permissions or copy the file to the config directory.</source>
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>No digital attenuation (unity gain). Use when Windows or hardware knob already controls volume to prevent double attenuation.</source>
+        <translation>Keine digitale Dämpfung (Unity-Gain). Verwenden, wenn Windows oder ein Hardware-Regler die Lautstärke bereits regelt.</translation>
+    </message>
+    <message>
+        <source>Mildest attenuation (-6 dB at 50% position). Linear amplitude reduction proportional to slider position.</source>
+        <translation>Geringste Dämpfung (-6 dB bei 50 % Reglerstellung). Lineare Amplitudenabsenkung proportional zur Reglerstellung.</translation>
+    </message>
+    <message>
+        <source>Moderate attenuation (-12 dB at 50% position). Squared amplitude power taper providing smooth volume reduction.</source>
+        <translation>Moderate Dämpfung (-12 dB bei 50 % Reglerstellung). Quadratische Leistungskurve für eine sanfte Lautstärkeabsenkung.</translation>
+    </message>
+    <message>
+        <source>Medium-strong attenuation (-18 dB at 50% position). Replicates analog stereo potentiometer (A-taper) knob response.</source>
+        <translation>Mittlere bis starke Dämpfung (-18 dB bei 50 % Reglerstellung). Bildet das Regelverhalten eines analogen Lautstärkepotentiometers (A-Taper) nach.</translation>
+    </message>
+    <message>
+        <source>Deep attenuation (-30 dB at 50% position). Follows human hearing loudness perception evenly across a 60 dB range.</source>
+        <translation>Starke Dämpfung (-30 dB bei 50 % Reglerstellung). Folgt dem menschlichen Lautstärkeempfinden gleichmäßig über einen 60-dB-Bereich.</translation>
+    </message>
+    <message>
+        <source>Direct decibel attenuation. Directly applies the Windows endpoint or manual dB value (10^(d/20)).</source>
+        <translation>Direkte Dezibeldämpfung. Wendet den Windows-Endpunkt- oder manuellen dB-Wert direkt an (10^(d/20)).</translation>
+    </message>
+    <message>
         <source>Linear amplitude</source>
         <translation>Lineare Amplitude</translation>
     </message>
@@ -2225,7 +2249,7 @@ Alexander Walch</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="455"/>
-        <source>Apply these values, then open the existing pink-noise calibration flow.</source>
+        <source>Apply these values, then open the listening-level calibration flow.</source>
         <translation>Wenden Sie diese Werte an und öffnen Sie anschließend den vorhandenen Kalibrierungsablauf mit rosa Rauschen.</translation>
     </message>
     <message>

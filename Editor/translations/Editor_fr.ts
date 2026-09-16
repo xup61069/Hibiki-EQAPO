@@ -1553,6 +1553,30 @@ Modifiez les autorisations du fichier ou copiez le fichier dans le répertoire d
 <context>
     <name>LoudnessCorrectionFilterGUI</name>
     <message>
+        <source>No digital attenuation (unity gain). Use when Windows or hardware knob already controls volume to prevent double attenuation.</source>
+        <translation>Aucune atténuation numérique (gain unitaire). À utiliser lorsque Windows ou un bouton matériel contrôle déjà le volume.</translation>
+    </message>
+    <message>
+        <source>Mildest attenuation (-6 dB at 50% position). Linear amplitude reduction proportional to slider position.</source>
+        <translation>Atténuation la plus douce (-6 dB à 50 % de position). Réduction linéaire d'amplitude proportionnelle au curseur.</translation>
+    </message>
+    <message>
+        <source>Moderate attenuation (-12 dB at 50% position). Squared amplitude power taper providing smooth volume reduction.</source>
+        <translation>Atténuation modérée (-12 dB à 50 % de position). Progression en carré de l'amplitude pour une diminution fluide.</translation>
+    </message>
+    <message>
+        <source>Medium-strong attenuation (-18 dB at 50% position). Replicates analog stereo potentiometer (A-taper) knob response.</source>
+        <translation>Atténuation moyenne-forte (-18 dB à 50 % de position). Reproduit la course d'un potentiomètre analogique (courbe A).</translation>
+    </message>
+    <message>
+        <source>Deep attenuation (-30 dB at 50% position). Follows human hearing loudness perception evenly across a 60 dB range.</source>
+        <translation>Forte atténuation (-30 dB à 50 % de position). Suit la perception auditive humaine uniformément sur une plage de 60 dB.</translation>
+    </message>
+    <message>
+        <source>Direct decibel attenuation. Directly applies the Windows endpoint or manual dB value (10^(d/20)).</source>
+        <translation>Atténuation directe en dB. Applique directement la valeur dB du périphérique Windows ou manuelle (10^(d/20)).</translation>
+    </message>
+    <message>
         <source>Linear amplitude</source>
         <translation>Amplitude linéaire</translation>
     </message>
@@ -2236,7 +2260,7 @@ Alexander Walch</translation>
     </message>
     <message>
         <location filename="../guis/LoudnessCorrectionStudioDialog.ui" line="455"/>
-        <source>Apply these values, then open the existing pink-noise calibration flow.</source>
+        <source>Apply these values, then open the listening-level calibration flow.</source>
         <translation>Appliquez ces valeurs, puis ouvrez le parcours d’étalonnage au bruit rose existant.</translation>
     </message>
     <message>

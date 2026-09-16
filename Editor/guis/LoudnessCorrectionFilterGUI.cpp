@@ -27,6 +27,7 @@
 #include "ui_LoudnessCorrectionFilterGUI.h"
 #include <cmath>
 #include <limits>
+#include <QAbstractItemView>
 #include <QMessageBox>
 #include <QSignalBlocker>
 #include <QSizePolicy>
@@ -107,12 +108,53 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 	ui->fastEngineCheckBox->setChecked(
 		engine == LoudnessCorrectionFilter::FilterParameters::ENGINE_FAST);
 	ui->fastEngineCheckBox->blockSignals(engineBlocked);
+	if (ui->volumeFollowComboBox->view() != nullptr)
+		ui->volumeFollowComboBox->view()->setMouseTracking(true);
+
+	struct VolumeFollowItemDef
+	{
+		int index;
+		LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode mode;
+		QString tooltip;
+	};
+
+	const VolumeFollowItemDef volumeFollowDefs[] = {
+		{ 0, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF,
+			tr("No digital attenuation (unity gain). Use when Windows or hardware knob already controls volume to prevent double attenuation.") },
+		{ 1, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LINEAR,
+			tr("Mildest attenuation (-6 dB at 50% position). Linear amplitude reduction proportional to slider position.") },
+		{ 2, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LOGARITHMIC,
+			tr("Moderate attenuation (-12 dB at 50% position). Squared amplitude power taper providing smooth volume reduction.") },
+		{ 3, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC,
+			tr("Medium-strong attenuation (-18 dB at 50% position). Replicates analog stereo potentiometer (A-taper) knob response.") },
+		{ 4, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_PERCEPTUAL,
+			tr("Deep attenuation (-30 dB at 50% position). Follows human hearing loudness perception evenly across a 60 dB range.") },
+		{ 5, LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS,
+			tr("Direct decibel attenuation. Directly applies the Windows endpoint or manual dB value (10^(d/20)).") },
+	};
+
+	for (const auto& def : volumeFollowDefs)
+	{
+		if (def.index < ui->volumeFollowComboBox->count())
+		{
+			ui->volumeFollowComboBox->setItemData(
+				def.index, static_cast<int>(def.mode), Qt::UserRole);
+			ui->volumeFollowComboBox->setItemData(
+				def.index, def.tooltip, Qt::ToolTipRole);
+		}
+	}
+
 	bool volumeFollowBlocked = ui->volumeFollowComboBox->blockSignals(true);
-	int volumeFollowIndex = static_cast<int>(volumeFollow);
-	if (volumeFollowIndex < 0 || volumeFollowIndex > 5)
+	int volumeFollowIndex = ui->volumeFollowComboBox->findData(
+		static_cast<int>(volumeFollow), Qt::UserRole);
+	if (volumeFollowIndex < 0)
 		volumeFollowIndex = 0;
 	ui->volumeFollowComboBox->setCurrentIndex(volumeFollowIndex);
 	ui->volumeFollowComboBox->blockSignals(volumeFollowBlocked);
+	const QString initialTip = ui->volumeFollowComboBox->itemData(
+		volumeFollowIndex, Qt::ToolTipRole).toString();
+	if (!initialTip.isEmpty())
+		ui->volumeFollowComboBox->setToolTip(initialTip);
 	refreshVolumeController();
 	updateAutomaticVolumeUi();
 
@@ -244,21 +286,10 @@ LoudnessCorrectionFilterGUI::getBindingMode() const
 LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode
 LoudnessCorrectionFilterGUI::getVolumeFollowMode() const
 {
-	switch (ui->volumeFollowComboBox->currentIndex())
-	{
-	case 1:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LINEAR;
-	case 2:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_LOGARITHMIC;
-	case 3:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS;
-	case 4:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_PERCEPTUAL;
-	case 5:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC;
-	default:
-		return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF;
-	}
+	const QVariant data = ui->volumeFollowComboBox->currentData(Qt::UserRole);
+	if (data.isValid())
+		return static_cast<LoudnessCorrectionFilter::FilterParameters::VolumeFollowMode>(data.toInt());
+	return LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF;
 }
 
 std::wstring LoudnessCorrectionFilterGUI::getRequestedEndpointId() const
@@ -516,7 +547,11 @@ void LoudnessCorrectionFilterGUI::on_fastEngineCheckBox_toggled(bool checked)
 void LoudnessCorrectionFilterGUI::on_volumeFollowComboBox_currentIndexChanged(
 	int index)
 {
-	(void)index;
+	const QString itemTooltip = ui->volumeFollowComboBox->itemData(
+		index, Qt::ToolTipRole).toString();
+	if (!itemTooltip.isEmpty())
+		ui->volumeFollowComboBox->setToolTip(itemTooltip);
+
 	VolumeTakeoverManager::instance()->setVolumeFollowMode(getVolumeFollowMode());
 	updateAutomaticVolumeUi();
 	updateVolumeReadout();
