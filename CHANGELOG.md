@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Restored Equalizer APO effect processing in transparent ASIO proxy mode:
+  - Resolved configuration load failure where endpoint-bound `LoudnessCorrection` and `LoudnessCorrectionOriginal` aborted configuration loading in `FilterEngine::ProcessingPolicy::AsioCallbackSafe` mode, ensuring root calibration files (`config.txt` / `none.txt`) load successfully.
+  - Implemented safe bypass for endpoint-bound loudness commands without explicit manual `Volume`, keeping subsequent scoped filters (`Preamp`, `Convolution`) active.
+  - Synthesized composite device identity combining `Hibiki EQAPO`, the vendor driver name, and correlated Windows MMDevice endpoint friendly names and GUIDs, enabling `Device: <Endpoint>` scoped calibration rules to match correctly in DAW ASIO monitoring.
+  - Added native unit tests verifying composite device matching and live user configuration structure with Preamp gain attenuation.
+
 ## 3.1.5
 
 - Corrected volume OSD readout to reflect actual APO follow target and eliminated animation stutter:
