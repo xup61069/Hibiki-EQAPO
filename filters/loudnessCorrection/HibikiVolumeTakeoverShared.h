@@ -105,11 +105,19 @@ namespace HibikiTakeoverIpc
 
 	inline HANDLE createOrOpenSharedMapping(bool forWriting = true)
 	{
+		if (!forWriting)
+		{
+			return OpenFileMappingW(
+				FILE_MAP_READ,
+				FALSE,
+				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
+		}
+
 		PSECURITY_DESCRIPTOR sd = NULL;
 		SECURITY_ATTRIBUTES sa = {};
 		sa.nLength = sizeof(sa);
 		if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
-			L"D:(A;;GA;;;WD)", SDDL_REVISION_1, &sd, NULL))
+			L"D:(A;;GA;;;WD)S:(ML;;NW;;;LW)", SDDL_REVISION_1, &sd, NULL))
 		{
 			sa.lpSecurityDescriptor = sd;
 		}
@@ -127,9 +135,8 @@ namespace HibikiTakeoverIpc
 
 		if (mapping == NULL)
 		{
-			DWORD desiredAccess = forWriting ? FILE_MAP_ALL_ACCESS : FILE_MAP_READ;
 			mapping = OpenFileMappingW(
-				desiredAccess,
+				FILE_MAP_ALL_ACCESS,
 				FALSE,
 				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
 		}

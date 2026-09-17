@@ -547,7 +547,7 @@ void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked
 	VolumeTakeoverManager::instance()->refreshEndpoint(getRequestedEndpointId());
 	VolumeTakeoverManager::instance()->setTakeoverEnabled(checked);
 
-	QSettings settings;
+	QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
 	settings.setValue(QStringLiteral("takeoverVolumeKeys"), checked);
 
 	updateVolumeReadout();

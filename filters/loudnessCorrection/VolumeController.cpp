@@ -237,7 +237,7 @@ bool VolumeController::readTakeoverState(EndpointVolumeState& state)
 		return false;
 	}
 
-	if (snap.endpointId[0] != L'\0')
+	if (snap.endpointId[0] != L'\0' && !_requestedEndpointId.empty())
 	{
 		auto matchesEndpoint = [](const wchar_t* snapEp, const std::wstring& target) {
 			if (!snapEp || snapEp[0] == L'\0' || target.empty())
@@ -248,14 +248,10 @@ bool VolumeController::readTakeoverState(EndpointVolumeState& state)
 				std::wstring(snapEp).find(target) != std::wstring::npos;
 		};
 
-		if (!_requestedEndpointId.empty() && !matchesEndpoint(snap.endpointId, _requestedEndpointId))
+		if (!matchesEndpoint(snap.endpointId, _requestedEndpointId))
 		{
 			if (_endpointId.empty() || !matchesEndpoint(snap.endpointId, _endpointId))
 				return false;
-		}
-		else if (_requestedEndpointId.empty() && !_endpointId.empty() && !matchesEndpoint(snap.endpointId, _endpointId))
-		{
-			return false;
 		}
 	}
 
@@ -434,6 +430,12 @@ HRESULT VolumeController::getVolume(double& currentVolume)
 		return S_OK;
 	}
 
+	if (isTakeoverActive())
+	{
+		currentVolume = _lastVolume;
+		return E_FAIL;
+	}
+
 	if (!refreshEndpointIfChanged())
 	{
 		currentVolume = _lastVolume;
@@ -478,6 +480,11 @@ HRESULT VolumeController::getVolumeState(EndpointVolumeState& state)
 		_lastVolume = takeoverState.levelDb;
 		_takeoverWasActive = true;
 		return S_OK;
+	}
+
+	if (isTakeoverActive())
+	{
+		return E_FAIL;
 	}
 	_takeoverWasActive = false;
 
@@ -613,6 +620,11 @@ HRESULT VolumeController::getMute(bool& mute)
 		return S_OK;
 	}
 
+	if (isTakeoverActive())
+	{
+		return E_FAIL;
+	}
+
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (!_endpointVolume && !initEndpoint())
@@ -632,6 +644,11 @@ HRESULT VolumeController::getVolumeScalar(double& scalar)
 	{
 		scalar = takeoverState.scalar;
 		return S_OK;
+	}
+
+	if (isTakeoverActive())
+	{
+		return E_FAIL;
 	}
 
 	if (!refreshEndpointIfChanged())
