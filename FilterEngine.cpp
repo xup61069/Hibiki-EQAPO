@@ -921,20 +921,18 @@ void FilterEngine::loadConfigFile(const wstring& path)
 						key == L"LoudnessCorrection" &&
 						!isExplicitManualLoudness(value))
 					{
-						unsafeConfigurationRejected.store(
-							true, std::memory_order_release);
-						LogF(L"ASIO policy rejected endpoint-bound loudness correction");
-						throw ConfigurationFileLoadError();
+						LogF(L"ASIO callback-safe policy bypassed endpoint-bound loudness correction");
+						key.clear();
+						break;
 					}
 					if (processingPolicy == ProcessingPolicy::AsioCallbackSafe &&
 						factory == asioOriginalLoudnessFactory &&
 						key == L"LoudnessCorrectionOriginal" &&
 						!isDisabledOriginalLoudness(value))
 					{
-						unsafeConfigurationRejected.store(
-							true, std::memory_order_release);
-						LogF(L"ASIO policy rejected endpoint-bound original loudness correction");
-						throw ConfigurationFileLoadError();
+						LogF(L"ASIO callback-safe policy bypassed endpoint-bound original loudness correction");
+						key.clear();
+						break;
 					}
 					newFilters = factory->createFilter(path, key, value);
 				}
