@@ -1,27 +1,25 @@
-# AI 交接快照：接管 Windows 音量鎖定 100%（方案 B：純發燒位元完美輸出由 APO 實體衰減）
+# AI 交接快照：透明 ASIO Proxy 效果還原與 VolumeFollow 動態音量跟隨
 
 最後更新：2026-09-17（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成 Windows 音量接管方案 B（鎖定 100%，由 APO 做實體音量衰減與 ISO 226 等響度控制）：
-  1. **Windows 端點音量鎖定 100% 與退出平滑還原**：
-     - `VolumeTakeoverManager` 在接管啟動時呼叫 `enforceWindowsVolume100()`，將目前 Windows 端點音量強制拉至 1.0（0 dB）且取消靜音，Windows Audio Engine 維持 0 dB 數位傳輸，送出純淨位元完美（Bit-Perfect）PCM 給外接 DAC。
-     - 攔截多媒體音量按鍵（`VK_VOLUME_UP` / `DOWN` / `MUTE`），在內部維護精確的 `takeoverScalar`、`takeoverLevelDb` 與 `takeoverMuted`，並定時（250 ms）守護端點維持 100%。
-     - 停用接管或 Editor 退出時，在釋放共享記憶體前平滑將 Windows 端點音量與靜音狀態還原至使用者目前的聆聽音量，杜絕音量暴衝與喀嗒聲。
-  2. **跨行程零配置無鎖共享記憶體 IPC 通訊**：
-     - 新增 `filters/loudnessCorrection/HibikiVolumeTakeoverShared.h`，實作 8 位元組對齊之 `HibikiVolumeTakeoverSharedData` 結構與 Seqlock 樂觀並行機制。
-     - 寫入端（`writeTakeoverSnapshot`）推進版本序號，讀取端（`readTakeoverSnapshot`）使用 x64 硬體保證之 64 位元原子讀取與記憶體屏障，在唯讀映射區安全無崩潰。
-     - 配置 `D:(A;;GA;;;WD)` 安全描述元，允許 `LOCAL SERVICE`（`audiodg.exe`）與標準使用者權限（`Editor.exe`）跨 integrity level 通訊。
-     - `VolumeController` 在 `audiodg.exe` 內即時消費共享記憶體中的音量快照（含 3.5 秒心跳失聯保護），`hasVolumeChanged()` 偵測序號變更立即觸發 `parameterUpdateThread` 平滑套用 ISO 226 等響度與 VolumeFollow 寬頻衰減。
-  3. **自動啟用 VolumeFollow 保護**：
-     - 使用者在介面勾選接管 Windows 音量時，若音量跟隨衰減為 `Off`，自動切換至推薦的 `Follow dB`（`VOLUME_FOLLOW_WINDOWS`），確保 Equalizer APO 確實執行實體衰減。
-  4. **完整驗證階梯**：
+- 本輪已完成透明 ASIO Proxy 濾鏡效果還原與公式版響度校正／VolumeFollow 動態音量跟隨支援：
+  1. **ASIO 模式下還原 APO 濾鏡處理**：
+     - 修復 ASIO 回呼安全白名單，讓 Preamp、Convolution（IR 卷積）、Delay、ParametricEQ 等非阻塞濾鏡正常在 DAW ASIO 監聽串流中執行。
+     - 實作複合裝置識別碼（包含 `Hibiki EQAPO`、ASIO Vendor 名稱、關聯 Windows MMDevice 友好名稱與 GUID），使使用者設定檔中具備 `Device: <名稱>` 作用域的校準設定在 ASIO 監聽下正確匹配。
+  2. **公式版響度校正與 VolumeFollow 動態跟隨**：
+     - 在 `FilterEngine::ProcessingPolicy::AsioCallbackSafe` 模式下，允許公式版響度校正（`factory == asioManualLoudnessFactory`）無論是否指定手動 `Volume` 皆正常載入。
+     - 強化 `VolumeController::readTakeoverState` 端點比對邏輯，支援短 GUID 與完整 Windows MMDevice Endpoint ID 之不分大小寫子字串匹配。
+     - ASIO 輸出在接管 Windows 音量（方案 B 共享記憶體 `Global\Hibiki_VolumeTakeover_v1`）或實體 Windows 端點音量變更時，透過背景 `parameterUpdateThread` 接收更新，即時音訊回呼以 10 ms 平滑 ramp 完成 VolumeFollow 衰減，維持零配置、無鎖與非阻塞之即時音訊契約。
+     - 原版雙棚架響度（`LoudnessCorrectionOriginal:`）因僅追蹤預設 Windows 端點且無 VolumeFollow，在 ASIO 模式下安全 bypass。
+  3. **完整驗證階梯**：
      - 411 項 Python 測試全數通過（410 passed, 1 skipped: Win32 global mapping privilege）。
      - `git diff --check` 完全通過，無格式或空白錯誤。
-     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.4.exe`（SHA-256: `05fdc637844f46587c6f37d0601f585bd7cadec3d20171a9f889978d028ce9bc`）。
+     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `192f7124875854fa5661c10235018fe6de5be9476279ac7f63a6863fe61c0331`）。
      - `test-runtime-loudness.ps1 -Configuration Release` 通過。
-     - 原生效能量測基準 `Benchmark.exe --loudness-performance` 通過（Full block: 112.98 ns/sample, Fast: 62.45 ns/sample）。
+     - 所有 Native ASIO Proxy Core 與 Driver Fake-Vendor 單元測試通過。
+     - `test-public-history.ps1 -Revision HEAD` 通過。
 
 ---
 
