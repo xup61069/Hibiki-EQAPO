@@ -1,22 +1,23 @@
-# AI 交接快照：透明 ASIO Proxy 效果還原與 VolumeFollow 動態音量跟隨
+# AI 交接快照：透明 ASIO Proxy 效果還原、音量接管加固與 VolumeFollow 動態音量跟隨
 
 最後更新：2026-09-17（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已完成透明 ASIO Proxy 濾鏡效果還原與公式版響度校正／VolumeFollow 動態音量跟隨支援：
-  1. **ASIO 模式下還原 APO 濾鏡處理**：
+- 本輪已徹底定位並修復「APO音量跟隨衰減壞掉了」以及音量接管（Volume Takeover）相關之衰減與防爆音問題：
+  1. **ASIO 模式下還原 APO 濾鏡與動態 LoudnessCorrection 處理**：
      - 修復 ASIO 回呼安全白名單，讓 Preamp、Convolution（IR 卷積）、Delay、ParametricEQ 等非阻塞濾鏡正常在 DAW ASIO 監聽串流中執行。
      - 實作複合裝置識別碼（包含 `Hibiki EQAPO`、ASIO Vendor 名稱、關聯 Windows MMDevice 友好名稱與 GUID），使使用者設定檔中具備 `Device: <名稱>` 作用域的校準設定在 ASIO 監聽下正確匹配。
-  2. **公式版響度校正與 VolumeFollow 動態跟隨**：
      - 在 `FilterEngine::ProcessingPolicy::AsioCallbackSafe` 模式下，允許公式版響度校正（`factory == asioManualLoudnessFactory`）無論是否指定手動 `Volume` 皆正常載入。
-     - 強化 `VolumeController::readTakeoverState` 端點比對邏輯，支援短 GUID 與完整 Windows MMDevice Endpoint ID 之不分大小寫子字串匹配。
-     - ASIO 輸出在接管 Windows 音量（方案 B 共享記憶體 `Global\Hibiki_VolumeTakeover_v1`）或實體 Windows 端點音量變更時，透過背景 `parameterUpdateThread` 接收更新，即時音訊回呼以 10 ms 平滑 ramp 完成 VolumeFollow 衰減，維持零配置、無鎖與非阻塞之即時音訊契約。
-     - 原版雙棚架響度（`LoudnessCorrectionOriginal:`）因僅追蹤預設 Windows 端點且無 VolumeFollow，在 ASIO 模式下安全 bypass。
+  2. **音量接管端點匹配、低完整性 IPC 與防炸耳安全契約加固**：
+     - **端點匹配**：修正 `VolumeController::readTakeoverState`，當設定檔為全域 `Binding All` 或運行於 ASIO Proxy 模式（`_requestedEndpointId.empty()`）時，自動接受接管快照，不再因 Editor 選取之端點與實體預設端點不符而錯誤拒絕。
+     - **低完整性安全描述元**：在 `HibikiVolumeTakeoverShared.h` 之 SDDL 加入 `S:(ML;;NW;;;LW)`，並在唯讀模式直接使用 `OpenFileMappingW(FILE_MAP_READ)`，確保沙盒化低完整性 Windows 音訊引擎（`audiodg.exe`）能順暢開啟並讀取共享記憶體。
+     - **防炸耳契約**：在 `VolumeController::getVolumeState` 等函數中，當音量接管已啟動但 Heartbeat 超時（> 3.5s）或快照無效時，嚴禁 fallback 讀取鎖定為 100% 的 Windows 實體端點；一律回傳 `E_FAIL` 觸發安全保持機制，保留最後已知衰減增益（Keep Last Known Gain），絕不跳回 unity (0 dB) 爆音。
+     - **Editor 偏好設定一致性**：修復 `LoudnessCorrectionFilterGUI` 中 `takeoverVolumeKeys` 寫入註冊表路徑，統一使用 `EDITOR_REGPATH`。
   3. **完整驗證階梯**：
      - 411 項 Python 測試全數通過（410 passed, 1 skipped: Win32 global mapping privilege）。
      - `git diff --check` 完全通過，無格式或空白錯誤。
-     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `192f7124875854fa5661c10235018fe6de5be9476279ac7f63a6863fe61c0331`）。
+     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `e1c5b25d07d7339678c4cd2ba2c474c612f70c9eed51ef289f5e0283a60a8fd4`）。
      - `test-runtime-loudness.ps1 -Configuration Release` 通過。
      - 所有 Native ASIO Proxy Core 與 Driver Fake-Vendor 單元測試通過。
      - `test-public-history.ps1 -Revision HEAD` 通過。
