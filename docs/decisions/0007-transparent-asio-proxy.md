@@ -56,7 +56,7 @@ Callback 與 worker completion 都不得配置或釋放記憶體、取得鎖、�
 
 ## 設定與匯出語意
 
-Proxy 使用既有的 Hibiki EQAPO 設定引擎與 `config.txt`。一般沒有 `Device:` scope 的校正會自然生效；具有 `Device:` scope 的設定則由 proxy 合成之裝置識別（包含 `Hibiki EQAPO`、vendor driver 名稱與關聯之 Windows MMDevice endpoint friendly name 及 GUID）進行匹配分流。ASIO callback-safe policy 排除 active `VSTPlugin:`、`OutProcVSTPlugin:`、`OutProcGain:`、`OutProcBiquad:`、`VUMeter:`；需要端點音量追蹤的響度校正（原版雙棚架或公式版未指定手動 `Volume` 者）在 ASIO 模式下會安全 bypass 而不中斷後續濾鏡（如 Preamp、IR 卷積）載入；公式響度校正只有明確手動 `Volume` 時可在 ASIO 啟用。inactive `Device:`／`If:` scope 與 `State 0` 可保留。包含真正不安全外掛／行程外元件之設定會使 engine 維持乾聲；reload 不安全設定時保留上一份完整安全 configuration，不部分套用。
+Proxy 使用既有的 Hibiki EQAPO 設定引擎與 `config.txt`。一般沒有 `Device:` scope 的校正會自然生效；具有 `Device:` scope 的設定則由 proxy 合成之裝置識別（包含 `Hibiki EQAPO`、vendor driver 名稱與關聯之 Windows MMDevice endpoint friendly name 及 GUID）進行匹配分流。ASIO callback-safe policy 排除 active `VSTPlugin:`、`OutProcVSTPlugin:`、`OutProcGain:`、`OutProcBiquad:`、`VUMeter:` 以及 original loudness correction（雙棚架版因僅追蹤系統預設端點且無 VolumeFollow，在 ASIO 模式下安全 bypass）。公式版響度校正（`LoudnessCorrection:`）已獲 ASIO 完整支援，包含手動音量與動態端點音量追蹤／`VolumeFollow` 衰減；其背景獨立工作執行緒（`parameterUpdateThread`）透過方案 B 無鎖共享記憶體或 Windows 端點取得音量，音訊回呼維持無鎖與無配置即時處理。inactive `Device:`／`If:` scope 與 `State 0` 可保留。包含真正不安全外掛／行程外元件之設定會使 engine 維持乾聲；reload 不安全設定時保留上一份完整安全 configuration，不部分套用。
 
 `getLatencies` 回報 vendor latency，並在有 output staging 時對 output 加上一個目前 ASIO buffer block；`future(kAsioGetInternalBufferSamples)` 成功時也對 `outputSamples` 做相同的飽和加法。`Delay:` 與 `Convolution:` 仍可執行，但 FilterEngine 本身再增加的 delay／tail 不另行回報 host。ASIO 沒有通用硬體音量 API，因此介面實體旋鈕與 direct monitoring 無法由此功能自動追蹤或處理。
 

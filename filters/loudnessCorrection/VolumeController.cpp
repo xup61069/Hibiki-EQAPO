@@ -239,12 +239,21 @@ bool VolumeController::readTakeoverState(EndpointVolumeState& state)
 
 	if (snap.endpointId[0] != L'\0')
 	{
-		if (!_requestedEndpointId.empty() && _wcsicmp(snap.endpointId, _requestedEndpointId.c_str()) != 0)
+		auto matchesEndpoint = [](const wchar_t* snapEp, const std::wstring& target) {
+			if (!snapEp || snapEp[0] == L'\0' || target.empty())
+				return false;
+			if (_wcsicmp(snapEp, target.c_str()) == 0)
+				return true;
+			return target.find(snapEp) != std::wstring::npos ||
+				std::wstring(snapEp).find(target) != std::wstring::npos;
+		};
+
+		if (!_requestedEndpointId.empty() && !matchesEndpoint(snap.endpointId, _requestedEndpointId))
 		{
-			if (_endpointId.empty() || _wcsicmp(snap.endpointId, _endpointId.c_str()) != 0)
+			if (_endpointId.empty() || !matchesEndpoint(snap.endpointId, _endpointId))
 				return false;
 		}
-		else if (_requestedEndpointId.empty() && !_endpointId.empty() && _wcsicmp(snap.endpointId, _endpointId.c_str()) != 0)
+		else if (_requestedEndpointId.empty() && !_endpointId.empty() && !matchesEndpoint(snap.endpointId, _endpointId))
 		{
 			return false;
 		}

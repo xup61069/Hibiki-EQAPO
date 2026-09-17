@@ -17,6 +17,7 @@
 #include "../AsioProxyIdentity.h"
 #include "../../FilterEngine.h"
 #include "../../filters/DeviceFilterFactory.h"
+#include "../../filters/loudnessCorrection/HibikiVolumeTakeoverShared.h"
 
 extern "C" HRESULT __stdcall DllGetClassObject(
 	REFCLSID clsid, REFIID iid, void** object);
@@ -2562,7 +2563,7 @@ void testAsioFilterPolicyHonorsInactiveScopesAndRejectsActiveUnsafeFilters()
 		"State 1 ReferenceLevel 80 ReferenceOffset 0 Attenuation 1.0\r\n"
 		"Preamp: -6 dB\r\n",
 		rejected, active) && !rejected && active,
-		"endpoint-bound formula loudness must be safely bypassed in ASIO without rejecting other filters");
+		"endpoint-bound formula loudness must be allowed in ASIO without rejecting other filters");
 
 	rejected = true;
 	active = false;
@@ -2582,7 +2583,7 @@ void testAsioFilterPolicyHonorsInactiveScopesAndRejectsActiveUnsafeFilters()
 		"Device: Hibiki EQAPO\r\n"
 		"Preamp: -6 dB\r\n",
 		rejected, active) && !rejected && active,
-		"global endpoint-bound formula loudness must be safely bypassed without rejecting subsequent scoped filters");
+		"global endpoint-bound formula loudness must be allowed without rejecting subsequent scoped filters");
 
 	for (const char* command : {
 		"VSTPlugin: Library \\\"missing.dll\\\"\r\n",
@@ -2644,6 +2645,19 @@ void testAsioLiveUserConfigStructureAppliesEffects()
 		return;
 	}
 
+	HANDLE takeoverMapping = HibikiTakeoverIpc::createOrOpenSharedMapping(true);
+	HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;
+	if (takeoverMapping != NULL)
+	{
+		takeoverShared = static_cast<HibikiVolumeTakeoverSharedData*>(
+			MapViewOfFile(takeoverMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(HibikiVolumeTakeoverSharedData)));
+		if (takeoverShared)
+		{
+			HibikiTakeoverIpc::writeTakeoverSnapshot(
+				takeoverShared, true, 0.0, 1.0, false, L"", GetCurrentProcessId());
+		}
+	}
+
 	FilterEngine engine;
 	engine.setProcessingPolicy(FilterEngine::ProcessingPolicy::AsioCallbackSafe);
 	const std::wstring composite =
@@ -2651,7 +2665,7 @@ void testAsioLiveUserConfigStructureAppliesEffects()
 	engine.setDeviceInfo(
 		false, true, L"Hibiki EQAPO", L"N300 Minifuse 1",
 		L"{126e31a0-bb22-4715-8a7d-7e3d5cf0cb96}", composite);
-	engine.initialize(48000.0F, 2, 2, 2, 0x3, 4, tempPath);
+	engine.initialize(48000.0F, 2, 2, 2, 0x3, 480, tempPath);
 
 	check(!engine.rejectedUnsafeConfiguration(),
 		"endpoint-bound loudness must not cause unsafe configuration rejection in ASIO");
@@ -2668,7 +2682,44 @@ void testAsioLiveUserConfigStructureAppliesEffects()
 
 	const double expectedLinear = std::pow(10.0, -12.2 / 20.0);
 	check(std::abs(outputLeft[0] - expectedLinear) < 1e-4,
-		"ASIO output must apply Preamp from matched device section and not unrelated sections");
+		"ASIO output must apply Preamp at full takeover volume");
+
+	if (takeoverShared)
+	{
+		HibikiTakeoverIpc::writeTakeoverSnapshot(
+			takeoverShared, true, -6.020599913279624, 0.5, false, L"", GetCurrentProcessId());
+
+		bool volumeFollowObserved = false;
+		const double expectedAttenuated = expectedLinear * 0.125; // 0.5^3 for Cubic taper
+		for (int attempt = 0; attempt < 30; ++attempt)
+		{
+			Sleep(15);
+			std::array<double, 480> rampInLeft;
+			std::array<double, 480> rampInRight;
+			std::array<double, 480> rampOutLeft;
+			std::array<double, 480> rampOutRight;
+			rampInLeft.fill(1.0);
+			rampInRight.fill(1.0);
+			double* rIn[] = {rampInLeft.data(), rampInRight.data()};
+			double* rOut[] = {rampOutLeft.data(), rampOutRight.data()};
+			engine.process(rOut, rIn, 480);
+			if (std::abs(rampOutLeft[479] - expectedAttenuated) < 1e-3)
+			{
+				volumeFollowObserved = true;
+				break;
+			}
+		}
+		check(volumeFollowObserved,
+			"ASIO output must dynamically follow VolumeTakeover attenuation");
+
+		HibikiTakeoverIpc::writeTakeoverSnapshot(
+			takeoverShared, false, 0.0, 1.0, false, L"", GetCurrentProcessId());
+		UnmapViewOfFile(takeoverShared);
+	}
+	if (takeoverMapping != NULL)
+	{
+		CloseHandle(takeoverMapping);
+	}
 
 	DeleteFileW(tempPath);
 }

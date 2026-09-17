@@ -918,12 +918,12 @@ void FilterEngine::loadConfigFile(const wstring& path)
 				{
 					if (processingPolicy == ProcessingPolicy::AsioCallbackSafe &&
 						factory == asioManualLoudnessFactory &&
-						key == L"LoudnessCorrection" &&
-						!isExplicitManualLoudness(value))
+						key == L"LoudnessCorrection")
 					{
-						LogF(L"ASIO callback-safe policy bypassed endpoint-bound loudness correction");
-						key.clear();
-						break;
+						if (isExplicitManualLoudness(value))
+							TraceF(L"ASIO callback-safe policy loaded manual loudness correction");
+						else
+							TraceF(L"ASIO callback-safe policy loaded dynamic volume-following loudness correction");
 					}
 					if (processingPolicy == ProcessingPolicy::AsioCallbackSafe &&
 						factory == asioOriginalLoudnessFactory &&

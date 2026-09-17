@@ -2,11 +2,12 @@
 
 ## Unreleased
 
-- Restored Equalizer APO effect processing in transparent ASIO proxy mode:
-  - Resolved configuration load failure where endpoint-bound `LoudnessCorrection` and `LoudnessCorrectionOriginal` aborted configuration loading in `FilterEngine::ProcessingPolicy::AsioCallbackSafe` mode, ensuring root calibration files (`config.txt` / `none.txt`) load successfully.
-  - Implemented safe bypass for endpoint-bound loudness commands without explicit manual `Volume`, keeping subsequent scoped filters (`Preamp`, `Convolution`) active.
+- Restored Equalizer APO effect processing and enabled dynamic loudness & VolumeFollow in transparent ASIO proxy mode:
+  - Enabled formula `LoudnessCorrection` with dynamic volume tracking and `VolumeFollow` attenuation (Linear, Logarithmic, Windows, Cubic, Perceptual) in `FilterEngine::ProcessingPolicy::AsioCallbackSafe` mode.
+  - Connected DAW ASIO monitoring to Scheme B Volume Takeover shared memory (`Global\Hibiki_VolumeTakeover_v1`) and Windows physical endpoints, allowing multimedia volume keys and Windows volume sliders to dynamically control DAW output volume and formula equal-loudness curves without audio callback latency or blocking.
+  - Enhanced `VolumeController::readTakeoverState` endpoint matching to seamlessly correlate raw GUIDs and full `{0.0.0.00000000}.{GUID}` Windows MMDevice IDs.
   - Synthesized composite device identity combining `Hibiki EQAPO`, the vendor driver name, and correlated Windows MMDevice endpoint friendly names and GUIDs, enabling `Device: <Endpoint>` scoped calibration rules to match correctly in DAW ASIO monitoring.
-  - Added native unit tests verifying composite device matching and live user configuration structure with Preamp gain attenuation.
+  - Added native unit tests verifying composite device matching, user configuration structure, and dynamic VolumeTakeover attenuation in ASIO.
 
 ## 3.1.5
 
