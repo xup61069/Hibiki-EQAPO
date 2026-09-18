@@ -36,24 +36,29 @@ struct HibikiVolumeTakeoverSharedData
 
 namespace HibikiTakeoverIpc
 {
+	inline std::wstring getTakeoverFilePath()
+	{
+		std::wstring path;
+		HKEY hKey = NULL;
+		if (RegOpenKeyExW(HKEY_LOCAL_MACHINE, L"SOFTWARE\\EqualizerAPO", 0, KEY_READ, &hKey) == ERROR_SUCCESS)
+		{
+			wchar_t buf[MAX_PATH] = {};
+			DWORD cbData = sizeof(buf);
+			if (RegQueryValueExW(hKey, L"ConfigPath", NULL, NULL, reinterpret_cast<LPBYTE>(buf), &cbData) == ERROR_SUCCESS)
+			{
+				path = buf;
+			}
+			RegCloseKey(hKey);
+		}
+		if (path.empty())
+		{
+			path = L"C:\\Program Files\\EqualizerAPO\\config";
+		}
+		return path + L"\\volume_takeover.dat";
+	}
+
 	inline HANDLE createOrOpenSharedMapping(bool forWriting = true)
 	{
-		if (!forWriting)
-		{
-			HANDLE mapping = OpenFileMappingW(
-				FILE_MAP_READ,
-				FALSE,
-				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
-			if (mapping == NULL)
-			{
-				mapping = OpenFileMappingW(
-					FILE_MAP_READ,
-					FALSE,
-					HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL);
-			}
-			return mapping;
-		}
-
 		PSECURITY_DESCRIPTOR sd = NULL;
 		SECURITY_ATTRIBUTES sa = {};
 		sa.nLength = sizeof(sa);
@@ -65,19 +70,129 @@ namespace HibikiTakeoverIpc
 			sa.lpSecurityDescriptor = sd;
 		}
 
-		HANDLE mapping = CreateFileMappingW(
-			INVALID_HANDLE_VALUE,
-			sa.lpSecurityDescriptor ? &sa : NULL,
-			PAGE_READWRITE,
-			0,
-			sizeof(HibikiVolumeTakeoverSharedData),
-			HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
+		std::wstring filePath = getTakeoverFilePath();
+		HANDLE mapping = NULL;
 
+		if (!forWriting)
+		{
+			// 1. Try Global named mapping first
+			mapping = OpenFileMappingW(
+				FILE_MAP_READ,
+				FALSE,
+				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL);
+
+			// 2. Try Local named mapping
+			if (mapping == NULL)
+			{
+				mapping = OpenFileMappingW(
+					FILE_MAP_READ,
+					FALSE,
+					HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
+			}
+
+			// 3. Try opening file-backed mapping from volume_takeover.dat (cross-session bridge for Session 0 audiodg.exe)
+			if (mapping == NULL)
+			{
+				HANDLE hFile = CreateFileW(
+					filePath.c_str(),
+					GENERIC_READ,
+					FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+					NULL,
+					OPEN_EXISTING,
+					FILE_ATTRIBUTE_NORMAL,
+					NULL);
+				if (hFile != INVALID_HANDLE_VALUE)
+				{
+					mapping = CreateFileMappingW(
+						hFile,
+						NULL,
+						PAGE_READONLY,
+						0,
+						sizeof(HibikiVolumeTakeoverSharedData),
+						NULL);
+					CloseHandle(hFile);
+				}
+			}
+
+			if (sd != NULL)
+			{
+				LocalFree(sd);
+			}
+			return mapping;
+		}
+
+		// Writer (Editor.exe):
+		// 1. Ensure file-backed mapping on volume_takeover.dat so Session 0 audiodg.exe can always access it
+		HANDLE hFile = CreateFileW(
+			filePath.c_str(),
+			GENERIC_READ | GENERIC_WRITE,
+			FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+			sa.lpSecurityDescriptor ? &sa : NULL,
+			OPEN_ALWAYS,
+			FILE_ATTRIBUTE_NORMAL,
+			NULL);
+		if (hFile != INVALID_HANDLE_VALUE)
+		{
+			DWORD fileSize = GetFileSize(hFile, NULL);
+			if (fileSize < sizeof(HibikiVolumeTakeoverSharedData))
+			{
+				SetFilePointer(hFile, sizeof(HibikiVolumeTakeoverSharedData), NULL, FILE_BEGIN);
+				SetEndOfFile(hFile);
+			}
+
+			// Try Global named mapping on this file first
+			mapping = CreateFileMappingW(
+				hFile,
+				sa.lpSecurityDescriptor ? &sa : NULL,
+				PAGE_READWRITE,
+				0,
+				sizeof(HibikiVolumeTakeoverSharedData),
+				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL);
+
+			if (mapping == NULL)
+			{
+				mapping = CreateFileMappingW(
+					hFile,
+					sa.lpSecurityDescriptor ? &sa : NULL,
+					PAGE_READWRITE,
+					0,
+					sizeof(HibikiVolumeTakeoverSharedData),
+					HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
+			}
+
+			if (mapping == NULL)
+			{
+				mapping = CreateFileMappingW(
+					hFile,
+					sa.lpSecurityDescriptor ? &sa : NULL,
+					PAGE_READWRITE,
+					0,
+					sizeof(HibikiVolumeTakeoverSharedData),
+					NULL);
+			}
+
+			CloseHandle(hFile);
+		}
+
+		// 2. Fallback to pure pagefile mappings if disk file failed
 		if (mapping == NULL)
 		{
-			mapping = OpenFileMappingW(
-				FILE_MAP_ALL_ACCESS,
-				FALSE,
+			mapping = CreateFileMappingW(
+				INVALID_HANDLE_VALUE,
+				sa.lpSecurityDescriptor ? &sa : NULL,
+				PAGE_READWRITE,
+				0,
+				sizeof(HibikiVolumeTakeoverSharedData),
+				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL);
+		}
+		if (mapping == NULL)
+		{
+			mapping = CreateFileMappingW(
+				INVALID_HANDLE_VALUE,
+				sa.lpSecurityDescriptor ? &sa : NULL,
+				PAGE_READWRITE,
+				0,
+				sizeof(HibikiVolumeTakeoverSharedData),
 				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
 		}
 

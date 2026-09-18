@@ -153,7 +153,8 @@ VolumeController::VolumeController(const std::wstring& endpointId)
 	  _takeoverMapping(NULL),
 	  _takeoverShared(NULL),
 	  _lastTakeoverSequence(0),
-	  _takeoverWasActive(false)
+	  _takeoverWasActive(false),
+	  _nextTakeoverCheckTick(0)
 {
 	HRESULT hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 	if (SUCCEEDED(hr))
@@ -185,6 +186,11 @@ void VolumeController::openTakeoverSharedMemory()
 	if (_takeoverShared != NULL)
 		return;
 
+	ULONGLONG now = GetTickCount64();
+	if (now < _nextTakeoverCheckTick)
+		return;
+	_nextTakeoverCheckTick = now + 500;
+
 	if (_takeoverMapping == NULL)
 	{
 		_takeoverMapping = HibikiTakeoverIpc::createOrOpenSharedMapping(false);
@@ -197,6 +203,11 @@ void VolumeController::openTakeoverSharedMemory()
 		{
 			CloseHandle(_takeoverMapping);
 			_takeoverMapping = NULL;
+		}
+		else
+		{
+			_lastTakeoverSequence = _takeoverShared->sequence;
+			_takeoverWasActive = (_takeoverShared->active != 0);
 		}
 	}
 }
@@ -215,6 +226,7 @@ void VolumeController::closeTakeoverSharedMemory()
 	}
 	_lastTakeoverSequence = 0;
 	_takeoverWasActive = false;
+	_nextTakeoverCheckTick = 0;
 }
 
 bool VolumeController::readTakeoverState(EndpointVolumeState& state)

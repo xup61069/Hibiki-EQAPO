@@ -64,4 +64,5 @@ private:
 	struct HibikiVolumeTakeoverSharedData* _takeoverShared;
 	uint64_t _lastTakeoverSequence;
 	bool _takeoverWasActive;
+	ULONGLONG _nextTakeoverCheckTick;
 };
