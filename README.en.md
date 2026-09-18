@@ -104,15 +104,17 @@ Device: Hibiki EQAPO
 Device: all
 ```
 
-The callback path uses a stricter safe-configuration policy. An active
+The callback path uses a strict callback-safe policy. An active
 `VSTPlugin:`, `OutProcVSTPlugin:`, `OutProcGain:`, `OutProcBiquad:`, `VUMeter:`,
-or original loudness-correction command rejects the complete new configuration.
-Formula loudness correction is active only when it contains an explicit fixed
-`Volume`; it never treats a Windows endpoint level as the interface's hardware
-knob. Commands in an inactive `Device:` or `If:` scope, and commands with
-`State 0`, may remain in the file. An unsafe initial configuration leaves output
-dry. If an unsafe configuration appears during reload, the last published safe
-configuration remains active instead of applying a partial file.
+or original loudness-correction command is safely bypassed. Formula loudness
+correction (`LoudnessCorrection:`) is fully supported with dynamic endpoint volume
+tracking, multimedia volume key takeover, and wideband `VolumeFollow` attenuation.
+The ASIO proxy synchronizes volume state via cross-session shared memory IPC,
+updating equal-loudness contours in real time without allocation, locking, or
+audio thread blocking. Commands in an inactive `Device:` or `If:` scope, and
+commands with `State 0`, may remain in the file. An unsafe initial configuration
+leaves output dry. If an unsafe configuration appears during reload, the last
+published safe configuration remains active instead of applying a partial file.
 
 To prevent a `directProcess=false` DAW worker from modifying a buffer while the
 hardware may be using it for DMA, the proxy exposes its own output buffers to the
@@ -288,13 +290,13 @@ The **APO follow target** readout is calculated from this row and its latest sou
 **Manual APO dB control and keyboard volume takeover are both supported.**
 
 - **Keyboard volume keys & OSD takeover (optional)**: Enable "Take over Windows volume keys & OSD" directly within the Loudness Correction panel, the main menu, or the system tray. A low-level keyboard hook intercepts media volume keys (Volume Up, Volume Down, Volume Mute) and displays a Windows 11 Fluent equal-loudness OSD.
-  - **Automatic mode**: Intercepted volume keys adjust the exact playback endpoint selected in Loudness Correction, displaying real-time volume %, attenuation dB, and the estimated equal-loudness phon.
-  - **Manual mode**: Volume keys directly adjust Hibiki EQAPO's internal "Manual volume (dB)" in 1.0 dB increments, leaving the Windows endpoint volume untouched (preserving bit-perfect full-scale output for external DACs) while APO handles wideband and equal-loudness attenuation.
+  - **Audiophile Single-Stage Attenuation (Scheme B)**: While takeover is active, the physical Windows endpoint is locked at 100% (0 dB, scalar 1.0, unmuted), ensuring the Windows Audio Engine outputs 0 dB digital attenuation, completely eliminating double attenuation between the OS and APO while delivering full-scale bit-perfect PCM to external DACs.
+  - **Cross-Session Shared Mapping**: The Editor intercepts volume adjustments and writes them to a file-backed shared memory IPC at `config\volume_takeover.dat`, bridging Session 0 Windows Audio Engine (`audiodg.exe`) and Session 1 DAW ASIO monitoring so that both standard Windows audio channels and ASIO monitoring channels respond to volume adjustments and dynamic equal-loudness correction simultaneously.
+  - **Automatic APO Attenuation Activation**: If `VolumeFollow` is set to Off when takeover is enabled, it automatically switches to `Follow dB` (or user-customized Perceptual / Cubic curves), letting Equalizer APO perform 64-bit floating-point digital volume attenuation with smooth 10 ms ramps.
+  - **Graceful Restoration**: Upon exiting the Editor or disabling takeover, the physical Windows endpoint volume is smoothly restored to the target listening level and mute state, preventing sudden volume jumps.
 - On a verified monitoring route without additional Windows attenuation, select manual volume and Follow dB. If Windows still attenuates the signal, both gains multiply.
 
-A background loop forcing 100% is insufficient: Windows may use software or hardware volume, and disabling, removing or bypassing APO (or routing audio around it) removes APO attenuation. There is no verified all-path takeover/recovery protocol, so the application does not unconditionally force full system volume or override hardware mute. Seamless takeover would require an independent master-volume controller, processing acknowledgement, endpoint/reboot recovery and a fail-safe gain stage independent of bypassable EQ.
-
-This feature is read-only and **never writes or moves the Windows volume control**. If Windows, an amplifier, or the speaker path already applies attenuation, enabling follow multiplies the two reductions and makes the result quieter; leave it **Off** when uncertain. If automatic follow has never obtained a valid snapshot at startup, output remains muted. A temporary read failure after a valid snapshot holds the last successful follow gain instead of jumping to 0 dB; recovery moves to the new value over 10 ms. Tonal correction separately follows the fail-closed behavior described below.
+When takeover is not enabled, this feature is read-only and **never writes or moves the Windows volume control**. If Windows, an amplifier, or the speaker path already applies attenuation, enabling follow multiplies the two reductions and makes the result quieter; leave it **Off** when uncertain. If automatic follow has never obtained a valid snapshot at startup, output remains muted. A temporary read failure after a valid snapshot holds the last successful follow gain instead of jumping to 0 dB; recovery moves to the new value over 10 ms. Tonal correction separately follows the fail-closed behavior described below.
 
 ## Interface and workflow
 

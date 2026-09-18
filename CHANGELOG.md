@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## 3.1.6
 
+- Synchronized volume takeover and dynamic loudness correction across standard Windows audio channels and ASIO proxy:
+  - Solved Windows NT Session isolation between Session 0 (`audiodg.exe`) and Session 1 (`Editor.exe` / DAW ASIO) by establishing a file-backed memory-mapped IPC bridge (`config\volume_takeover.dat`) with Everyone / AC DACL and Low-Integrity SACL, ensuring standard playback channels and DAW monitoring respond to volume takeover simultaneously.
+  - Added non-blocking 500 ms retry throttling and seqlock synchronization to `VolumeController::openTakeoverSharedMemory` to guarantee real-time audio thread safety without latency spikes.
 - Restored Equalizer APO effect processing and enabled dynamic loudness & VolumeFollow in transparent ASIO proxy mode:
   - Enabled formula `LoudnessCorrection` with dynamic volume tracking and `VolumeFollow` attenuation (Linear, Logarithmic, Windows, Cubic, Perceptual) in `FilterEngine::ProcessingPolicy::AsioCallbackSafe` mode.
-  - Connected DAW ASIO monitoring to Scheme B Volume Takeover shared memory (`Global\Hibiki_VolumeTakeover_v1`) and Windows physical endpoints, allowing multimedia volume keys and Windows volume sliders to dynamically control DAW output volume and formula equal-loudness curves without audio callback latency or blocking.
+  - Connected DAW ASIO monitoring to Scheme B Volume Takeover shared memory and Windows physical endpoints, allowing multimedia volume keys and Windows volume sliders to dynamically control DAW output volume and formula equal-loudness curves without audio callback latency or blocking.
   - Enhanced `VolumeController::readTakeoverState` endpoint matching to seamlessly correlate raw GUIDs and full `{0.0.0.00000000}.{GUID}` Windows MMDevice IDs.
   - Synthesized composite device identity combining `Hibiki EQAPO`, the vendor driver name, and correlated Windows MMDevice endpoint friendly names and GUIDs, enabling `Device: <Endpoint>` scoped calibration rules to match correctly in DAW ASIO monitoring.
   - Added native unit tests verifying composite device matching, user configuration structure, and dynamic VolumeTakeover attenuation in ASIO.

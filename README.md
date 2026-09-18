@@ -87,7 +87,7 @@ Device: Hibiki EQAPO
 Device: all
 ```
 
-ASIO callback 採較嚴格的安全設定。啟用中的 `VSTPlugin:`、`OutProcVSTPlugin:`、`OutProcGain:`、`OutProcBiquad:`、`VUMeter:` 與「響度校正（原版）」會拒絕整份新設定；公式版響度校正只有明確寫入固定 `Volume` 時可啟用，不會把 Windows endpoint 音量誤當成介面硬體旋鈕。位於不成立的 `Device:`／`If:` scope 或 `State 0` 的命令仍可保留。第一次載入不安全設定時輸出保持乾聲；之後若 reload 出現不安全設定，會繼續使用上一份已發布的安全設定，不套用半份設定。
+ASIO callback 採嚴格的 callback-safe 安全設定。啟用中的 `VSTPlugin:`、`OutProcVSTPlugin:`、`OutProcGain:`、`OutProcBiquad:`、`VUMeter:` 與「響度校正（原版）」會被安全略過；公式版響度校正（`LoudnessCorrection:`）則完整支援動態音量追蹤、多媒體音量鍵接管與 `VolumeFollow` 寬頻衰減。ASIO Proxy 透過跨 Session 記憶體映射 IPC 直接同步 Windows 端點或接管音量，在零配置、零鎖定與零阻塞下實時更新等響度輪廓。位於不成立的 `Device:`／`If:` scope 或 `State 0` 的命令仍可保留。第一次載入不安全設定時輸出保持乾聲；之後若 reload 出現不安全設定，會繼續使用上一份已發布的安全設定，不套用半份設定。
 
 為了讓 `directProcess=false` 的 DAW worker 不會和硬體 DMA 同時改到同一塊記憶體，proxy 讓 DAW 寫入自己擁有的 output buffers，完成校正後在下一次原廠 callback 才提交。因此固定增加一個 DAW 所選的 ASIO buffer block；啟動時先送出一個靜音 block，再依序播放已完成的資料。`getLatencies` 與支援的 internal-buffer 查詢都會回報這一層；`Delay:`、`Convolution:` 等濾鏡本身再增加的延遲與 tail 仍不會自動加入 host compensation。
 
@@ -175,13 +175,13 @@ UI 的「APO 跟隨目標」是本列設定與最新來源快照的計算值，�
 **手動 APO dB 控制與鍵盤音量接管均已提供。**
 
 - **鍵盤音量鍵與 OSD 接管（可選）**：在響度校正面板勾選「接管 Windows 音量鍵與 OSD」或從功能表／系統匣啟用後，將安裝全域鍵盤掛鉤攔截多媒體音量鍵（音量加、音量減、靜音），並顯示 Windows 11 Fluent 風格的等響度 OSD。
-  - **自動追蹤模式**：音量鍵精確調節響度校正所選定的端點音量，OSD 即時顯示當前端點音量（%）、衰減 dB 與參考響度 Phon 估算值。
-  - **手動音量模式**：音量鍵直接以 1.0 dB 步進調節 Hibiki EQAPO 的內部「手動音量 (dB)」，完全不觸動 Windows 系統端點音量（維持外接 DAC 的 Bit-perfect 全振幅輸出），由 APO 獨立負責音量與等響度衰減。
+  - **發燒級單一節點衰減（Scheme B）**：接管期間 Windows 實體端點固定鎖定於 100%（0 dB, scalar 1.0, 未靜音），使 Windows Audio Engine 輸出 0 dB 數位衰減，杜絕系統端點與 APO 之間的雙重疊加衰減，並向外接 DAC 提供高訊噪比的原始 PCM 振幅。
+  - **跨 Session 共享映射**：Editor 攔截音量並寫入位於 `config\volume_takeover.dat` 的記憶體映射 IPC，徹底打通 Session 0 的 Windows Audio Engine（`audiodg.exe`）與 Session 1 的 DAW ASIO 監聽，讓一般音訊通道與 ASIO 監聽通道皆可同步響應音量微調與動態等響度等化。
+  - **自動啟用 APO 衰減**：接管時若 `VolumeFollow` 為關閉，將自動切換為 `Follow dB`（或使用者自訂的聽感對數、三次電位器等曲線），由 Equalizer APO 以 64-bit 浮點精度與 10 ms 平滑斜率進行單一節點數位衰減。
+  - **安全還原**：退出 Editor 或關閉接管時，自動將 Windows 實體端點平滑復原至接管時的目標音量與靜音狀態，防止音量突變。
 - 在已確認 Windows 不另行衰減的監聽路由，選「手動音量」＋「依 dB 衰減」即可讓 APO 按輸入值控制；若 Windows 仍在衰減，兩者會相乘。
 
-不能只用背景輪詢把 Windows 強制拉回 100%：Windows 的音量可能由軟體或裝置硬體處理，而且 APO 被停用、移除、旁路或某條音訊路徑繞過時，APO 的衰減會消失。現有系統沒有可驗證的全路徑接管與失效復原協定，因此不把系統音量自動強制拉滿、不攔截使用者的硬體靜音。若將來實作無感接管，需要獨立主音量控制器、執行狀態確認、端點切換／重開機復原，以及獨立於可旁路 EQ 的失效安全增益級；不能用一個「鎖定 100%」開關取代這些保護。
-
-此功能只讀取端點狀態，**不會寫回或移動 Windows 音量**。若音訊路徑原本已經套用 Windows、擴大機或喇叭的衰減，再啟用跟隨會把兩份衰減相乘而變得更小；不確定時維持**關閉**。自動來源在啟動時若從未取得有效音量快照，啟用跟隨的輸出會先保持靜音；執行期間暫時讀取失敗則保留最後一次成功的跟隨增益，不會突然跳回 0 dB。來源恢復後再以 10 ms 平滑移到新值。音色校正本身仍依下方的失效安全流程暫停與恢復。
+未啟用接管時，此功能只讀取端點狀態，**不會寫回或移動 Windows 音量**。若音訊路徑原本已經套用 Windows、擴大機或喇叭的衰減，再啟用跟隨會把兩份衰減相乘而變得更小；不確定時維持**關閉**。自動來源在啟動時若從未取得有效音量快照，啟用跟隨的輸出會先保持靜音；執行期間暫時讀取失敗則保留最後一次成功的跟隨增益，不會突然跳回 0 dB。來源恢復後再以 10 ms 平滑移到新值。音色校正本身仍依下方的失效安全流程暫停與恢復。
 
 ## 介面與工作流程
 
