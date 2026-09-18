@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.1.7
+
+- Made the Loudness Volume OSD (`VolumeOsdWidget`) interactive and borderless:
+  - Added mouse press/drag support on the volume bar to set volume directly, quantized to integer percentage steps matching the volume keys; auto-hide pauses mid-drag and resumes on release.
+  - Added mute toggle by clicking the speaker icon; dragging while muted unmutes automatically.
+  - Removed the painted dual-ring accent border for a clean borderless card.
+  - Added `VolumeTakeoverManager::setVolumeScalar` covering manual volume, takeover, and direct endpoint modes.
+
 ## 3.1.6
 
 - Synchronized volume takeover and dynamic loudness correction across standard Windows audio channels and ASIO proxy:
