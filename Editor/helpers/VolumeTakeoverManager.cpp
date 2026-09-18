@@ -39,6 +39,11 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 
 	connect(&pollTimer, &QTimer::timeout, this, &VolumeTakeoverManager::checkVolumeChange);
 	pollTimer.start(250);
+
+	connect(osdWidget, &VolumeOsdWidget::volumeSliderDragged,
+		this, &VolumeTakeoverManager::setVolumeScalar);
+	connect(osdWidget, &VolumeOsdWidget::muteIconClicked,
+		this, &VolumeTakeoverManager::toggleMute);
 }
 
 VolumeTakeoverManager::~VolumeTakeoverManager()
@@ -421,6 +426,93 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 			double db = 0.0;
 			if (SUCCEEDED(volumeController->getVolume(db)))
 				state.levelDb = db;
+		}
+		lastState = state;
+		if (osdEnabled && osdWidget)
+		{
+			const double apoDb = calculateApoFollowTargetDb(state.levelDb, state.scalar, state.muted);
+			osdWidget->showVolume(
+				apoDb, state.scalar, state.muted,
+				calculateCurrentPhon(state.levelDb, state.scalar));
+		}
+		emit volumeChangedExternal(state.levelDb, state.scalar, state.muted);
+	}
+}
+
+void VolumeTakeoverManager::setVolumeScalar(double scalar)
+{
+	if (!std::isfinite(scalar))
+		return;
+
+	// Quantize to integer percentage (0..100) to match Windows master volume steps.
+	const int newPercent = std::clamp(static_cast<int>(std::round(scalar * 100.0)), 0, 100);
+	const double newScalar = newPercent / 100.0;
+	const double newLevelDb = (newPercent == 0) ? -100.0 : (newPercent - 100.0);
+
+	if (manualMode)
+	{
+		if (manualMuted && newScalar > 0.005)
+			manualMuted = false;
+		manualVolumeDb = newLevelDb;
+		takeoverLevelDb = manualVolumeDb;
+		takeoverScalar = newScalar;
+		takeoverMuted = manualMuted;
+		if (takeoverEnabled)
+		{
+			enforceWindowsVolume100();
+			publishTakeoverSharedData();
+		}
+		const double apoDb = calculateApoFollowTargetDb(manualVolumeDb, newScalar, manualMuted);
+		if (osdEnabled && osdWidget)
+		{
+			osdWidget->showVolume(
+				apoDb, newScalar, manualMuted,
+				manualMuted ? 0.0 : calculateCurrentPhon(manualVolumeDb, newScalar));
+		}
+		emit volumeChangedExternal(manualVolumeDb, newScalar, manualMuted);
+		return;
+	}
+
+	if (takeoverEnabled)
+	{
+		if (takeoverMuted && newScalar > 0.005)
+			takeoverMuted = false;
+		takeoverScalar = newScalar;
+		takeoverLevelDb = newLevelDb;
+		lastState.scalar = newScalar;
+		lastState.levelDb = newLevelDb;
+		lastState.muted = takeoverMuted;
+
+		enforceWindowsVolume100();
+		publishTakeoverSharedData();
+
+		if (osdEnabled && osdWidget)
+		{
+			const double apoDb = calculateApoFollowTargetDb(newLevelDb, newScalar, takeoverMuted);
+			osdWidget->showVolume(
+				apoDb, newScalar, takeoverMuted,
+				calculateCurrentPhon(newLevelDb, newScalar));
+		}
+		emit volumeChangedExternal(newLevelDb, newScalar, takeoverMuted);
+		return;
+	}
+
+	if (!volumeController)
+		return;
+
+	if (SUCCEEDED(volumeController->setVolumeScalar(newScalar)))
+	{
+		EndpointVolumeState state;
+		if (FAILED(volumeController->getVolumeState(state)))
+		{
+			state.scalar = newScalar;
+			state.levelDb = newLevelDb;
+			state.muted = false;
+		}
+		if (state.muted && newScalar > 0.005)
+		{
+			volumeController->setMute(false);
+			state.muted = false;
 		}
 		lastState = state;
 		if (osdEnabled && osdWidget)

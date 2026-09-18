@@ -12,6 +12,7 @@
 #include <QGuiApplication>
 #include <QScreen>
 #include <QCursor>
+#include <QMouseEvent>
 #include <QEasingCurve>
 #include <algorithm>
 #include <cmath>
@@ -28,9 +29,10 @@ VolumeOsdWidget::VolumeOsdWidget(QWidget* parent)
 {
 	setAttribute(Qt::WA_TranslucentBackground);
 	setAttribute(Qt::WA_ShowWithoutActivating);
-	setAttribute(Qt::WA_TransparentForMouseEvents);
 
 	setFixedSize(GUIHelper::scale(QSize(340, 88)));
+	setCursor(Qt::PointingHandCursor);
+	setMouseTracking(true);
 
 	hideTimer.setSingleShot(true);
 	connect(&hideTimer, &QTimer::timeout, this, &VolumeOsdWidget::startFadeOut);
@@ -57,6 +59,106 @@ void VolumeOsdWidget::updateGeometryPosition()
 	const int baseY = geom.y() + geom.height() - height() - GUIHelper::scale(80);
 	const int targetX = geom.x() + (geom.width() - width()) / 2;
 	move(targetX, baseY);
+}
+
+QRect VolumeOsdWidget::volumeBarHitRect() const
+{
+	const int barX = GUIHelper::scale(20);
+	const int barY = GUIHelper::scale(65);
+	const int barW = width() - barX * 2;
+	const int barH = GUIHelper::scale(7);
+	// Generous vertical grab area so the thin bar is easy to drag.
+	return QRect(barX, barY - GUIHelper::scale(10), barW, barH + GUIHelper::scale(20));
+}
+
+QRect VolumeOsdWidget::muteIconHitRect() const
+{
+	return QRect(GUIHelper::scale(14), GUIHelper::scale(27),
+		GUIHelper::scale(32), GUIHelper::scale(32));
+}
+
+double VolumeOsdWidget::scalarForBarX(int x) const
+{
+	const int barX = GUIHelper::scale(20);
+	const int barW = width() - barX * 2;
+	if (barW <= 0)
+		return 0.0;
+	const double scalar = static_cast<double>(x - barX) / static_cast<double>(barW);
+	return (std::max)(0.0, (std::min)(1.0, scalar));
+}
+
+void VolumeOsdWidget::handleBarPress(const QPoint& pos)
+{
+	const double scalar = scalarForBarX(pos.x());
+	scalarAnimation.stop();
+	targetScalar = scalar;
+	animatedScalar = scalar;
+	if (isMuted && scalar > 0.005)
+		isMuted = false;
+	update();
+	emit volumeSliderDragged(scalar);
+}
+
+void VolumeOsdWidget::mousePressEvent(QMouseEvent* event)
+{
+	if (event->button() == Qt::LeftButton)
+	{
+		if (volumeBarHitRect().contains(event->pos()))
+		{
+			isDraggingVolume = true;
+			hideTimer.stop();
+			fadeAnimation.stop();
+			isFadingOut = false;
+			if (displayOpacity < 0.99)
+			{
+				displayOpacity = 1.0;
+				setWindowOpacity(1.0);
+			}
+			handleBarPress(event->pos());
+			grabMouse();
+			event->accept();
+			return;
+		}
+		if (muteIconHitRect().contains(event->pos()))
+		{
+			hideTimer.stop();
+			hideTimer.start(1800);
+			emit muteIconClicked();
+			event->accept();
+			return;
+		}
+	}
+	QWidget::mousePressEvent(event);
+}
+
+void VolumeOsdWidget::mouseMoveEvent(QMouseEvent* event)
+{
+	if (isDraggingVolume)
+	{
+		handleBarPress(event->pos());
+		event->accept();
+		return;
+	}
+	const bool hoverBar = volumeBarHitRect().contains(event->pos())
+		|| muteIconHitRect().contains(event->pos());
+	setCursor(hoverBar ? Qt::PointingHandCursor : Qt::ArrowCursor);
+	QWidget::mouseMoveEvent(event);
+}
+
+void VolumeOsdWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+	if (isDraggingVolume && event->button() == Qt::LeftButton)
+	{
+		handleBarPress(event->pos());
+		isDraggingVolume = false;
+		releaseMouse();
+		setCursor(Qt::ArrowCursor);
+		hideTimer.stop();
+		hideTimer.start(1800);
+		event->accept();
+		return;
+	}
+	QWidget::mouseReleaseEvent(event);
 }
 
 void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, double phon)
@@ -136,6 +238,13 @@ void VolumeOsdWidget::startFadeOut()
 {
 	if (!isVisible())
 		return;
+
+	// Never fade away mid-drag; retry shortly after the pointer is released.
+	if (isDraggingVolume)
+	{
+		hideTimer.start(300);
+		return;
+	}
 
 	if (!StudioMotion::allowed())
 	{
@@ -269,15 +378,6 @@ void VolumeOsdWidget::paintEvent(QPaintEvent* event)
 		? QColor(22, 25, 32, 242)
 		: QColor(252, 253, 255, 246);
 	painter.fillPath(cardPath, bgColor);
-
-	// Multi-layer ambient accent border
-	const QColor accentGlow = QColor(accent.red(), accent.green(), accent.blue(), darkMode ? 45 : 35);
-	painter.setPen(QPen(accentGlow, GUIHelper::scale(3.0)));
-	painter.drawPath(cardPath);
-
-	const QColor accentBorder = QColor(accent.red(), accent.green(), accent.blue(), darkMode ? 140 : 160);
-	painter.setPen(QPen(accentBorder, GUIHelper::scale(1.2)));
-	painter.drawPath(cardPath);
 
 	// Brand title: matching Windows Accent Color
 	QFont titleFont = font();
