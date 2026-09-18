@@ -1,8 +1,27 @@
-# AI 交接快照：Hibiki EQAPO v3.1.6（打通跨 Session 檔案映射 IPC，ASIO 監聽與一般通道同步等響度校正發布）
+# AI 交接快照：Hibiki EQAPO v3.1.7（OSD 音量條可滑鼠拖曳、無邊框卡片、README 首圖）
 
 最後更新：2026-09-18（Asia/Taipei）
 
-## 本輪狀態：無 active WIP（已發布 v3.1.6 並完成驗證）
+## 本輪狀態：v3.1.7 已打 tag 推送，GitHub Release workflow 執行中；本機已安裝 3.1.7
+
+- 使用者需求「OSD 讓滑鼠能拖動音量條、不要邊框、改完裝好」＋「整理、合併、推送、發版、更新 README（前面放 Editor 截圖）」：
+  1. **OSD 可拖曳、無邊框**（`Editor/widgets/VolumeOsdWidget.*`、`Editor/helpers/VolumeTakeoverManager.*`）：
+     - 拿掉 `WA_TransparentForMouseEvents`；音量條可滑鼠點按／按住拖曳（加寬抓取區），拖曳中暫停自動隱藏、放開後重啟 1.8 秒計時。
+     - 點喇叭圖示切靜音；拖曳中有音量自動解除靜音。
+     - 刪除雙層 accent 光暈邊框繪製，只留圓角底色卡片。
+     - 新增 `VolumeTakeoverManager::setVolumeScalar`，量化到整數百分比，覆蓋 manual／takeover／直接端點三種模式。
+  2. **整理合併推送**：遠端本地原本就乾淨（僅 main、無 stash、單一 worktree）；OSD 改動經 `codex/osd-draggable-borderless` 短期分支合併推送，分支已刪。
+  3. **升版 v3.1.7**：同步 `version.h`、`vcpkg.json`、`.github/workflows/release.yml`、`tests/test_loudness_safety_contract.py`、`CHANGELOG.md`（新增 `## 3.1.7` 條目）。
+  4. **README**：中英兩份都在標題徽章下方放入 `docs/images/editor-overview.png`（使用者提供的 Snipaste 截圖，284 KB，底部可見無邊框 OSD）；OSD 條目加註滑鼠拖曳與喇叭靜音。首行、`[CHANGELOG.md]` 連結、無版本號等契約保持。
+  5. **發版**：已推送 annotated tag `v3.1.7`，`Release Hibiki EQAPO` workflow 在 GitHub 執行中（約 30 分鐘）；本機已用 `Setup\Hibiki-EQAPO-x64-3.1.7.exe /S` 安裝（exit 0），Editor 3.1.7 冒煙啟動正常。
+- 驗證：411 項 Python 測試全過（410 passed, 1 skipped：`test_built_host_cold_starts_and_hands_off`，Win32 error 5 建 global mapping，環境權限因素）；`git diff --check` 乾淨；`test-public-history.ps1 -Revision HEAD` 通過；`test-runtime-loudness.ps1` PASS；3.1.7 安裝檔 SHA-256: `696cd3b685c2fb5f80d0c98ba4157001189e27938dfeb39357e30e3d931f38b3`。
+- 注意：截圖內含使用者本機裝置名與路徑（MR5 - Volt 1、Minifuse 1、G:\Share\N300.wav）；若要去識別化再換圖。main push 會觸發 Build workflow，tag push 觸發 Release workflow。
+
+---
+
+# 歷史快照：v3.1.6（打通跨 Session 檔案映射 IPC，ASIO 監聽與一般通道同步等響度校正發布）
+
+- v3.1.6 已發布並完成驗證，內容保留如下：
 
 - 本輪已徹底解決使用者回報之「現在變成ASIO正常 一般通道響度校正沒反應 都要有作用」以及發版需求：
   1. **跨 Session 檔案映射 IPC 徹底打通 Session 0 與 Session 1**：
