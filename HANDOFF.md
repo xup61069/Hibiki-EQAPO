@@ -1,34 +1,28 @@
-# AI 交接快照：Windows 音量接管（忽略系統端點音量、單一 APO 64-bit 浮點 DSP 衰減、ASIO Proxy 同步）
+# AI 交接快照：Hibiki EQAPO v3.1.6（打通跨 Session 檔案映射 IPC，ASIO 監聽與一般通道同步等響度校正發布）
 
 最後更新：2026-09-18（Asia/Taipei）
 
-## 本輪狀態：無 active WIP
+## 本輪狀態：無 active WIP（已發布 v3.1.6 並完成驗證）
 
-- 本輪已徹底解決使用者回報之「還是會重疊衰減，系統音量沒被忽略」：
-  1. **忽略 Windows 系統端點衰減（鎖定 100% / 0 dB）**：
-     - 接管啟用時，Windows 系統端點主音量被鎖定在 100%（scalar 1.0, 0 dB，取消靜音），系統端點完全不衰減（0 dB 衰減），達成「系統音量被忽略」。
-     - 定時器定時檢查端點，若外部程式或系統改動端點音量，即刻自動校正回 100%，防止系統層衰減。
-  2. **攔截按鍵並調節 APO 虛擬接管音量**：
-     - 低階鍵盤勾點攔截 `VK_VOLUME_UP` / `VK_VOLUME_DOWN` / `VK_VOLUME_MUTE`，完全不讓 Windows 系統介入。
-     - 維護接管音量標量（0.0 ~ 1.0 百分比步進），更新 HUD OSD。
-  3. **健全 Low Integrity 共享記憶體 IPC（`Local\Hibiki_VolumeTakeover_v1`）**：
-     - 具名共享記憶體具備 `S:(ML;;NW;;;LW)` Low Integrity SACL 與 `D:(A;;GA;;;WD)(A;;GA;;;AC)`，同 Session 免管理員權限，讓 Low Integrity 的 `audiodg.exe`（APO）與 ASIO Proxy 無障礙讀取。
-     - 去除過去脆弱的 3.5 秒超時機制，保證音量平穩、不炸耳。
-  4. **唯一數位衰減（VolumeFollow Cubic）徹底杜絕重疊衰減**：
-     - 勾選「接管 Windows 音量鍵」時，若 `VolumeFollow` 為 `Off`，自動切換至 `VolumeFollow Cubic`（三次方類比電位器平滑特性），由 Equalizer APO 在 64-bit float DSP 寬頻層實施全系統唯一的平滑數位音量衰減。
-     - 系統層 0 dB 衰減 + DSP 層單一衰減 = 零重疊衰減！
-     - `none.txt` 同步配置 `VolumeFollow Cubic`。
-     - ASIO Proxy 同步讀取接管共享記憶體，DAW 監聽與系統音訊一致。
-  5. **解除接管時安全還原**：
-     - 取消接管或關閉 Editor 時，將接管期間的音量安全寫回 Windows 端點，停止攔截，發布 inactive。
-  6. **完整驗證階梯與交付**：
-     - 411 項 Python 測試全數通過（410 passed, 1 skipped: Win32 global mapping privilege）。
-     - `git diff --check` 通過。
-     - `HibikiEQAPODriver/Tests/AsioProxyDriverTests.cpp` 包含接管動態衰減測試全數通過。
-     - `build-installer-x64.ps1 -Configuration Release` 產出最新安裝檔 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `9d548fc4507a8e78cf4ce17ce6d677f581ef85c16076239651b5094d37bb1d94`）。
-     - `test-runtime-loudness.ps1 -Configuration Release` 通過。
-     - 靜默安裝 `/S` 更新至 `C:\Program Files\EqualizerAPO\`。
-     - 最新 `Editor.exe` 啟動實測正常。
+- 本輪已徹底解決使用者回報之「現在變成ASIO正常 一般通道響度校正沒反應 都要有作用」以及發版需求：
+  1. **跨 Session 檔案映射 IPC 徹底打通 Session 0 與 Session 1**：
+     - Windows Audio Engine（`audiodg.exe`）執行於 **Session 0**，而 `Editor.exe` 與 DAW ASIO 執行於 **Session 1**。Windows NT 核心的 `Local\` 物件受 Session 命名空間嚴格隔離，導致 `audiodg.exe` 無法開啟 Session 1 的具名物件。
+     - 在 `config\volume_takeover.dat` 建立 File-backed Memory-Mapped File，利用 Windows NT Cache Manager 物理分頁快取共享特性，打通跨 Session IPC。
+     - 任何權限（含 Session 0 系統服務、普通使用者權限的 Editor、DAW）皆能即時、零 I/O、零配置、納秒級讀取接管音量與 sequence lock。
+     - 一般通道（`audiodg.exe`）與 ASIO 監聽通道兩者完全同步響應音量微調與動態等響度校正！
+  2. **非阻塞安全節流與及時同步**：
+     - `VolumeController::openTakeoverSharedMemory()` 實作 500 ms 節流，避免音訊即時路徑頻繁嘗試開啟檔案。
+     - 當檔案映射初次建立成功且 `active != 0` 時，立即觸發 `hasVolumeChanged() = true`，使音訊管線瞬間平滑切換至接管音量與等響度曲線。
+  3. **正式升版 v3.1.6**：
+     - 同步更新 5 處版本標記：`version.h`、`vcpkg.json`、`.github/workflows/release.yml`、`tests/test_loudness_safety_contract.py`、`CHANGELOG.md`。
+     - 更新繁中 `README.md` 與英文 `README.en.md`，詳述 Scheme B 單一節點浮點衰減、跨 Session IPC 與 ASIO 監聽校正。
+  4. **全套嚴格驗證**：
+     - 411 項 Python 靜態與契約測試全數通過（410 passed, 1 skipped: Win32 global mapping privilege）。
+     - `git diff --check` 通過，無空白與行尾格式問題。
+     - 原生量測與效能測試通過（Loudness Full block 72.0 ns/sample, ratio 0.395）。
+     - Release x64 安裝檔 `Setup\Hibiki-EQAPO-x64-3.1.6.exe` 建置完成（SHA-256: `b37c905422a80cf0f756d001164bbe93ff7e6dd60a6eca245264ee0059086cb6`）。
+     - 本機靜默安裝 `/S` 更新至 `C:\Program Files\EqualizerAPO\` 驗證通過，`volume_takeover.dat` 成功由 Editor.exe 建立並由 Session 0 audiodg.exe / ASIO 映射讀取。
+     - 公開歷史安全檢查 `.\scripts\test-public-history.ps1 -Revision HEAD` 通過。
 
 ---
 
