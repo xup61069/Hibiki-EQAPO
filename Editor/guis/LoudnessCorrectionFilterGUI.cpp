@@ -192,7 +192,7 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 			if (enabled && getVolumeFollowMode() == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
 			{
 				int followIndex = ui->volumeFollowComboBox->findData(
-					static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS),
+					static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC),
 					Qt::UserRole);
 				if (followIndex >= 0)
 					ui->volumeFollowComboBox->setCurrentIndex(followIndex);
@@ -533,7 +533,7 @@ void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled(bool checked
 	if (checked && getVolumeFollowMode() == LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_OFF)
 	{
 		int followIndex = ui->volumeFollowComboBox->findData(
-			static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_WINDOWS),
+			static_cast<int>(LoudnessCorrectionFilter::FilterParameters::VOLUME_FOLLOW_CUBIC),
 			Qt::UserRole);
 		if (followIndex >= 0)
 			ui->volumeFollowComboBox->setCurrentIndex(followIndex);

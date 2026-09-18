@@ -136,7 +136,8 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertNotIn("updateGeometryPosition()", fade_changed)
         self.assertNotIn("move(", fade_changed)
 
-    def test_volume_takeover_scheme_b_shared_memory_and_lock_contract(self):
+    def test_volume_takeover_and_follow_contract(self):
+        self.assertTrue((ROOT / "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h").exists())
         shared_header = (ROOT / "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h").read_text(encoding="utf-8")
         vc_header = (ROOT / "filters/loudnessCorrection/VolumeController.h").read_text(encoding="utf-8")
         vc_source = (ROOT / "filters/loudnessCorrection/VolumeController.cpp").read_text(encoding="utf-8")
@@ -152,9 +153,10 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn("readTakeoverSnapshot(", shared_header)
         self.assertIn("writeTakeoverSnapshot(", shared_header)
 
-        # 2. VolumeController implements takeover shared memory path
+        # 2. VolumeController implements takeover shared memory path and real endpoint reader
         self.assertIn("bool isTakeoverActive() const;", vc_header)
         self.assertIn("bool readTakeoverState(", vc_header)
+        self.assertIn("HRESULT getRealEndpointVolumeState(", vc_header)
         self.assertIn("readTakeoverState(takeoverState)", vc_source)
         self.assertIn("openTakeoverSharedMemory()", vc_source)
         self.assertIn("closeTakeoverSharedMemory()", vc_source)
@@ -169,11 +171,16 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn("volumeController->setVolumeScalar(takeoverScalar);", mgr_source)
         self.assertIn("volumeController->setMute(takeoverMuted);", mgr_source)
 
-        # 4. LoudnessCorrectionFilterGUI activates VolumeFollow if it was Off when takeover is enabled
+        # 4. VolumeTakeoverManager computes APO follow target dB and phon for HUD OSD
+        self.assertIn("calculateApoFollowTargetDb", mgr_source)
+        self.assertIn("calculateCurrentPhon", mgr_source)
+        self.assertIn("osdWidget->showVolume", mgr_source)
+
+        # 5. LoudnessCorrectionFilterGUI activates VolumeFollow Cubic if it was Off when takeover is enabled
         toggle = gui_source.split("void LoudnessCorrectionFilterGUI::on_takeoverVolumeCheckBox_toggled", 1)[1].split(
             "void LoudnessCorrectionFilterGUI::on_fastEngineCheckBox_toggled", 1
         )[0]
-        self.assertIn("VOLUME_FOLLOW_WINDOWS", toggle)
+        self.assertIn("VOLUME_FOLLOW_CUBIC", toggle)
         self.assertIn("volumeFollowComboBox->setCurrentIndex", toggle)
 
 

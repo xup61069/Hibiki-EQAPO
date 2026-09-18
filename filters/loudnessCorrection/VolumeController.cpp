@@ -122,7 +122,7 @@ public:
 
 	HRESULT STDMETHODCALLTYPE OnNotify(PAUDIO_VOLUME_NOTIFICATION_DATA pNotify)
 	{
-		if (pNotify && !IsEqualGUID(pNotify->guidEventContext, HIBIKI_VOLUME_EVENT_CONTEXT))
+		if (pNotify)
 			_changed.store(true, std::memory_order_release);
 		return S_OK;
 	}
@@ -230,12 +230,6 @@ bool VolumeController::readTakeoverState(EndpointVolumeState& state)
 
 	if (snap.active == 0)
 		return false;
-
-	ULONGLONG now = GetTickCount64();
-	if (snap.lastHeartbeatTick > 0 && now >= snap.lastHeartbeatTick && (now - snap.lastHeartbeatTick) > 3500)
-	{
-		return false;
-	}
 
 	if (snap.endpointId[0] != L'\0' && !_requestedEndpointId.empty())
 	{
@@ -430,12 +424,6 @@ HRESULT VolumeController::getVolume(double& currentVolume)
 		return S_OK;
 	}
 
-	if (isTakeoverActive())
-	{
-		currentVolume = _lastVolume;
-		return E_FAIL;
-	}
-
 	if (!refreshEndpointIfChanged())
 	{
 		currentVolume = _lastVolume;
@@ -481,13 +469,13 @@ HRESULT VolumeController::getVolumeState(EndpointVolumeState& state)
 		_takeoverWasActive = true;
 		return S_OK;
 	}
-
-	if (isTakeoverActive())
-	{
-		return E_FAIL;
-	}
 	_takeoverWasActive = false;
 
+	return getRealEndpointVolumeState(state);
+}
+
+HRESULT VolumeController::getRealEndpointVolumeState(EndpointVolumeState& state)
+{
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (_endpointVolume == NULL && !initEndpoint())
@@ -620,11 +608,6 @@ HRESULT VolumeController::getMute(bool& mute)
 		return S_OK;
 	}
 
-	if (isTakeoverActive())
-	{
-		return E_FAIL;
-	}
-
 	if (!refreshEndpointIfChanged())
 		return E_FAIL;
 	if (!_endpointVolume && !initEndpoint())
@@ -644,11 +627,6 @@ HRESULT VolumeController::getVolumeScalar(double& scalar)
 	{
 		scalar = takeoverState.scalar;
 		return S_OK;
-	}
-
-	if (isTakeoverActive())
-	{
-		return E_FAIL;
 	}
 
 	if (!refreshEndpointIfChanged())

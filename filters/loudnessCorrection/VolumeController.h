@@ -29,6 +29,7 @@ public:
 	~VolumeController();
 	HRESULT getVolume(double& currentVolume);
 	HRESULT getVolumeState(EndpointVolumeState& state);
+	HRESULT getRealEndpointVolumeState(EndpointVolumeState& state);
 	HRESULT setVolume(double volume);
 	HRESULT setVolumeScalar(double scalar);
 	HRESULT setMute(bool mute);

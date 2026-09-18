@@ -1,26 +1,34 @@
-# AI 交接快照：透明 ASIO Proxy 效果還原、音量接管加固與 VolumeFollow 動態音量跟隨
+# AI 交接快照：Windows 音量接管（忽略系統端點音量、單一 APO 64-bit 浮點 DSP 衰減、ASIO Proxy 同步）
 
-最後更新：2026-09-17（Asia/Taipei）
+最後更新：2026-09-18（Asia/Taipei）
 
 ## 本輪狀態：無 active WIP
 
-- 本輪已徹底定位並修復「APO音量跟隨衰減壞掉了」以及音量接管（Volume Takeover）相關之衰減與防爆音問題：
-  1. **ASIO 模式下還原 APO 濾鏡與動態 LoudnessCorrection 處理**：
-     - 修復 ASIO 回呼安全白名單，讓 Preamp、Convolution（IR 卷積）、Delay、ParametricEQ 等非阻塞濾鏡正常在 DAW ASIO 監聽串流中執行。
-     - 實作複合裝置識別碼（包含 `Hibiki EQAPO`、ASIO Vendor 名稱、關聯 Windows MMDevice 友好名稱與 GUID），使使用者設定檔中具備 `Device: <名稱>` 作用域的校準設定在 ASIO 監聽下正確匹配。
-     - 在 `FilterEngine::ProcessingPolicy::AsioCallbackSafe` 模式下，允許公式版響度校正（`factory == asioManualLoudnessFactory`）無論是否指定手動 `Volume` 皆正常載入。
-  2. **音量接管端點匹配、低完整性 IPC 與防炸耳安全契約加固**：
-     - **端點匹配**：修正 `VolumeController::readTakeoverState`，當設定檔為全域 `Binding All` 或運行於 ASIO Proxy 模式（`_requestedEndpointId.empty()`）時，自動接受接管快照，不再因 Editor 選取之端點與實體預設端點不符而錯誤拒絕。
-     - **低完整性安全描述元**：在 `HibikiVolumeTakeoverShared.h` 之 SDDL 加入 `S:(ML;;NW;;;LW)`，並在唯讀模式直接使用 `OpenFileMappingW(FILE_MAP_READ)`，確保沙盒化低完整性 Windows 音訊引擎（`audiodg.exe`）能順暢開啟並讀取共享記憶體。
-     - **防炸耳契約**：在 `VolumeController::getVolumeState` 等函數中，當音量接管已啟動但 Heartbeat 超時（> 3.5s）或快照無效時，嚴禁 fallback 讀取鎖定為 100% 的 Windows 實體端點；一律回傳 `E_FAIL` 觸發安全保持機制，保留最後已知衰減增益（Keep Last Known Gain），絕不跳回 unity (0 dB) 爆音。
-     - **Editor 偏好設定一致性**：修復 `LoudnessCorrectionFilterGUI` 中 `takeoverVolumeKeys` 寫入註冊表路徑，統一使用 `EDITOR_REGPATH`。
-  3. **完整驗證階梯**：
+- 本輪已徹底解決使用者回報之「還是會重疊衰減，系統音量沒被忽略」：
+  1. **忽略 Windows 系統端點衰減（鎖定 100% / 0 dB）**：
+     - 接管啟用時，Windows 系統端點主音量被鎖定在 100%（scalar 1.0, 0 dB，取消靜音），系統端點完全不衰減（0 dB 衰減），達成「系統音量被忽略」。
+     - 定時器定時檢查端點，若外部程式或系統改動端點音量，即刻自動校正回 100%，防止系統層衰減。
+  2. **攔截按鍵並調節 APO 虛擬接管音量**：
+     - 低階鍵盤勾點攔截 `VK_VOLUME_UP` / `VK_VOLUME_DOWN` / `VK_VOLUME_MUTE`，完全不讓 Windows 系統介入。
+     - 維護接管音量標量（0.0 ~ 1.0 百分比步進），更新 HUD OSD。
+  3. **健全 Low Integrity 共享記憶體 IPC（`Local\Hibiki_VolumeTakeover_v1`）**：
+     - 具名共享記憶體具備 `S:(ML;;NW;;;LW)` Low Integrity SACL 與 `D:(A;;GA;;;WD)(A;;GA;;;AC)`，同 Session 免管理員權限，讓 Low Integrity 的 `audiodg.exe`（APO）與 ASIO Proxy 無障礙讀取。
+     - 去除過去脆弱的 3.5 秒超時機制，保證音量平穩、不炸耳。
+  4. **唯一數位衰減（VolumeFollow Cubic）徹底杜絕重疊衰減**：
+     - 勾選「接管 Windows 音量鍵」時，若 `VolumeFollow` 為 `Off`，自動切換至 `VolumeFollow Cubic`（三次方類比電位器平滑特性），由 Equalizer APO 在 64-bit float DSP 寬頻層實施全系統唯一的平滑數位音量衰減。
+     - 系統層 0 dB 衰減 + DSP 層單一衰減 = 零重疊衰減！
+     - `none.txt` 同步配置 `VolumeFollow Cubic`。
+     - ASIO Proxy 同步讀取接管共享記憶體，DAW 監聽與系統音訊一致。
+  5. **解除接管時安全還原**：
+     - 取消接管或關閉 Editor 時，將接管期間的音量安全寫回 Windows 端點，停止攔截，發布 inactive。
+  6. **完整驗證階梯與交付**：
      - 411 項 Python 測試全數通過（410 passed, 1 skipped: Win32 global mapping privilege）。
-     - `git diff --check` 完全通過，無格式或空白錯誤。
-     - `build-installer-x64.ps1 -Configuration Release` 成功編譯並產出安裝包 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `e1c5b25d07d7339678c4cd2ba2c474c612f70c9eed51ef289f5e0283a60a8fd4`）。
+     - `git diff --check` 通過。
+     - `HibikiEQAPODriver/Tests/AsioProxyDriverTests.cpp` 包含接管動態衰減測試全數通過。
+     - `build-installer-x64.ps1 -Configuration Release` 產出最新安裝檔 `Setup\Hibiki-EQAPO-x64-3.1.5.exe`（SHA-256: `9d548fc4507a8e78cf4ce17ce6d677f581ef85c16076239651b5094d37bb1d94`）。
      - `test-runtime-loudness.ps1 -Configuration Release` 通過。
-     - 所有 Native ASIO Proxy Core 與 Driver Fake-Vendor 單元測試通過。
-     - `test-public-history.ps1 -Revision HEAD` 通過。
+     - 靜默安裝 `/S` 更新至 `C:\Program Files\EqualizerAPO\`。
+     - 最新 `Editor.exe` 啟動實測正常。
 
 ---
 

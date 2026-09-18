@@ -2672,13 +2672,15 @@ void testAsioLiveUserConfigStructureAppliesEffects()
 	check(engine.hasActiveConfiguration(),
 		"ASIO engine must have active configuration from matching device section");
 
-	std::array<double, 4> inputLeft{1.0, 1.0, 1.0, 1.0};
-	std::array<double, 4> inputRight{1.0, 1.0, 1.0, 1.0};
-	std::array<double, 4> outputLeft{};
-	std::array<double, 4> outputRight{};
+	std::array<double, 480> inputLeft;
+	std::array<double, 480> inputRight;
+	std::array<double, 480> outputLeft{};
+	std::array<double, 480> outputRight{};
+	inputLeft.fill(1.0);
+	inputRight.fill(1.0);
 	double* input[] = {inputLeft.data(), inputRight.data()};
 	double* output[] = {outputLeft.data(), outputRight.data()};
-	engine.process(output, input, 4);
+	engine.process(output, input, 480);
 
 	const double expectedLinear = std::pow(10.0, -12.2 / 20.0);
 	check(std::abs(outputLeft[0] - expectedLinear) < 1e-4,

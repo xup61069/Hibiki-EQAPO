@@ -27,12 +27,7 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 	  takeoverEnabled(false),
 	  osdEnabled(true),
 	  referenceLevel(80.0),
-	  referenceOffset(0.0),
-	  takeoverScalar(1.0),
-	  takeoverLevelDb(0.0),
-	  takeoverMuted(false),
-	  takeoverMapping(NULL),
-	  takeoverShared(nullptr)
+	  referenceOffset(0.0)
 {
 	s_instance = this;
 	lastState.levelDb = 0.0;
@@ -40,12 +35,7 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 	lastState.muted = false;
 
 	if (volumeController)
-	{
 		volumeController->getVolumeState(lastState);
-		takeoverScalar = lastState.scalar;
-		takeoverLevelDb = lastState.levelDb;
-		takeoverMuted = lastState.muted;
-	}
 
 	connect(&pollTimer, &QTimer::timeout, this, &VolumeTakeoverManager::checkVolumeChange);
 	pollTimer.start(250);
@@ -53,27 +43,22 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 
 VolumeTakeoverManager::~VolumeTakeoverManager()
 {
-	pollTimer.stop();
 	if (takeoverEnabled)
 	{
-		removeHook();
-		takeoverEnabled = false;
 		if (takeoverShared)
 		{
-			std::wstring epId;
-			if (volumeController)
-				epId = volumeController->getRequestedEndpointId();
 			HibikiTakeoverIpc::writeTakeoverSnapshot(
-				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted,
-				epId.c_str(), GetCurrentProcessId());
+				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
 		}
 		if (volumeController)
 		{
 			volumeController->setVolumeScalar(takeoverScalar);
 			volumeController->setMute(takeoverMuted);
 		}
+		closeSharedMemory();
 	}
-	closeSharedMemory();
+	removeHook();
+	pollTimer.stop();
 	if (osdWidget)
 	{
 		delete osdWidget;
@@ -85,22 +70,14 @@ VolumeTakeoverManager::~VolumeTakeoverManager()
 
 void VolumeTakeoverManager::openSharedMemory()
 {
-	if (takeoverShared != nullptr)
-		return;
-
 	if (takeoverMapping == NULL)
 	{
 		takeoverMapping = HibikiTakeoverIpc::createOrOpenSharedMapping(true);
 	}
-	if (takeoverMapping != NULL)
+	if (takeoverMapping != NULL && takeoverShared == nullptr)
 	{
 		takeoverShared = static_cast<HibikiVolumeTakeoverSharedData*>(
 			MapViewOfFile(takeoverMapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(HibikiVolumeTakeoverSharedData)));
-		if (takeoverShared == nullptr)
-		{
-			CloseHandle(takeoverMapping);
-			takeoverMapping = NULL;
-		}
 	}
 }
 
@@ -108,6 +85,8 @@ void VolumeTakeoverManager::closeSharedMemory()
 {
 	if (takeoverShared != nullptr)
 	{
+		HibikiTakeoverIpc::writeTakeoverSnapshot(
+			takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
 		UnmapViewOfFile(takeoverShared);
 		takeoverShared = nullptr;
 	}
@@ -122,36 +101,38 @@ void VolumeTakeoverManager::publishTakeoverSharedData()
 {
 	if (!takeoverShared)
 		openSharedMemory();
-	if (!takeoverShared)
-		return;
-
-	std::wstring epId;
-	if (volumeController)
-		epId = volumeController->getRequestedEndpointId();
-
-	HibikiTakeoverIpc::writeTakeoverSnapshot(
-		takeoverShared,
-		takeoverEnabled,
-		takeoverLevelDb,
-		takeoverScalar,
-		takeoverMuted,
-		epId.c_str(),
-		GetCurrentProcessId());
+	if (takeoverShared)
+	{
+		HibikiTakeoverIpc::writeTakeoverSnapshot(
+			takeoverShared,
+			takeoverEnabled,
+			takeoverLevelDb,
+			takeoverScalar,
+			takeoverMuted,
+			L"",
+			GetCurrentProcessId());
+	}
 }
 
 void VolumeTakeoverManager::enforceWindowsVolume100()
 {
 	if (!volumeController)
 		return;
-
-	double scalar = 0.0;
-	bool mute = false;
-	if (SUCCEEDED(volumeController->getVolumeScalar(scalar)) && scalar < 0.999)
+	EndpointVolumeState realState;
+	if (SUCCEEDED(volumeController->getRealEndpointVolumeState(realState)))
+	{
+		if (realState.scalar < 0.999)
+		{
+			volumeController->setVolumeScalar(1.0);
+		}
+		if (realState.muted)
+		{
+			volumeController->setMute(false);
+		}
+	}
+	else
 	{
 		volumeController->setVolumeScalar(1.0);
-	}
-	if (SUCCEEDED(volumeController->getMute(mute)) && mute)
-	{
 		volumeController->setMute(false);
 	}
 }
@@ -173,31 +154,38 @@ void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 		else if (volumeController)
 		{
 			EndpointVolumeState currentEndpointState;
-			if (SUCCEEDED(volumeController->getVolumeState(currentEndpointState)))
+			if (SUCCEEDED(volumeController->getRealEndpointVolumeState(currentEndpointState)))
 			{
 				takeoverScalar = currentEndpointState.scalar;
 				takeoverLevelDb = currentEndpointState.levelDb;
 				takeoverMuted = currentEndpointState.muted;
 			}
+			else
+			{
+				takeoverScalar = lastState.scalar;
+				takeoverLevelDb = lastState.levelDb;
+				takeoverMuted = lastState.muted;
+			}
 		}
-		if (volumeController)
-		{
-			volumeController->setVolumeScalar(1.0);
-			volumeController->setMute(false);
-		}
+		enforceWindowsVolume100();
 		publishTakeoverSharedData();
 		installHook();
 	}
 	else
 	{
 		removeHook();
-		publishTakeoverSharedData();
+		if (takeoverShared)
+		{
+			HibikiTakeoverIpc::writeTakeoverSnapshot(
+				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
+		}
 		if (volumeController)
 		{
 			volumeController->setVolumeScalar(takeoverScalar);
 			volumeController->setMute(takeoverMuted);
-			volumeController->getVolumeState(lastState);
+			volumeController->getRealEndpointVolumeState(lastState);
 		}
+		closeSharedMemory();
 	}
 	emit takeoverToggled(enabled);
 	emit volumeChangedExternal(takeoverLevelDb, takeoverScalar, takeoverMuted);

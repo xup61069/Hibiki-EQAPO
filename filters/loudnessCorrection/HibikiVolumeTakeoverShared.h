@@ -1,137 +1,77 @@
 /*
     This file is part of Equalizer APO, a system-wide equalizer.
-    Copyright (C) 2026 Equalizer APO contributors
+    Copyright (C) 2026  Equalizer APO contributors
+
+    This program is free software; you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation; either version 2 of the License, or
+    (at your option) any later version.
 */
 
 #pragma once
 
-#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <sddl.h>
 #include <cstdint>
-#include <cstddef>
-#include <cmath>
+#include <cstring>
 #include <algorithm>
 
-#define HIBIKI_VOLUME_TAKEOVER_SHARED_NAME L"Global\\Hibiki_VolumeTakeover_v1"
+#define HIBIKI_VOLUME_TAKEOVER_SHARED_NAME L"Local\\Hibiki_VolumeTakeover_v1"
+#define HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL L"Global\\Hibiki_VolumeTakeover_v1"
 
 #pragma pack(push, 8)
 struct HibikiVolumeTakeoverSharedData
 {
-	uint32_t version;            // 1
-	uint32_t active;             // 1 = active, 0 = disabled
-	uint64_t sequence;           // Sequence counter for lock-free reader (even = valid, odd = writing)
-	double levelDb;              // User target volume in dB (-100.0 to 0.0)
-	double scalar;               // User target scalar (0.0 to 1.0)
-	uint32_t muted;              // 1 = muted, 0 = unmuted
-	uint64_t lastHeartbeatTick;  // GetTickCount64() heartbeat from Editor
-	uint32_t editorPid;          // Editor process ID
-	wchar_t endpointId[128];     // Target endpoint GUID/ID, or L"" for all/default
+	uint32_t version;
+	uint32_t active;
+	uint64_t sequence;
+	double levelDb;
+	double scalar;
+	uint32_t muted;
+	uint32_t processId;
+	uint64_t lastHeartbeatTick;
+	wchar_t endpointId[128];
 };
 #pragma pack(pop)
 
 namespace HibikiTakeoverIpc
 {
-	inline void writeTakeoverSnapshot(
-		HibikiVolumeTakeoverSharedData* shared,
-		bool active,
-		double levelDb,
-		double scalar,
-		bool muted,
-		const wchar_t* endpointId = nullptr,
-		uint32_t pid = 0)
-	{
-		if (!shared)
-			return;
-
-		volatile LONG64* seq = reinterpret_cast<volatile LONG64*>(&shared->sequence);
-		InterlockedIncrement64(seq);
-		MemoryBarrier();
-
-		shared->version = 1;
-		shared->active = active ? 1 : 0;
-		shared->levelDb = std::isfinite(levelDb) ? (std::max)(-100.0, (std::min)(0.0, levelDb)) : 0.0;
-		shared->scalar = std::isfinite(scalar) ? (std::max)(0.0, (std::min)(1.0, scalar)) : 1.0;
-		shared->muted = muted ? 1 : 0;
-		shared->lastHeartbeatTick = GetTickCount64();
-		if (pid != 0)
-			shared->editorPid = pid;
-
-		if (endpointId)
-		{
-			wcsncpy_s(shared->endpointId, endpointId, _TRUNCATE);
-		}
-
-		MemoryBarrier();
-		InterlockedIncrement64(seq);
-	}
-
-	inline void updateHeartbeat(HibikiVolumeTakeoverSharedData* shared)
-	{
-		if (shared && shared->active)
-		{
-			shared->lastHeartbeatTick = GetTickCount64();
-		}
-	}
-
-	inline bool readTakeoverSnapshot(
-		const HibikiVolumeTakeoverSharedData* shared,
-		HibikiVolumeTakeoverSharedData& result)
-	{
-		if (!shared)
-			return false;
-
-		volatile const LONG64* seq = reinterpret_cast<volatile const LONG64*>(&shared->sequence);
-
-		for (int attempt = 0; attempt < 4; ++attempt)
-		{
-			const LONG64 before = *seq;
-			if ((before & 1) != 0)
-				continue;
-
-			MemoryBarrier();
-			HibikiVolumeTakeoverSharedData snapshot = *shared;
-			MemoryBarrier();
-
-			const LONG64 after = *seq;
-			if (before == after && (after & 1) == 0)
-			{
-				result = snapshot;
-				return true;
-			}
-		}
-		return false;
-	}
-
 	inline HANDLE createOrOpenSharedMapping(bool forWriting = true)
 	{
 		if (!forWriting)
 		{
-			return OpenFileMappingW(
+			HANDLE mapping = OpenFileMappingW(
 				FILE_MAP_READ,
 				FALSE,
 				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
+			if (mapping == NULL)
+			{
+				mapping = OpenFileMappingW(
+					FILE_MAP_READ,
+					FALSE,
+					HIBIKI_VOLUME_TAKEOVER_SHARED_NAME_GLOBAL);
+			}
+			return mapping;
 		}
 
 		PSECURITY_DESCRIPTOR sd = NULL;
 		SECURITY_ATTRIBUTES sa = {};
 		sa.nLength = sizeof(sa);
+		// D:(A;;GA;;;WD)(A;;GA;;;AC) : Everyone & All Application Packages have Full Access
+		// S:(ML;;NW;;;LW)           : Low Mandatory Level (audiodg.exe sandbox can access)
 		if (ConvertStringSecurityDescriptorToSecurityDescriptorW(
-			L"D:(A;;GA;;;WD)S:(ML;;NW;;;LW)", SDDL_REVISION_1, &sd, NULL))
+			L"D:(A;;GA;;;WD)(A;;GA;;;AC)S:(ML;;NW;;;LW)", SDDL_REVISION_1, &sd, NULL))
 		{
 			sa.lpSecurityDescriptor = sd;
 		}
 
 		HANDLE mapping = CreateFileMappingW(
 			INVALID_HANDLE_VALUE,
-			sd ? &sa : NULL,
+			sa.lpSecurityDescriptor ? &sa : NULL,
 			PAGE_READWRITE,
 			0,
 			sizeof(HibikiVolumeTakeoverSharedData),
 			HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
-
-		if (sd)
-			LocalFree(sd);
 
 		if (mapping == NULL)
 		{
@@ -140,6 +80,79 @@ namespace HibikiTakeoverIpc
 				FALSE,
 				HIBIKI_VOLUME_TAKEOVER_SHARED_NAME);
 		}
+
+		if (sd != NULL)
+		{
+			LocalFree(sd);
+		}
+
 		return mapping;
+	}
+
+	inline bool writeTakeoverSnapshot(
+		HibikiVolumeTakeoverSharedData* shared,
+		bool active,
+		double levelDb,
+		double scalar,
+		bool muted,
+		const wchar_t* endpointId,
+		DWORD processId)
+	{
+		if (shared == nullptr)
+			return false;
+
+		shared->version = 1;
+		shared->levelDb = levelDb;
+		shared->scalar = (std::max)(0.0, (std::min)(1.0, scalar));
+		shared->muted = muted ? 1 : 0;
+		shared->processId = processId;
+		shared->lastHeartbeatTick = GetTickCount64();
+
+		if (endpointId != nullptr)
+		{
+			wcsncpy_s(shared->endpointId, endpointId, _TRUNCATE);
+		}
+		else
+		{
+			shared->endpointId[0] = L'\0';
+		}
+
+		MemoryBarrier();
+		shared->active = active ? 1 : 0;
+		InterlockedIncrement64(reinterpret_cast<volatile LONG64*>(&shared->sequence));
+		return true;
+	}
+
+	inline bool readTakeoverSnapshot(
+		const HibikiVolumeTakeoverSharedData* shared,
+		HibikiVolumeTakeoverSharedData& outSnapshot)
+	{
+		if (shared == nullptr)
+			return false;
+
+		for (int attempt = 0; attempt < 5; ++attempt)
+		{
+			const volatile LONG64* seqPtr = reinterpret_cast<volatile const LONG64*>(&shared->sequence);
+			LONG64 seqBefore = *seqPtr;
+			MemoryBarrier();
+
+			outSnapshot = *shared;
+
+			MemoryBarrier();
+			LONG64 seqAfter = *seqPtr;
+			if (seqBefore == seqAfter)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	inline void updateHeartbeat(HibikiVolumeTakeoverSharedData* shared)
+	{
+		if (shared != nullptr)
+		{
+			shared->lastHeartbeatTick = GetTickCount64();
+		}
 	}
 }
