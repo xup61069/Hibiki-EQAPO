@@ -22,8 +22,15 @@ public:
 
 	void showVolume(double volumeDb, double scalar, bool muted, double phon = -1.0);
 
+signals:
+	void volumeSliderDragged(double scalar);
+	void muteIconClicked();
+
 protected:
 	void paintEvent(QPaintEvent* event) override;
+	void mousePressEvent(QMouseEvent* event) override;
+	void mouseMoveEvent(QMouseEvent* event) override;
+	void mouseReleaseEvent(QMouseEvent* event) override;
 
 private slots:
 	void onScalarAnimationChanged(const QVariant& value);
@@ -34,6 +41,10 @@ private slots:
 private:
 	void updateGeometryPosition();
 	void drawSpeakerIcon(QPainter& painter, const QRectF& rect, const QColor& color, bool muted, double scalar);
+	QRect volumeBarHitRect() const;
+	QRect muteIconHitRect() const;
+	double scalarForBarX(int x) const;
+	void handleBarPress(const QPoint& pos);
 
 	QTimer hideTimer;
 	QVariantAnimation scalarAnimation;
@@ -47,5 +58,6 @@ private:
 
 	qreal displayOpacity = 0.0;
 	bool isFadingOut = false;
+	bool isDraggingVolume = false;
 	QPointer<QScreen> currentScreen;
 };

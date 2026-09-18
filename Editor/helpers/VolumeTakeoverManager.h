@@ -47,6 +47,7 @@ public:
 	double calculateApoFollowTargetDb(double volumeDb, double scalar = 1.0, bool muted = false) const;
 
 	void stepVolume(bool up, double stepScalar = 0.02);
+	void setVolumeScalar(double scalar);
 	void toggleMute();
 	void showCurrentVolumeOsd();
 
