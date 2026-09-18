@@ -5,6 +5,8 @@
 [![Build](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml/badge.svg)](https://github.com/xup61069/Hibiki-EQAPO/actions/workflows/build.yml)
 [![Latest release](https://img.shields.io/github/v/release/xup61069/Hibiki-EQAPO)](https://github.com/xup61069/Hibiki-EQAPO/releases/latest)
 
+![Hibiki EQAPO Configuration Editor with draggable loudness-control OSD](docs/images/editor-overview.png)
+
 **Hibiki EQAPO** is a direct Windows x64 fork of [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support). It defaults to the system-wide double-precision audio pipeline and x64 VST2/VST3 audio-effect workflow, and maintains separate formula-based and original-shelf loudness-correction components, their own calibration tools, the complete Mixomo `exp` feature line, and a Traditional Chinese interface.
 
 Code lineage: [Equalizer APO](https://sourceforge.net/projects/equalizerapo/) → [TheFireKahuna/equalizerAPO64](https://github.com/TheFireKahuna/equalizerAPO64) → [Mixomo/EqAPO64_with_VST3_support](https://github.com/Mixomo/EqAPO64_with_VST3_support) → this repository.
@@ -289,7 +291,7 @@ The **APO follow target** readout is calculated from this row and its latest sou
 
 **Manual APO dB control and keyboard volume takeover are both supported.**
 
-- **Keyboard volume keys & OSD takeover (optional)**: Enable "Take over Windows volume keys & OSD" directly within the Loudness Correction panel, the main menu, or the system tray. A low-level keyboard hook intercepts media volume keys (Volume Up, Volume Down, Volume Mute) and displays a Windows 11 Fluent equal-loudness OSD.
+- **Keyboard volume keys & OSD takeover (optional)**: Enable "Take over Windows volume keys & OSD" directly within the Loudness Correction panel, the main menu, or the system tray. A low-level keyboard hook intercepts media volume keys (Volume Up, Volume Down, Volume Mute) and displays a Windows 11 Fluent equal-loudness OSD. The OSD volume bar can be clicked or dragged with the mouse, and the speaker icon toggles mute.
   - **Audiophile Single-Stage Attenuation (Scheme B)**: While takeover is active, the physical Windows endpoint is locked at 100% (0 dB, scalar 1.0, unmuted), ensuring the Windows Audio Engine outputs 0 dB digital attenuation, completely eliminating double attenuation between the OS and APO while delivering full-scale bit-perfect PCM to external DACs.
   - **Cross-Session Shared Mapping**: The Editor intercepts volume adjustments and writes them to a file-backed shared memory IPC at `config\volume_takeover.dat`, bridging Session 0 Windows Audio Engine (`audiodg.exe`) and Session 1 DAW ASIO monitoring so that both standard Windows audio channels and ASIO monitoring channels respond to volume adjustments and dynamic equal-loudness correction simultaneously.
   - **Automatic APO Attenuation Activation**: If `VolumeFollow` is set to Off when takeover is enabled, it automatically switches to `Follow dB` (or user-customized Perceptual / Cubic curves), letting Equalizer APO perform 64-bit floating-point digital volume attenuation with smooth 10 ms ramps.
