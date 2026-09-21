@@ -132,9 +132,24 @@ int main(int argc, char* argv[])
 		}
 		QDir configDir(configPath);
 
+		bool startInTray = false;
+		for (int i = 1; i < argc; ++i)
+		{
+			const QString arg = QString::fromLocal8Bit(argv[i]);
+			if (arg == QStringLiteral("--tray") || arg == QStringLiteral("-tray")
+				|| arg == QStringLiteral("--minimized") || arg == QStringLiteral("-minimized"))
+			{
+				startInTray = true;
+				break;
+			}
+		}
+
 		MainWindow w(configDir);
 		UiSnapshot::prepareForCapture(w);
-		w.show();
+		if (!startInTray || snapshotMode)
+		{
+			w.show();
+		}
 
 		QCommandLineParser parser;
 		parser.process(application);

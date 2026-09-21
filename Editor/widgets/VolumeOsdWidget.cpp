@@ -16,6 +16,10 @@
 #include <QEasingCurve>
 #include <algorithm>
 #include <cmath>
+#ifdef Q_OS_WIN
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
 
 VolumeOsdWidget::VolumeOsdWidget(QWidget* parent)
 	: QWidget(parent, Qt::ToolTip | Qt::FramelessWindowHint | Qt::WindowStaysOnTopHint | Qt::WindowDoesNotAcceptFocus),
@@ -228,7 +232,25 @@ void VolumeOsdWidget::showVolume(double volumeDb, double scalar, bool muted, dou
 		show();
 	}
 
+#ifdef Q_OS_WIN
+	HWND hwnd = reinterpret_cast<HWND>(winId());
+	if (hwnd)
+	{
+		LONG_PTR exStyle = GetWindowLongPtrW(hwnd, GWL_EXSTYLE);
+		if ((exStyle & WS_EX_NOACTIVATE) == 0)
+		{
+			SetWindowLongPtrW(hwnd, GWL_EXSTYLE, exStyle | WS_EX_NOACTIVATE | WS_EX_TOPMOST);
+		}
+		SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+			SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW);
+	}
+	else
+	{
+		raise();
+	}
+#else
 	raise();
+#endif
 	update();
 
 	hideTimer.start(1800);

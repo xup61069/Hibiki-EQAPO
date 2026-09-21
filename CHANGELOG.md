@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+- Fixed volume takeover not taking effect automatically after Windows startup and resolved lost volume control in fullscreen applications:
+  - Added "Start with Windows" setting and tray/main menu action (`startWithWindowsAction`) to register `Editor.exe --tray` in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
+  - Added `--tray` and `--minimized` command-line switches to `main.cpp`, launching the Editor silently into the system tray on startup without popping up the main window while keeping volume takeover and IPC active.
+  - Automatically enabled "Start with Windows" when the user activates "Take over Windows volume keys & OSD", ensuring persistent volume takeover across reboots.
+  - Eliminated low-level keyboard hook timeout by dispatching `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, and `VK_VOLUME_MUTE` asynchronously via `QMetaObject::invokeMethod` with `Qt::QueuedConnection`, preventing Windows from silently removing `WH_KEYBOARD_LL`.
+  - Added automatic hook watchdog reinstall in `VolumeTakeoverManager::checkVolumeChange`.
+  - Implemented bidirectional endpoint volume synchronization in takeover mode: detects external volume drops and mute toggles (such as from exclusive fullscreen games, hardware volume knobs, or Windows media key routing) and applies the delta to `takeoverScalar` before restoring 100% endpoint output, fixing unresponsive loudness and volume controls in fullscreen games.
+  - Guarded `VolumeOsdWidget` with Win32 `WS_EX_NOACTIVATE` and `SWP_NOACTIVATE` to guarantee the OSD never steals focus from exclusive fullscreen games.
+  - Added comprehensive static contract tests and full finished translations for `zh_TW`, `zh_CN`, `de`, and `fr`.
+
 ## 3.1.7
 
 - Made the Loudness Volume OSD (`VolumeOsdWidget`) interactive and borderless:

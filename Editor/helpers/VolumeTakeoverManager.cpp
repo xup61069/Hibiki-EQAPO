@@ -286,17 +286,23 @@ LRESULT CALLBACK VolumeTakeoverManager::LowLevelKeyboardProc(
 		{
 			if (pKey->vkCode == VK_VOLUME_UP)
 			{
-				s_instance->stepVolume(true);
+				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
+					mgr->stepVolume(true);
+				}, Qt::QueuedConnection);
 				return 1;
 			}
 			else if (pKey->vkCode == VK_VOLUME_DOWN)
 			{
-				s_instance->stepVolume(false);
+				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
+					mgr->stepVolume(false);
+				}, Qt::QueuedConnection);
 				return 1;
 			}
 			else if (pKey->vkCode == VK_VOLUME_MUTE)
 			{
-				s_instance->toggleMute();
+				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
+					mgr->toggleMute();
+				}, Qt::QueuedConnection);
 				return 1;
 			}
 		}
@@ -644,6 +650,63 @@ void VolumeTakeoverManager::checkVolumeChange()
 	if (takeoverEnabled)
 	{
 		HibikiTakeoverIpc::updateHeartbeat(takeoverShared);
+
+		// Watchdog: automatically reinstall low-level hook if lost
+		if (s_keyboardHook == NULL)
+		{
+			installHook();
+		}
+
+		// Detect external adjustments while in takeover mode (e.g. fullscreen exclusive app,
+		// hardware volume knob, or media keys handled by Windows before hook)
+		if (volumeController)
+		{
+			EndpointVolumeState currentRealState;
+			if (SUCCEEDED(volumeController->getRealEndpointVolumeState(currentRealState)))
+			{
+				bool externalChanged = false;
+
+				if (currentRealState.muted != takeoverMuted)
+				{
+					takeoverMuted = currentRealState.muted;
+					externalChanged = true;
+				}
+
+				if (currentRealState.scalar < 0.999)
+				{
+					const double delta = 1.0 - currentRealState.scalar;
+					int stepPercent = static_cast<int>(std::round(delta * 100.0));
+					if (stepPercent < 2) stepPercent = 2;
+
+					int currentPercent = static_cast<int>(std::round(takeoverScalar * 100.0));
+					int newPercent = std::clamp(currentPercent - stepPercent, 0, 100);
+					double newScalar = newPercent / 100.0;
+					double newDb = (newPercent == 0) ? -100.0 : (newPercent - 100.0);
+
+					takeoverScalar = newScalar;
+					takeoverLevelDb = newDb;
+					externalChanged = true;
+				}
+
+				if (externalChanged)
+				{
+					lastState.scalar = takeoverScalar;
+					lastState.levelDb = takeoverLevelDb;
+					lastState.muted = takeoverMuted;
+
+					publishTakeoverSharedData();
+					if (osdEnabled && osdWidget)
+					{
+						const double apoDb = calculateApoFollowTargetDb(takeoverLevelDb, takeoverScalar, takeoverMuted);
+						osdWidget->showVolume(
+							apoDb, takeoverScalar, takeoverMuted,
+							takeoverMuted ? 0.0 : calculateCurrentPhon(takeoverLevelDb, takeoverScalar));
+					}
+					emit volumeChangedExternal(takeoverLevelDb, takeoverScalar, takeoverMuted);
+				}
+			}
+		}
+
 		enforceWindowsVolume100();
 		return;
 	}
