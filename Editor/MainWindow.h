@@ -118,7 +118,7 @@ private slots:
 	void takeoverVolumeKeysToggled(bool enabled);
 	void startWithWindowsToggled(bool enabled);
 	bool isStartWithWindowsEnabled() const;
-	void setStartWithWindows(bool enabled);
+	bool setStartWithWindows(bool enabled);
 
 	void on_mainToolBar_visibilityChanged(bool visible);
 	void on_analysisDockWidget_visibilityChanged(bool visible);

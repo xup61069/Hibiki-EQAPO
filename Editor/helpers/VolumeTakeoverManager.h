@@ -94,6 +94,9 @@ private:
 	double takeoverScalar = 1.0;
 	double takeoverLevelDb = 0.0;
 	bool takeoverMuted = false;
+	double lastPhysicalScalar = 1.0;
+	bool lastPhysicalMuted = false;
+	ULONGLONG nextHookRearmTick = 0;
 
 	HANDLE takeoverMapping = NULL;
 	struct HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;

@@ -173,8 +173,15 @@ void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 			}
 		}
 		enforceWindowsVolume100();
+		EndpointVolumeState physicalState;
+		if (volumeController && SUCCEEDED(volumeController->getRealEndpointVolumeState(physicalState)))
+		{
+			lastPhysicalScalar = physicalState.scalar;
+			lastPhysicalMuted = physicalState.muted;
+		}
 		publishTakeoverSharedData();
 		installHook();
+		nextHookRearmTick = GetTickCount64() + 10000;
 	}
 	else
 	{
@@ -250,6 +257,12 @@ void VolumeTakeoverManager::refreshEndpoint(const std::wstring& endpointId)
 		if (takeoverEnabled)
 		{
 			enforceWindowsVolume100();
+			EndpointVolumeState physicalState;
+			if (SUCCEEDED(volumeController->getRealEndpointVolumeState(physicalState)))
+			{
+				lastPhysicalScalar = physicalState.scalar;
+				lastPhysicalMuted = physicalState.muted;
+			}
 			publishTakeoverSharedData();
 		}
 	}
@@ -651,10 +664,14 @@ void VolumeTakeoverManager::checkVolumeChange()
 	{
 		HibikiTakeoverIpc::updateHeartbeat(takeoverShared);
 
-		// Watchdog: automatically reinstall low-level hook if lost
-		if (s_keyboardHook == NULL)
+		// Windows can silently remove a timed-out low-level hook without clearing HHOOK.
+		// Periodically replace it while takeover is active to recover from that case.
+		const ULONGLONG now = GetTickCount64();
+		if (s_keyboardHook == NULL || now >= nextHookRearmTick)
 		{
+			removeHook();
 			installHook();
+			nextHookRearmTick = now + 10000;
 		}
 
 		// Detect external adjustments while in takeover mode (e.g. fullscreen exclusive app,
@@ -666,17 +683,17 @@ void VolumeTakeoverManager::checkVolumeChange()
 			{
 				bool externalChanged = false;
 
-				if (currentRealState.muted != takeoverMuted)
+				if (!manualMode && currentRealState.muted && !lastPhysicalMuted)
 				{
-					takeoverMuted = currentRealState.muted;
+					takeoverMuted = true;
 					externalChanged = true;
 				}
 
-				if (currentRealState.scalar < 0.999)
+				if (!manualMode && currentRealState.scalar < lastPhysicalScalar - 0.005)
 				{
-					const double delta = 1.0 - currentRealState.scalar;
+					const double delta = lastPhysicalScalar - currentRealState.scalar;
 					int stepPercent = static_cast<int>(std::round(delta * 100.0));
-					if (stepPercent < 2) stepPercent = 2;
+					if (stepPercent < 1) stepPercent = 1;
 
 					int currentPercent = static_cast<int>(std::round(takeoverScalar * 100.0));
 					int newPercent = std::clamp(currentPercent - stepPercent, 0, 100);
@@ -687,6 +704,8 @@ void VolumeTakeoverManager::checkVolumeChange()
 					takeoverLevelDb = newDb;
 					externalChanged = true;
 				}
+				lastPhysicalScalar = currentRealState.scalar;
+				lastPhysicalMuted = currentRealState.muted;
 
 				if (externalChanged)
 				{

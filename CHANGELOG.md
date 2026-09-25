@@ -7,8 +7,11 @@
   - Added `--tray` and `--minimized` command-line switches to `main.cpp`, launching the Editor silently into the system tray on startup without popping up the main window while keeping volume takeover and IPC active.
   - Automatically enabled "Start with Windows" when the user activates "Take over Windows volume keys & OSD", ensuring persistent volume takeover across reboots.
   - Eliminated low-level keyboard hook timeout by dispatching `VK_VOLUME_UP`, `VK_VOLUME_DOWN`, and `VK_VOLUME_MUTE` asynchronously via `QMetaObject::invokeMethod` with `Qt::QueuedConnection`, preventing Windows from silently removing `WH_KEYBOARD_LL`.
-  - Added automatic hook watchdog reinstall in `VolumeTakeoverManager::checkVolumeChange`.
-  - Implemented bidirectional endpoint volume synchronization in takeover mode: detects external volume drops and mute toggles (such as from exclusive fullscreen games, hardware volume knobs, or Windows media key routing) and applies the delta to `takeoverScalar` before restoring 100% endpoint output, fixing unresponsive loudness and volume controls in fullscreen games.
+  - Registered the tray switches with the command-line parser before it processes startup arguments, so Windows startup no longer exits on an unknown option. When the notification area is unavailable, the editor opens visibly.
+  - Also register startup when takeover is enabled from the loudness panel or restored from saved preferences; an explicit "Start with Windows" opt-out remains respected.
+  - Repair an existing startup entry when it points at an older Editor path or command.
+  - Periodically replace the low-level hook because Windows can silently remove a timed-out hook while leaving its handle non-null.
+  - Detect external endpoint volume drops only once per physical change before restoring 100%; repeated polls no longer repeatedly lower the loudness target. Manual loudness settings are left alone.
   - Guarded `VolumeOsdWidget` with Win32 `WS_EX_NOACTIVATE` and `SWP_NOACTIVATE` to guarantee the OSD never steals focus from exclusive fullscreen games.
   - Added comprehensive static contract tests and full finished translations for `zh_TW`, `zh_CN`, `de`, and `fr`.
 

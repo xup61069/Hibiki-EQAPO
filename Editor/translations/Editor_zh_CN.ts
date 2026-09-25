@@ -3020,6 +3020,10 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>已停用开机自动启动</translation>
     </message>
     <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>无法更新 Windows 开机启动设置</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>

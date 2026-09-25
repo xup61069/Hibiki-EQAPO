@@ -1312,6 +1312,12 @@ void MainWindow::setupWorkspaceTools()
 	connect(takeoverVolumeKeysAction, &QAction::toggled, this, &MainWindow::takeoverVolumeKeysToggled);
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverToggled, this, [this](bool enabled) {
 		takeoverVolumeKeys = enabled;
+		if (enabled && !startWithWindows)
+		{
+			QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+			if (!settings.value("startWithWindowsOptOut", false).toBool())
+				setStartWithWindows(true);
+		}
 		if (takeoverVolumeKeysAction != NULL)
 		{
 			QSignalBlocker blocker(takeoverVolumeKeysAction);
@@ -3455,10 +3461,6 @@ void MainWindow::takeoverVolumeKeysToggled(bool enabled)
 	{
 		showWorkspaceStatus(tr("Volume takeover active: volume keys control Hibiki EQAPO loudness with OSD"));
 		VolumeTakeoverManager::instance()->showCurrentVolumeOsd();
-		if (!startWithWindows)
-		{
-			setStartWithWindows(true);
-		}
 	}
 	else
 	{
@@ -3471,12 +3473,14 @@ bool MainWindow::isStartWithWindowsEnabled() const
 	QSettings runSettings(
 		QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
 		QSettings::NativeFormat);
-	return runSettings.contains(QStringLiteral("Hibiki EQAPO Configuration Editor"));
+	const QString command = QStringLiteral("\"%1\" --tray").arg(
+		QDir::toNativeSeparators(QCoreApplication::applicationFilePath()));
+	return runSettings.value(QStringLiteral("Hibiki EQAPO Configuration Editor"))
+		.toString().compare(command, Qt::CaseInsensitive) == 0;
 }
 
-void MainWindow::setStartWithWindows(bool enabled)
+bool MainWindow::setStartWithWindows(bool enabled)
 {
-	startWithWindows = enabled;
 	QSettings runSettings(
 		QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
 		QSettings::NativeFormat);
@@ -3491,16 +3495,25 @@ void MainWindow::setStartWithWindows(bool enabled)
 	{
 		runSettings.remove(keyName);
 	}
+	runSettings.sync();
+	startWithWindows = isStartWithWindowsEnabled();
 	if (startWithWindowsAction != NULL)
 	{
 		QSignalBlocker blocker(startWithWindowsAction);
-		startWithWindowsAction->setChecked(enabled);
+		startWithWindowsAction->setChecked(startWithWindows);
 	}
+	return runSettings.status() == QSettings::NoError && startWithWindows == enabled;
 }
 
 void MainWindow::startWithWindowsToggled(bool enabled)
 {
-	setStartWithWindows(enabled);
+	if (!setStartWithWindows(enabled))
+	{
+		showWorkspaceStatus(tr("Could not update Windows startup setting"), "warning");
+		return;
+	}
+	QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+	settings.setValue("startWithWindowsOptOut", !enabled);
 	if (enabled)
 		showWorkspaceStatus(tr("Hibiki EQAPO will start automatically when Windows starts"));
 	else

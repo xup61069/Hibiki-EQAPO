@@ -10,8 +10,10 @@ ROOT = Path(__file__).resolve().parents[1]
 class VolumeTakeoverFullscreenAutostartTests(unittest.TestCase):
     def test_main_supports_tray_startup_without_immediate_show(self):
         source = (ROOT / "Editor/main.cpp").read_text(encoding="utf-8")
-        self.assertIn('arg == QStringLiteral("--tray")', source)
-        self.assertIn('arg == QStringLiteral("--minimized")', source)
+        self.assertIn('QStringLiteral("tray"), QStringLiteral("minimized")', source)
+        self.assertLess(source.index("parser.addOption(trayOption)"), source.index("parser.process(application)"))
+        self.assertLess(source.index("parser.process(application)"), source.index("MainWindow w(configDir)"))
+        self.assertIn("QSystemTrayIcon::isSystemTrayAvailable()", source)
         self.assertIn('if (!startInTray || snapshotMode)', source)
         self.assertIn('w.show();', source)
 
@@ -19,7 +21,7 @@ class VolumeTakeoverFullscreenAutostartTests(unittest.TestCase):
         header = (ROOT / "Editor/MainWindow.h").read_text(encoding="utf-8")
         self.assertIn("void startWithWindowsToggled(bool enabled);", header)
         self.assertIn("bool isStartWithWindowsEnabled() const;", header)
-        self.assertIn("void setStartWithWindows(bool enabled);", header)
+        self.assertIn("bool setStartWithWindows(bool enabled);", header)
         self.assertIn("QAction* startWithWindowsAction = NULL;", header)
         self.assertIn("bool startWithWindows = false;", header)
 
@@ -30,8 +32,10 @@ class VolumeTakeoverFullscreenAutostartTests(unittest.TestCase):
         self.assertIn('HKEY_CURRENT_USER', source)
         self.assertIn('CurrentVersion', source)
         self.assertIn('settings.setValue("startWithWindows", startWithWindows);', source)
-        self.assertIn('if (!startWithWindows)', source)
+        self.assertIn('settings.value("startWithWindowsOptOut", false)', source)
         self.assertIn('setStartWithWindows(true);', source)
+        self.assertIn('runSettings.sync();', source)
+        self.assertIn('toString().compare(command, Qt::CaseInsensitive) == 0', source)
 
     def test_low_level_keyboard_hook_is_non_blocking_async(self):
         source = (ROOT / "Editor/helpers/VolumeTakeoverManager.cpp").read_text(encoding="utf-8")
@@ -51,10 +55,13 @@ class VolumeTakeoverFullscreenAutostartTests(unittest.TestCase):
         check_proc = source.split("void VolumeTakeoverManager::checkVolumeChange()", 1)[1].split(
             "if (manualMode)", 1
         )[0]
-        self.assertIn("if (s_keyboardHook == NULL)", check_proc)
+        self.assertIn("now >= nextHookRearmTick", check_proc)
+        self.assertIn("removeHook();", check_proc)
         self.assertIn("installHook();", check_proc)
-        self.assertIn("currentRealState.scalar < 0.999", check_proc)
-        self.assertIn("currentRealState.muted != takeoverMuted", check_proc)
+        self.assertIn("currentRealState.scalar < lastPhysicalScalar - 0.005", check_proc)
+        self.assertIn("lastPhysicalScalar = currentRealState.scalar;", check_proc)
+        self.assertIn("currentRealState.muted && !lastPhysicalMuted", check_proc)
+        self.assertNotIn("1.0 - currentRealState.scalar", check_proc)
         self.assertIn("publishTakeoverSharedData();", check_proc)
         self.assertIn("enforceWindowsVolume100();", check_proc)
 

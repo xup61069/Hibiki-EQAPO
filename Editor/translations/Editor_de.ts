@@ -3021,6 +3021,10 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>Automatischer Start mit Windows deaktiviert</translation>
     </message>
     <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>Windows-Autostart-Einstellung konnte nicht aktualisiert werden</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>

@@ -177,6 +177,7 @@ UI 的「APO 跟隨目標」是本列設定與最新來源快照的計算值，�
 **手動 APO dB 控制與鍵盤音量接管均已提供。**
 
 - **鍵盤音量鍵與 OSD 接管（可選）**：在響度校正面板勾選「接管 Windows 音量鍵與 OSD」或從功能表／系統匣啟用後，將安裝全域鍵盤掛鉤攔截多媒體音量鍵（音量加、音量減、靜音），並顯示 Windows 11 Fluent 風格的等響度 OSD。OSD 的音量條可直接以滑鼠點按或拖曳調整，點喇叭圖示可切換靜音。
+  - 接管啟用時會為目前 Windows 使用者設定開機自動啟動 Editor，登入後在通知區域維持接管；可在「設定 → 隨 Windows 開機啟動」明確關閉。若登入時通知區域不可用，Editor 會直接顯示主視窗。
   - **發燒級單一節點衰減（Scheme B）**：接管期間 Windows 實體端點固定鎖定於 100%（0 dB, scalar 1.0, 未靜音），使 Windows Audio Engine 輸出 0 dB 數位衰減，杜絕系統端點與 APO 之間的雙重疊加衰減，並向外接 DAC 提供高訊噪比的原始 PCM 振幅。
   - **跨 Session 共享映射**：Editor 攔截音量並寫入位於 `config\volume_takeover.dat` 的記憶體映射 IPC，徹底打通 Session 0 的 Windows Audio Engine（`audiodg.exe`）與 Session 1 的 DAW ASIO 監聽，讓一般音訊通道與 ASIO 監聽通道皆可同步響應音量微調與動態等響度等化。
   - **自動啟用 APO 衰減**：接管時若 `VolumeFollow` 為關閉，將自動切換為 `Follow dB`（或使用者自訂的聽感對數、三次電位器等曲線），由 Equalizer APO 以 64-bit 浮點精度與 10 ms 平滑斜率進行單一節點數位衰減。

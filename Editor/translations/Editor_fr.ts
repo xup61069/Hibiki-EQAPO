@@ -2825,6 +2825,10 @@ Alexander Walch</translation>
         <translation>Démarrage automatique avec Windows désactivé</translation>
     </message>
     <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>Impossible de modifier le démarrage automatique avec Windows</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>

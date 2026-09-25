@@ -22,8 +22,10 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QCommandLineParser>
+#include <QCommandLineOption>
 #include <QSettings>
 #include <QStyleHints>
+#include <QSystemTrayIcon>
 #include <windows.h>
 #include "CustomStyle.h"
 #include "MainWindow.h"
@@ -132,17 +134,13 @@ int main(int argc, char* argv[])
 		}
 		QDir configDir(configPath);
 
-		bool startInTray = false;
-		for (int i = 1; i < argc; ++i)
-		{
-			const QString arg = QString::fromLocal8Bit(argv[i]);
-			if (arg == QStringLiteral("--tray") || arg == QStringLiteral("-tray")
-				|| arg == QStringLiteral("--minimized") || arg == QStringLiteral("-minimized"))
-			{
-				startInTray = true;
-				break;
-			}
-		}
+		QCommandLineParser parser;
+		const QCommandLineOption trayOption(
+			{QStringLiteral("tray"), QStringLiteral("minimized")});
+		parser.addOption(trayOption);
+		parser.process(application);
+		const bool startInTray = parser.isSet(trayOption)
+			&& QSystemTrayIcon::isSystemTrayAvailable();
 
 		MainWindow w(configDir);
 		UiSnapshot::prepareForCapture(w);
@@ -151,8 +149,6 @@ int main(int argc, char* argv[])
 			w.show();
 		}
 
-		QCommandLineParser parser;
-		parser.process(application);
 		QStringList args = parser.positionalArguments();
 		if (args.isEmpty() && w.isEmpty() && !snapshotMode)
 			args = QStringList("config.txt");

@@ -2845,6 +2845,10 @@ Alexander Walch</source>
         <translation>已停用開機自動啟動</translation>
     </message>
     <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>無法更新 Windows 開機啟動設定</translation>
+    </message>
+    <message>
         <location filename="../MainWindow.cpp" line="1143"/>
         <location filename="../MainWindow.cpp" line="3049"/>
         <source>The Windows notification area is unavailable</source>
