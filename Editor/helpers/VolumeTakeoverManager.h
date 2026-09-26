@@ -6,6 +6,7 @@
 #pragma once
 
 #include <QObject>
+#include <QAbstractNativeEventFilter>
 #include <QTimer>
 #include <memory>
 #include <string>
@@ -16,7 +17,7 @@
 
 class VolumeOsdWidget;
 
-class VolumeTakeoverManager : public QObject
+class VolumeTakeoverManager : public QObject, public QAbstractNativeEventFilter
 {
 	Q_OBJECT
 
@@ -56,6 +57,7 @@ public:
 
 	void enforceWindowsVolume100();
 	void publishTakeoverSharedData();
+	bool nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) override;
 
 public slots:
 	void checkVolumeChange();
@@ -69,6 +71,8 @@ private:
 
 	void installHook();
 	void removeHook();
+	void installMediaHotkeys();
+	void removeMediaHotkeys();
 	void openSharedMemory();
 	void closeSharedMemory();
 	double calculateCurrentPhon(double volumeDb, double scalar = 1.0) const;
@@ -97,6 +101,9 @@ private:
 	double lastPhysicalScalar = 1.0;
 	bool lastPhysicalMuted = false;
 	ULONGLONG nextHookRearmTick = 0;
+	ULONGLONG lastHookKeyTick[3] = {};
+	ULONGLONG lastMediaKeyTick = 0;
+	bool mediaHotkeyRegistered[3] = {};
 
 	HANDLE takeoverMapping = NULL;
 	struct HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;

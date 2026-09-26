@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Fixed media Volume Up in fullscreen games when Windows keeps the physical endpoint at 100%: register Volume Up, Volume Down, and Mute as backup global hotkeys, handle `WM_HOTKEY` when the low-level hook misses a key, and suppress duplicate endpoint fallback for recently handled keys.
 - Fixed volume takeover not taking effect automatically after Windows startup and resolved lost volume control in fullscreen applications:
   - Added "Start with Windows" setting and tray/main menu action (`startWithWindowsAction`) to register `Editor.exe --tray` in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
   - Added `--tray` and `--minimized` command-line switches to `main.cpp`, launching the Editor silently into the system tray on startup without popping up the main window while keeping volume takeover and IPC active.
