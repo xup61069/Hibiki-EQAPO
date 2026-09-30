@@ -1,12 +1,17 @@
-# AI 交接快照：開機自啟與全螢幕響度控制修正
+# AI 交接快照：Hibiki EQAPO v3.1.8 已發布
 
-最後更新：2026-09-26（Asia/Taipei）
+最後更新：2026-09-30（Asia/Taipei）
 
-- 無 active WIP。修正在 `codex/fix-autostart-fullscreen-loudness` 分支完成，尚未合併、推送、發版或安裝。
-- 2026-09-26 補修：使用者確認《絕區零》全螢幕時鍵盤音量減有效、音量加無效；實體端點固定 100% 時無法靠音量差值辨識加鍵。Editor 改用全域媒體音量熱鍵作為掛鉤失效的備援，並避免同一次按鍵又被端點輪詢重複套用。使用者在遊戲全螢幕時按的實體音量加鍵，已由暫時的 `RegisterHotKey` 探針接收。
+- 無 active WIP。修正與發版準備已經 [PR #11](https://github.com/xup61069/Hibiki-EQAPO/pull/11) 合併至 `main` 並推送；本次修正／發版分支已刪除。遠端 annotated tag `v3.1.8` 指向發布提交 `0d3a2567dbd0756cf1d6dcbc53941c5e0b3e8802`。
+- [v3.1.8 GitHub Release](https://github.com/xup61069/Hibiki-EQAPO/releases/tag/v3.1.8) 已公開，包含 x64 安裝檔、SHA-256 與 NOTICE.md。正式安裝檔 SHA-256：`c91f6fe98eab7af71154d3a04ad41bb1f9b11f658096880111700b715e70902f`。
+- 《絕區零》全螢幕時鍵盤音量減有效、音量加無效：實體端點固定 100% 時無法靠音量差值辨識加鍵。Editor 改用全域媒體音量熱鍵作為掛鉤失效的備援，並避免同一次按鍵又被端點輪詢重複套用。使用者在遊戲全螢幕時按的實體音量加鍵，已由暫時的 `RegisterHotKey` 探針接收。
 - 開機 Run 命令的 `--tray` 已先向 Qt 命令列解析器註冊；接管從響度面板開啟或登入時恢復，都會補上自啟。明確關閉自啟可保留，舊路徑登錄值會重建。
 - 音量接管的低階鍵盤掛鉤會定期重裝；實體端點的外部降音量只按新變化量處理，避免每 250 ms 重複降低校正音量。
-- 驗證：Python 共 417 項，416 項通過、1 項因無法建立 global mapping（Win32 error 5）而跳過；Release installer 建置、原生響度測試通過；90 張 UI 回歸截圖產生並抽查。新版 Editor 尚未安裝；實際 Windows 重新登入，以及新版 Editor 在《絕區零》全螢幕時的端到端音量控制尚待驗證。
+- ADR-0007 仍為 Proposed，真實 vendor ASIO driver／DAW matrix 尚未完成；官方安裝檔已排除 experimental ASIO proxy，既有 proxy 檔案與登錄不由新版官方安裝程式管理。開發建置可用 `-EnableExperimentalAsioProxy` 明確啟用。
+- [PR CI](https://github.com/xup61069/Hibiki-EQAPO/actions/runs/36727296711) 與 [Release CI](https://github.com/xup61069/Hibiki-EQAPO/actions/runs/36728049851) 全部通過：公開歷史、回歸測試、Release 建置、VST 二進位／自載入防護、原生響度、建置後 VST host 生命週期、90 張 UI 回歸截圖，以及 disposable Windows 安裝測試。同一提交的 main push／tag push 重複建置已取消。
+- `scripts/test-installer-release-gate.ps1` 已在乾淨 GitHub-hosted Windows runner 驗證從公開 3.1.7 升級、抽取失敗回復、程序中斷後恢復、解除安裝、設定／外掛資料保留及全新安裝不含 proxy；兩個 CI 均保存 `results.json` 證據。本機 `-CompileOnly` 僅編譯測試安裝檔，不執行安裝。
+- 本機 Python 共 417 項，416 項通過、1 項因無法建立 global mapping（Win32 error 5）而跳過；Release 建置、原生響度、VST 防護與公開歷史檢查通過；中英介面截圖已抽查，另確認 zh_CN 深色與高對比介面。
+- 使用者本機尚未安裝 3.1.8；實際 Windows 重新登入，以及新版 Editor 在《絕區零》全螢幕時的端到端音量控制尚待驗證。
 
 ---
 
