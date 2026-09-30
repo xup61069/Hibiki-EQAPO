@@ -362,7 +362,14 @@ class MonitorVST3ContractTests(unittest.TestCase):
         release_configuration_guard = (
             "if: ${{ (inputs.configuration || 'Release') == 'Release' }}"
         )
-        self.assertEqual(BUILD_WORKFLOW.count(release_configuration_guard), 2)
+        for step_name in (
+            "Audit Monitor VST3 PE imports",
+            "Test VST direct-path and hardlink self-load guard",
+        ):
+            step = BUILD_WORKFLOW.split(f"      - name: {step_name}\n", 1)[1].split(
+                "      - name:", 1
+            )[0]
+            self.assertIn(release_configuration_guard, step)
         self.assertIn("人工 release gate", DECISION)
         self.assertIn("尚無受專案維護、可重現的 validator", DECISION)
 

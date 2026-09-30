@@ -71,7 +71,7 @@ Get-Content .\Hibiki-EQAPO-x64-*.exe.sha256
 
 ## ASIO® 監聽校正
 
-Hibiki EQAPO is compatible with ASIO® technology. x64 安裝程式可將 **Hibiki EQAPO** 登錄為一個獨立的 ASIO proxy driver，並讓你在安裝時選擇底層的音訊介面原廠 driver；安裝後也可從 Configuration Editor 標頭列的 ASIO 裝置下拉選單切換。它不會改寫原廠 CLSID 或 driver 檔案。
+Hibiki EQAPO is compatible with ASIO® technology. 正式 x64 安裝包目前排除實驗性 ASIO proxy；原始碼開發版可用 `scripts/build-installer-x64.ps1 -Configuration Release -EnableExperimentalAsioProxy` 明確建置包含 proxy 的測試安裝包。該測試安裝包可將 **Hibiki EQAPO** 登錄為獨立 driver，並讓你在安裝時選擇底層的音訊介面原廠 driver；安裝後也可從 Configuration Editor 標頭列的 ASIO 裝置下拉選單切換。它不會改寫原廠 CLSID 或 driver 檔案。正式安裝包不更新或移除既有的實驗性 proxy；該安裝的清理由原本包含 proxy 的安裝程式處理。
 
 > **實驗性功能：** 目前自動化與 fake-vendor 測試已通過，但 [ADR-0007](docs/decisions/0007-transparent-asio-proxy.md) 要求的真實音訊介面 ASIO driver 與 DAW 驗證尚未完成。不能據此推定相容性、故障時必定靜音，或校正一定不會進入 export；只應以低音量、可復原的非正式專案測試。通過該發布門檻前，不能視為 production-ready；正式發行若未完成驗證，必須停用或排除 proxy。
 

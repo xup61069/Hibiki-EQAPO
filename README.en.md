@@ -71,11 +71,16 @@ After a successful commit, cleanup can remain deferred while Windows still has a
 
 ## ASIO® monitor correction
 
-Hibiki EQAPO is compatible with ASIO® technology. The x64 installer can
-register **Hibiki EQAPO** as a separate ASIO proxy driver and lets you choose the
+Hibiki EQAPO is compatible with ASIO® technology. Official x64 installers
+currently exclude the experimental ASIO proxy. Source development builds can
+explicitly include it with
+`scripts/build-installer-x64.ps1 -Configuration Release -EnableExperimentalAsioProxy`.
+That test installer can register **Hibiki EQAPO** as a separate driver and lets you choose the
 underlying audio-interface vendor driver during setup. After installation, the
 x64 editor header also provides an ASIO-device drop-down for changing that
-target. It does not replace the vendor CLSID or driver files.
+target. It does not replace the vendor CLSID or driver files. Official installers
+do not update or remove an existing experimental proxy; use the original
+proxy-enabled installer to manage that installation.
 
 > **Experimental:** automated and fake-vendor tests pass, but the real
 > audio-interface ASIO driver and DAW validation required by

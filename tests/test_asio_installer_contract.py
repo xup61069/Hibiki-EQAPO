@@ -136,7 +136,7 @@ class AsioInstallerContractTests(unittest.TestCase):
             SETUP,
         )
         self.assertIn('!define ASIO_PROXY_DLL "HibikiEQAPODriver.dll"', SETUP)
-        self.assertIn('!define ENABLE_ASIO_PROXY 1', SETUP64)
+        self.assertIn('!ifndef ENABLE_ASIO_PROXY\n!define ENABLE_ASIO_PROXY 0\n!endif', SETUP64)
         self.assertNotIn('!define ENABLE_ASIO_PROXY 1', SETUP32)
         self.assertNotIn('!define ENABLE_ASIO_PROXY 1', SETUP_ARM64)
 

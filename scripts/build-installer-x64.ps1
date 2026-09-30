@@ -1,7 +1,8 @@
 param(
 	[string]$Configuration = "Release",
 	[string]$VisualStudioEdition = "",
-	[string]$Makensis = ""
+	[string]$Makensis = "",
+	[switch]$EnableExperimentalAsioProxy
 )
 
 $ErrorActionPreference = "Stop"
@@ -67,7 +68,8 @@ if ($Makensis -eq "") {
 
 Push-Location (Join-Path $root "Setup")
 try {
-	& $Makensis "/WX" "/INPUTCHARSET" "UTF8" "/DCONFIGURATION=$Configuration" ".\Setup64.nsi"
+	$asioProxyFlag = if ($EnableExperimentalAsioProxy) { 1 } else { 0 }
+	& $Makensis "/WX" "/INPUTCHARSET" "UTF8" "/DCONFIGURATION=$Configuration" "/DENABLE_ASIO_PROXY=$asioProxyFlag" ".\Setup64.nsi"
 	if ($LASTEXITCODE -ne 0) {
 		throw "makensis failed with exit code $LASTEXITCODE"
 	}

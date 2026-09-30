@@ -9,7 +9,7 @@ on:
       tag_name:
         description: "Release Tag (e.g. v3.1.1)"
         required: true
-        default: "v3.1.7"
+        default: "v3.1.8"
 
 # Building third-party code must never run with a repository write token.
 permissions:
@@ -85,6 +85,20 @@ jobs:
       - name: Capture UI theme and DPI regression matrix
         shell: pwsh
         run: .\scripts\capture-ui-regression.ps1 -Configuration "Release"
+
+      - name: Test installer upgrade, rollback, recovery, and uninstall on disposable runner
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .\scripts\test-installer-release-gate.ps1
+
+      - name: Upload installer validation evidence
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Hibiki-EQAPO-release-installer-validation
+          path: _build/installer-release-gate/results.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Verify and stage release artifact
         id: release

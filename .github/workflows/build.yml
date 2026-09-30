@@ -94,6 +94,22 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Test installer upgrade, rollback, recovery, and uninstall on disposable runner
+        if: ${{ (inputs.configuration || 'Release') == 'Release' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: .\scripts\test-installer-release-gate.ps1
+
+      - name: Upload installer validation evidence
+        if: ${{ (inputs.configuration || 'Release') == 'Release' }}
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Hibiki-EQAPO-installer-validation
+          path: _build/installer-release-gate/results.json
+          if-no-files-found: error
+          retention-days: 14
+
       - name: Locate installer
         id: installer
         shell: pwsh

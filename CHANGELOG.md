@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+## 3.1.8
+
+- Added a disposable Windows installer release gate for normal upgrades, rollback after extraction failure, recovery after process termination, uninstall, user-data preservation, and the excluded proxy payload.
+- Excluded the experimental ASIO proxy from official installers while ADR-0007's real driver/DAW validation remains incomplete. Development builds can opt in with `-EnableExperimentalAsioProxy`; existing experimental proxy installations are preserved and are not managed by the official installer.
 - Fixed media Volume Up in fullscreen games when Windows keeps the physical endpoint at 100%: register Volume Up, Volume Down, and Mute as backup global hotkeys, handle `WM_HOTKEY` when the low-level hook misses a key, and suppress duplicate endpoint fallback for recently handled keys.
 - Fixed volume takeover not taking effect automatically after Windows startup and resolved lost volume control in fullscreen applications:
   - Added "Start with Windows" setting and tray/main menu action (`startWithWindowsAction`) to register `Editor.exe --tray` in `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`.
