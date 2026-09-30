@@ -113,7 +113,10 @@ function Assert-NoRecoveryJournal {
 
 function Get-Hash([string]$Path) { return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash }
 
-$installDirectory = Join-Path $env:ProgramFiles ("Hibiki-EQAPO-release-gate-" + [Guid]::NewGuid().ToString("N"))
+# The previous published installer's .onInit restores the default directory.
+# Exercise that supported default and verify the published registry path.
+$installDirectory = Join-Path $env:ProgramFiles "EqualizerAPO"
+if (Test-Path -LiteralPath $installDirectory) { throw "The disposable runner already has the install directory." }
 $previousDirectory = Join-Path $outputDirectory "previous"
 New-Item -ItemType Directory -Force -Path $previousDirectory | Out-Null
 & gh release download v3.1.7 --repo xup61069/Hibiki-EQAPO `
@@ -136,6 +139,10 @@ foreach ($serviceName in @("AudioEndpointBuilder", "AudioSrv")) {
 }
 Invoke-Installer $previousInstaller "/S /NOASIOPROXY /D=$installDirectory"
 Assert-NoRecoveryJournal
+$installedMetadata = Get-ItemProperty -LiteralPath "HKLM:\Software\EqualizerAPO"
+if ($installedMetadata.InstallPath -ne $installDirectory -or !(Test-Path -LiteralPath (Join-Path $installDirectory "config"))) {
+	throw "The previous installer did not publish the expected installation directory."
+}
 $userConfig = Join-Path $installDirectory "config\release-gate-user.txt"
 $userPlugin = Join-Path $installDirectory "VSTPlugins\release-gate-user.bin"
 New-Item -ItemType Directory -Force -Path (Split-Path -Parent $userPlugin) | Out-Null

@@ -127,10 +127,12 @@ jobs:
             throw "Could not verify whether release tag $env:RELEASE_TAG already exists."
           }
           $existingTagCommit = $null
+          $hasAnnotatedTag = $false
           foreach ($row in $remoteTagRows) {
             if ($row -match '^([0-9a-fA-F]{40})\s+(.+)$') {
               if ($Matches[2] -eq $peeledTagRef) {
                 $existingTagCommit = $Matches[1]
+                $hasAnnotatedTag = $true
                 break
               }
               if ($Matches[2] -eq $tagRef) {
@@ -138,10 +140,17 @@ jobs:
               }
             }
           }
+          if (!$existingTagCommit -or !$hasAnnotatedTag) {
+            throw "Create and push the matching annotated tag before release publication."
+          }
           if ($existingTagCommit -and
               ![StringComparer]::OrdinalIgnoreCase.Equals($existingTagCommit, $sourceCommit)) {
             throw "Release tag $env:RELEASE_TAG points to $existingTagCommit, not checked-out commit $sourceCommit."
           }
+          git fetch origin main
+          if ($LASTEXITCODE -ne 0) { throw "Could not verify the current main branch." }
+          git merge-base --is-ancestor $sourceCommit FETCH_HEAD
+          if ($LASTEXITCODE -ne 0) { throw "The release commit has not been merged into main." }
 
           $installer = "Setup/Hibiki-EQAPO-x64-$version.exe"
           $checksum = "$installer.sha256"
