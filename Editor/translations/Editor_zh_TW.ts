@@ -2821,6 +2821,10 @@ Alexander Walch</source>
         <translation>繼續在通知區域執行</translation>
     </message>
     <message>
+        <source>Start with Windows</source>
+        <translation>隨 Windows 開機啟動</translation>
+    </message>
+    <message>
         <source>Take over Windows volume keys &amp; OSD</source>
         <translation>接管 Windows 音量鍵與 OSD</translation>
     </message>
@@ -2831,6 +2835,18 @@ Alexander Walch</source>
     <message>
         <source>Volume takeover disabled: Windows default volume behavior restored</source>
         <translation>音量接管已停用：已還原 Windows 預設音量行為</translation>
+    </message>
+    <message>
+        <source>Hibiki EQAPO will start automatically when Windows starts</source>
+        <translation>Hibiki EQAPO 將在 Windows 開機時自動啟動</translation>
+    </message>
+    <message>
+        <source>Automatic startup with Windows disabled</source>
+        <translation>已停用開機自動啟動</translation>
+    </message>
+    <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>無法更新 Windows 開機啟動設定</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="1143"/>

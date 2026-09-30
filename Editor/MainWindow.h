@@ -116,6 +116,9 @@ private slots:
 	void asioDeviceSelected(int index);
 	void closeToTrayToggled(bool enabled);
 	void takeoverVolumeKeysToggled(bool enabled);
+	void startWithWindowsToggled(bool enabled);
+	bool isStartWithWindowsEnabled() const;
+	bool setStartWithWindows(bool enabled);
 
 	void on_mainToolBar_visibilityChanged(bool visible);
 	void on_analysisDockWidget_visibilityChanged(bool visible);
@@ -208,6 +211,8 @@ private:
 	QAction* comparisonAction = NULL;
 	QAction* bypassAction = NULL;
 	QAction* closeToTrayAction = NULL;
+	QAction* startWithWindowsAction = NULL;
+	bool startWithWindows = false;
 	QAction* takeoverVolumeKeysAction = NULL;
 	bool takeoverVolumeKeys = false;
 	QAction* trayBypassAction = NULL;

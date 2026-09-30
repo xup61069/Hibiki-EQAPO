@@ -2801,6 +2801,10 @@ Alexander Walch</translation>
         <translation>Continuer à exécuter dans la zone de notification</translation>
     </message>
     <message>
+        <source>Start with Windows</source>
+        <translation>Démarrer avec Windows</translation>
+    </message>
+    <message>
         <source>Take over Windows volume keys &amp; OSD</source>
         <translation>Prendre le contrôle des touches de volume Windows et de l'OSD</translation>
     </message>
@@ -2811,6 +2815,18 @@ Alexander Walch</translation>
     <message>
         <source>Volume takeover disabled: Windows default volume behavior restored</source>
         <translation>Prise de contrôle du volume désactivée : comportement de volume par défaut de Windows restauré</translation>
+    </message>
+    <message>
+        <source>Hibiki EQAPO will start automatically when Windows starts</source>
+        <translation>Hibiki EQAPO démarrera automatiquement au démarrage de Windows</translation>
+    </message>
+    <message>
+        <source>Automatic startup with Windows disabled</source>
+        <translation>Démarrage automatique avec Windows désactivé</translation>
+    </message>
+    <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>Impossible de modifier le démarrage automatique avec Windows</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="1143"/>

@@ -2996,6 +2996,10 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>继续在通知区域运行</translation>
     </message>
     <message>
+        <source>Start with Windows</source>
+        <translation>随 Windows 开机启动</translation>
+    </message>
+    <message>
         <source>Take over Windows volume keys &amp; OSD</source>
         <translation>接管 Windows 音量键与 OSD</translation>
     </message>
@@ -3006,6 +3010,18 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
     <message>
         <source>Volume takeover disabled: Windows default volume behavior restored</source>
         <translation>音量接管已禁用：已还原 Windows 默认音量行为</translation>
+    </message>
+    <message>
+        <source>Hibiki EQAPO will start automatically when Windows starts</source>
+        <translation>Hibiki EQAPO 将在 Windows 开机时自动启动</translation>
+    </message>
+    <message>
+        <source>Automatic startup with Windows disabled</source>
+        <translation>已停用开机自动启动</translation>
+    </message>
+    <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>无法更新 Windows 开机启动设置</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="1143"/>

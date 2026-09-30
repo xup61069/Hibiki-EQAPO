@@ -22,8 +22,10 @@
 #include <QDir>
 #include <QFileInfo>
 #include <QCommandLineParser>
+#include <QCommandLineOption>
 #include <QSettings>
 #include <QStyleHints>
+#include <QSystemTrayIcon>
 #include <windows.h>
 #include "CustomStyle.h"
 #include "MainWindow.h"
@@ -132,12 +134,21 @@ int main(int argc, char* argv[])
 		}
 		QDir configDir(configPath);
 
+		QCommandLineParser parser;
+		const QCommandLineOption trayOption(
+			{QStringLiteral("tray"), QStringLiteral("minimized")});
+		parser.addOption(trayOption);
+		parser.process(application);
+		const bool startInTray = parser.isSet(trayOption)
+			&& QSystemTrayIcon::isSystemTrayAvailable();
+
 		MainWindow w(configDir);
 		UiSnapshot::prepareForCapture(w);
-		w.show();
+		if (!startInTray || snapshotMode)
+		{
+			w.show();
+		}
 
-		QCommandLineParser parser;
-		parser.process(application);
 		QStringList args = parser.positionalArguments();
 		if (args.isEmpty() && w.isEmpty() && !snapshotMode)
 			args = QStringList("config.txt");

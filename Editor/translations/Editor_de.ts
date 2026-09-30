@@ -2997,6 +2997,10 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>Im Infobereich weiter ausführen</translation>
     </message>
     <message>
+        <source>Start with Windows</source>
+        <translation>Mit Windows starten</translation>
+    </message>
+    <message>
         <source>Take over Windows volume keys &amp; OSD</source>
         <translation>Windows-Lautstärketasten &amp; OSD übernehmen</translation>
     </message>
@@ -3007,6 +3011,18 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
     <message>
         <source>Volume takeover disabled: Windows default volume behavior restored</source>
         <translation>Lautstärkeübernahme deaktiviert: Windows-Standardlautstärkeverhalten wiederhergestellt</translation>
+    </message>
+    <message>
+        <source>Hibiki EQAPO will start automatically when Windows starts</source>
+        <translation>Hibiki EQAPO startet automatisch mit Windows</translation>
+    </message>
+    <message>
+        <source>Automatic startup with Windows disabled</source>
+        <translation>Automatischer Start mit Windows deaktiviert</translation>
+    </message>
+    <message>
+        <source>Could not update Windows startup setting</source>
+        <translation>Windows-Autostart-Einstellung konnte nicht aktualisiert werden</translation>
     </message>
     <message>
         <location filename="../MainWindow.cpp" line="1143"/>

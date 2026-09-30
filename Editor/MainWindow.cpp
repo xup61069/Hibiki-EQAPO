@@ -1303,11 +1303,21 @@ void MainWindow::setupWorkspaceTools()
 	closeToTrayAction->setCheckable(true);
 	connect(closeToTrayAction, SIGNAL(toggled(bool)), this, SLOT(closeToTrayToggled(bool)));
 
+	startWithWindowsAction = ui->menuSettings->addAction(tr("Start with Windows"));
+	startWithWindowsAction->setCheckable(true);
+	connect(startWithWindowsAction, &QAction::toggled, this, &MainWindow::startWithWindowsToggled);
+
 	takeoverVolumeKeysAction = ui->menuSettings->addAction(tr("Take over Windows volume keys & OSD"));
 	takeoverVolumeKeysAction->setCheckable(true);
 	connect(takeoverVolumeKeysAction, &QAction::toggled, this, &MainWindow::takeoverVolumeKeysToggled);
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverToggled, this, [this](bool enabled) {
 		takeoverVolumeKeys = enabled;
+		if (enabled && !startWithWindows)
+		{
+			QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+			if (!settings.value("startWithWindowsOptOut", false).toBool())
+				setStartWithWindows(true);
+		}
 		if (takeoverVolumeKeysAction != NULL)
 		{
 			QSignalBlocker blocker(takeoverVolumeKeysAction);
@@ -1521,6 +1531,7 @@ void MainWindow::setupTrayIcon()
 	});
 	trayMenu->addAction(bypassAction);
 	trayMenu->addAction(closeToTrayAction);
+	trayMenu->addAction(startWithWindowsAction);
 	trayMenu->addAction(takeoverVolumeKeysAction);
 	trayMenu->addSeparator();
 	QAction* quitAction = trayMenu->addAction(tr("Exit"));
@@ -1550,6 +1561,7 @@ void MainWindow::setupTrayIcon()
 			}
 		});
 	trayIcon->show();
+	QApplication::setQuitOnLastWindowClosed(false);
 	refreshProfileMenus();
 }
 
@@ -3456,6 +3468,58 @@ void MainWindow::takeoverVolumeKeysToggled(bool enabled)
 	}
 }
 
+bool MainWindow::isStartWithWindowsEnabled() const
+{
+	QSettings runSettings(
+		QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+		QSettings::NativeFormat);
+	const QString command = QStringLiteral("\"%1\" --tray").arg(
+		QDir::toNativeSeparators(QCoreApplication::applicationFilePath()));
+	return runSettings.value(QStringLiteral("Hibiki EQAPO Configuration Editor"))
+		.toString().compare(command, Qt::CaseInsensitive) == 0;
+}
+
+bool MainWindow::setStartWithWindows(bool enabled)
+{
+	QSettings runSettings(
+		QStringLiteral("HKEY_CURRENT_USER\\Software\\Microsoft\\Windows\\CurrentVersion\\Run"),
+		QSettings::NativeFormat);
+	const QString keyName = QStringLiteral("Hibiki EQAPO Configuration Editor");
+	if (enabled)
+	{
+		const QString appPath = QDir::toNativeSeparators(QCoreApplication::applicationFilePath());
+		const QString command = QStringLiteral("\"%1\" --tray").arg(appPath);
+		runSettings.setValue(keyName, command);
+	}
+	else
+	{
+		runSettings.remove(keyName);
+	}
+	runSettings.sync();
+	startWithWindows = isStartWithWindowsEnabled();
+	if (startWithWindowsAction != NULL)
+	{
+		QSignalBlocker blocker(startWithWindowsAction);
+		startWithWindowsAction->setChecked(startWithWindows);
+	}
+	return runSettings.status() == QSettings::NoError && startWithWindows == enabled;
+}
+
+void MainWindow::startWithWindowsToggled(bool enabled)
+{
+	if (!setStartWithWindows(enabled))
+	{
+		showWorkspaceStatus(tr("Could not update Windows startup setting"), "warning");
+		return;
+	}
+	QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+	settings.setValue("startWithWindowsOptOut", !enabled);
+	if (enabled)
+		showWorkspaceStatus(tr("Hibiki EQAPO will start automatically when Windows starts"));
+	else
+		showWorkspaceStatus(tr("Automatic startup with Windows disabled"));
+}
+
 void MainWindow::doChecks()
 {
 	if (!DeviceAPOInfo::checkProtectedAudioDG(false) || !DeviceAPOInfo::checkAPORegistration(false))
@@ -5234,6 +5298,12 @@ void MainWindow::loadPreferences()
 		QSignalBlocker blocker(closeToTrayAction);
 		closeToTrayAction->setChecked(closeToTray);
 	}
+	startWithWindows = isStartWithWindowsEnabled();
+	if (startWithWindowsAction != NULL)
+	{
+		QSignalBlocker blocker(startWithWindowsAction);
+		startWithWindowsAction->setChecked(startWithWindows);
+	}
 	takeoverVolumeKeys = settings.value("takeoverVolumeKeys", false).toBool();
 	if (takeoverVolumeKeysAction != NULL)
 	{
@@ -5327,6 +5397,7 @@ void MainWindow::savePreferences()
 	settings.setValue("windowState", saveWindowLayoutState());
 	settings.setValue("instantMode", instantModeCheckBox->isChecked());
 	settings.setValue("closeToTray", closeToTray);
+	settings.setValue("startWithWindows", startWithWindows);
 	settings.setValue("takeoverVolumeKeys", takeoverVolumeKeys);
 	shared_ptr<AbstractAPOInfo> selectedDevice = deviceComboBox->currentData().value<shared_ptr<AbstractAPOInfo>>();
 	settings.setValue("selectedDevice", selectedDevice != NULL ? QString::fromStdWString(selectedDevice->getDeviceGuid().empty() ? selectedDevice->getDeviceString() : selectedDevice->getDeviceGuid()) : "");
