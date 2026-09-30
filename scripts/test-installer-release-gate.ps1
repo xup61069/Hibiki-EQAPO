@@ -128,6 +128,12 @@ foreach ($path in @($previousInstaller, $installer)) {
 	}
 }
 
+# Hosted Windows Server images can disable audio services by default. Enable
+# them only inside this disposable runner to exercise the installer's restart.
+foreach ($serviceName in @("AudioEndpointBuilder", "AudioSrv")) {
+	Set-Service -Name $serviceName -StartupType Manual
+	Start-Service -Name $serviceName
+}
 Invoke-Installer $previousInstaller "/S /NOASIOPROXY /D=$installDirectory"
 Assert-NoRecoveryJournal
 $userConfig = Join-Path $installDirectory "config\release-gate-user.txt"
@@ -154,6 +160,8 @@ function Assert-PreviousInstall {
 			throw "Rollback did not restore the previous $name."
 		}
 	}
+	$metadata = Get-ItemProperty -LiteralPath "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\EqualizerAPO"
+	if ($metadata.DisplayVersion -ne "3.1.7") { throw "Rollback did not restore the previous version metadata." }
 	Assert-UserData
 	Assert-NoRecoveryJournal
 }
@@ -188,6 +196,8 @@ Write-Host "PASS: the next installer recovered a process-terminated upgrade."
 Invoke-Installer $installer "/S /D=$installDirectory"
 Assert-UserData
 Assert-NoRecoveryJournal
+$metadata = Get-ItemProperty -LiteralPath "HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall\EqualizerAPO"
+if ($metadata.DisplayVersion -ne $version) { throw "Upgrade did not publish the release version metadata." }
 if ((Get-Hash (Join-Path $installDirectory "Editor.exe")) -ne (Get-Hash (Join-Path $root "x64\Release\Editor.exe"))) {
 	throw "The upgraded Editor does not match the release build."
 }

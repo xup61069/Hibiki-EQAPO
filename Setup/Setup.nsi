@@ -149,6 +149,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
   Var UninstallApoUnregistered
   Var UninstallAsioProxyUnregistered
   Var UninstallRecoveryStepName
+  !if ${ENABLE_ASIO_PROXY} == 1
   Var NewAsioRegAttempted
   Var AsioProxyRequested
   Var AsioSelectedTargetClsid
@@ -168,6 +169,7 @@ VIAddVersionKey /LANG=1033 "LegalCopyright" "Equalizer APO contributors"
   Var AsioProxyEnableCheckbox
   Var AsioTargetCombo
   Var AsioTargetStatusLabel
+  !endif
 
 ;--------------------------------
 ;Interface Settings
@@ -4630,10 +4632,12 @@ Function un.PrepareUninstallTransaction
   StrCpy $InstallFailureReason "validating the required EqualizerAPO.dll before uninstall"
   StrCpy $InstallRecoveryFailed "1"
   Return
+  !if ${ENABLE_ASIO_PROXY} == 1
   lockedUninstallAsioProxy:
   StrCpy $InstallFailureReason "checking the Hibiki EQAPO driver file; close every DAW and retry (Win32 error: $InstallOperationCode)"
   StrCpy $InstallRecoveryFailed "1"
   Return
+  !endif
   writeUninstallTransactionFailed:
   StrCpy $InstallFailureReason "creating the uninstall recovery journal"
   StrCpy $InstallRecoveryFailed "1"
