@@ -1310,6 +1310,28 @@ void MainWindow::setupWorkspaceTools()
 	takeoverVolumeKeysAction = ui->menuSettings->addAction(tr("Take over Windows volume keys & OSD"));
 	takeoverVolumeKeysAction->setCheckable(true);
 	connect(takeoverVolumeKeysAction, &QAction::toggled, this, &MainWindow::takeoverVolumeKeysToggled);
+	volumeKeyStepAction = ui->menuSettings->addAction(tr("Volume key step…"));
+	volumeKeyStepAction->setObjectName(QStringLiteral("volumeKeyStepAction"));
+	connect(volumeKeyStepAction, &QAction::triggered, this, [this]() {
+		auto* manager = VolumeTakeoverManager::instance();
+		QInputDialog dialog(this);
+		dialog.setWindowTitle(tr("Volume key step"));
+		dialog.setLabelText(tr("Change per key press (%):"));
+		dialog.setInputMode(QInputDialog::IntInput);
+		dialog.setIntRange(1, 100);
+		dialog.setIntStep(1);
+		dialog.setIntValue(manager->getVolumeStepPercent());
+		UiSnapshot::prepareForCapture(dialog);
+		if (dialog.exec() == QDialog::Accepted)
+		{
+			manager->setVolumeStepPercent(dialog.intValue());
+			if (!noSavePreferences)
+			{
+				QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+				settings.setValue("volumeKeyStepPercent", manager->getVolumeStepPercent());
+			}
+		}
+	});
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverToggled, this, [this](bool enabled) {
 		takeoverVolumeKeys = enabled;
 		if (enabled && !startWithWindows)
@@ -1533,6 +1555,7 @@ void MainWindow::setupTrayIcon()
 	trayMenu->addAction(closeToTrayAction);
 	trayMenu->addAction(startWithWindowsAction);
 	trayMenu->addAction(takeoverVolumeKeysAction);
+	trayMenu->addAction(volumeKeyStepAction);
 	trayMenu->addSeparator();
 	QAction* quitAction = trayMenu->addAction(tr("Exit"));
 	connect(quitAction, &QAction::triggered, this, [this]() {
@@ -4573,6 +4596,36 @@ bool MainWindow::loadSnapshotScenario(const QString& scenario)
 		std::fprintf(stderr, "UI snapshot scenario failed at MainWindow.cpp:%d\n", line);
 		return false;
 	};
+	if (scenario == QStringLiteral("volume-step"))
+	{
+		// Exercise the actual Settings action without touching user preferences.
+		if (!noSavePreferences || !volumeKeyStepAction) return invalid(__LINE__);
+		VolumeTakeoverManager::instance()->setVolumeStepPercent(3);
+		QTimer::singleShot(0, this, [this]() {
+			QTimer::singleShot(100, this, []() {
+				auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+				if (!dialog || dialog->intValue() != 3 || dialog->intMinimum() != 1 || dialog->intMaximum() != 100
+					|| !UiSnapshot::environmentIsValid(*dialog) || !dialog->grab().save(UiSnapshot::outputPath(), "PNG"))
+				{
+					qApp->exit(87);
+					return;
+				}
+				dialog->setIntValue(5);
+				dialog->accept();
+			});
+			volumeKeyStepAction->trigger();
+			if (VolumeTakeoverManager::instance()->getVolumeStepPercent() != 5) { qApp->exit(87); return; }
+			QTimer::singleShot(100, this, []() {
+				auto* dialog = qobject_cast<QInputDialog*>(QApplication::activeModalWidget());
+				if (!dialog || dialog->intValue() != 5) { qApp->exit(87); return; }
+				dialog->setIntValue(7);
+				dialog->reject();
+			});
+			volumeKeyStepAction->trigger();
+			qApp->exit(VolumeTakeoverManager::instance()->getVolumeStepPercent() == 5 ? 0 : 87);
+		});
+		return true;
+	}
 	const bool volumeScenario = scenario == QStringLiteral("volume-follow");
 	const bool denseScenario = scenario == QStringLiteral("dense") || volumeScenario;
 	const bool restoredToolsScenario = scenario == QStringLiteral("restored-tools");
@@ -5305,6 +5358,7 @@ void MainWindow::loadPreferences()
 		startWithWindowsAction->setChecked(startWithWindows);
 	}
 	takeoverVolumeKeys = settings.value("takeoverVolumeKeys", false).toBool();
+	VolumeTakeoverManager::instance()->setVolumeStepPercent(settings.value("volumeKeyStepPercent", 2).toInt());
 	if (takeoverVolumeKeysAction != NULL)
 	{
 		QSignalBlocker blocker(takeoverVolumeKeysAction);
@@ -5399,6 +5453,7 @@ void MainWindow::savePreferences()
 	settings.setValue("closeToTray", closeToTray);
 	settings.setValue("startWithWindows", startWithWindows);
 	settings.setValue("takeoverVolumeKeys", takeoverVolumeKeys);
+	settings.setValue("volumeKeyStepPercent", VolumeTakeoverManager::instance()->getVolumeStepPercent());
 	shared_ptr<AbstractAPOInfo> selectedDevice = deviceComboBox->currentData().value<shared_ptr<AbstractAPOInfo>>();
 	settings.setValue("selectedDevice", selectedDevice != NULL ? QString::fromStdWString(selectedDevice->getDeviceGuid().empty() ? selectedDevice->getDeviceString() : selectedDevice->getDeviceGuid()) : "");
 	int channelMask = channelConfigurationComboBox->currentData().toInt();

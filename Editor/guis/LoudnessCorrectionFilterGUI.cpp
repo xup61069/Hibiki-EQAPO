@@ -211,6 +211,9 @@ LoudnessCorrectionFilterGUI::LoudnessCorrectionFilterGUI(
 
 	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::volumeChangedExternal,
 		this, [this](double levelDb, double scalar, bool muted) {
+			// Updating a readout must not feed back into the manager or reload
+			// the filter while a media key notification is still being handled.
+			QSignalBlocker volumeBlocker(ui->volumeSpinBox);
 			lastEndpointState.levelDb = levelDb;
 			lastEndpointState.scalar = scalar;
 			lastEndpointState.muted = muted;

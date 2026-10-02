@@ -2997,6 +2997,18 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>Im Infobereich weiter ausführen</translation>
     </message>
     <message>
+        <source>Volume key step…</source>
+        <translation>Lautstärkeschritt…</translation>
+    </message>
+    <message>
+        <source>Volume key step</source>
+        <translation>Lautstärkeschritt</translation>
+    </message>
+    <message>
+        <source>Change per key press (%):</source>
+        <translation>Änderung pro Tastendruck (%):</translation>
+    </message>
+    <message>
         <source>Start with Windows</source>
         <translation>Mit Windows starten</translation>
     </message>

@@ -1,4 +1,19 @@
-# AI 交接快照：Hibiki EQAPO v3.1.8 已發布
+# AI 交接快照：音量跳動修正與可設定步進
+
+最後更新：2026-10-03（Asia/Taipei）
+
+- 無 active WIP。本輪從已 fetch 的 `origin/main`（`778f7816fbe49189aa3026e3bfe91a45f40eeb0c`）建立 `codex/stable-volume-step`；修正、設定、翻譯、文件與測試在本機完成。沒有推送、PR、新 tag 或新 Release，也沒有安裝到使用者電腦；產品版本仍為 3.1.8，新增內容記在 `CHANGELOG.md` 的 Unreleased。
+- 音量亂跳的可重現原因：掛鉤與全域熱鍵以送達時間去重，延遲／錯序時會重複計數；手動靜音的讀值回寫會把原音量改成最低；端點重設後的備援基準未立即更新會漏掉下一次變化。舊碼的隔離重現有 3 passed、6 failed（`_build/volume-step-repro.log`）。
+- 修正使用輸入事件時間配對掛鉤／熱鍵通知，保留真正的連按；接管切換會丟棄舊佇列事件。手動靜音保留原控制位置，GUI 讀值更新以 `QSignalBlocker` 防止回寫；實體端點重設成功才把備援基準改成 100%，失敗時不重複套用同一降幅。
+- 「設定」與系統匣新增「音量鍵步進…」：預設每次 2%，範圍 1–100%，可用 3%、4%、5%；確認後立即存入 `volumeKeyStepPercent`，啟動接管前載入，取消保留原值。手動／自動接管使用相同步進，OSD 拖曳仍設定絕對位置。四個 Editor 語系的 `.ts`／`.qm` 已同步。
+- 驗證：原生 Qt 音量測試 30 passed、0 failed、0 skipped；Python 全套 421 項中 420 passed、1 skipped。跳過的是 `test_built_host_cold_starts_and_hands_off`，建立 global mapping 得到 Win32 error 5；初次受 sandbox 影響的暫存／登錄測試已用允許的環境重跑。最終紀錄在 `_build/volume-step-native-final.log`、`_build/volume-step-python-verified.log`；最後 workflow 調整後的供應鏈契約 20 項也通過（`_build/volume-step-workflow-contract.log`）。
+- Release x64 建置與原生響度回歸通過（`_build/volume-step-build.log`、`_build/volume-step-runtime.log`）。90 張 Windows 原生 UI 矩陣在 `artifacts/volume-step-regression/`；新增對話框的 18 組英文／zh_CN／zh_TW、一般／深色／高對比、100%／150% DPI 確認／取消測試通過，圖與 manifest 在 `artifacts/volume-step-ui/`。已人工抽查三個語系與各色彩／DPI 的可讀性。
+- 本機預覽安裝檔：`artifacts/Hibiki-EQAPO-volume-step-preview.exe`，14,751,286 bytes，SHA-256 `37686d78bffe66c0be0c20f72b4a10d823a2dcf09bf8009051ce99b67a97e03f`，旁有 `.sha256`。這是未發布的修正建置；公開 v3.1.8 的安裝檔與下方歷史 SHA 不代表本輪修正，先前下載的正式安裝檔保留在 `_build/published-3.1.8/`。
+- 原生按鍵測試隔離端點、OSD 與 IPC，沒有操作真實鍵盤或系統音量。新版 Editor 在《絕區零》全螢幕內的實際按鍵、登入恢復與安裝升級尚未驗證；本輪沒有修改 installer，沒有重跑 disposable installer matrix。GitHub CI 新增原生音量與步進對話框 gate，但尚未執行遠端 CI。
+
+---
+
+# 歷史快照：Hibiki EQAPO v3.1.8 已發布
 
 最後更新：2026-09-30（Asia/Taipei）
 

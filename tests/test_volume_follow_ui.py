@@ -166,8 +166,8 @@ class VolumeFollowUiTests(unittest.TestCase):
         self.assertIn("void publishTakeoverSharedData();", mgr_header)
         self.assertIn("enforceWindowsVolume100()", mgr_source)
         self.assertIn("publishTakeoverSharedData()", mgr_source)
-        self.assertIn("volumeController->setVolumeScalar(1.0);", mgr_source)
-        self.assertIn("volumeController->setMute(false);", mgr_source)
+        self.assertIn("SUCCEEDED(volumeController->setVolumeScalar(1.0))", mgr_source)
+        self.assertIn("SUCCEEDED(volumeController->setMute(false))", mgr_source)
         self.assertIn("volumeController->setVolumeScalar(takeoverScalar);", mgr_source)
         self.assertIn("volumeController->setMute(takeoverMuted);", mgr_source)
 

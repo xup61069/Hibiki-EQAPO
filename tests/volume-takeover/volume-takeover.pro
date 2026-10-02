@@ -1,0 +1,9 @@
+QT += widgets testlib
+CONFIG += console testcase c++17
+CONFIG -= app_bundle
+TEMPLATE = app
+TARGET = volume-takeover
+win32:LIBS += -luser32 -ladvapi32
+INCLUDEPATH += ../..
+SOURCES += volume-takeover.cpp doubles.cpp ../../Editor/helpers/VolumeTakeoverManager.cpp
+HEADERS += ../../Editor/helpers/VolumeTakeoverManager.h ../../Editor/widgets/VolumeOsdWidget.h

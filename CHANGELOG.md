@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Fixed delayed or reordered media-key notifications counting the same input twice; queued keys from an earlier takeover activation are discarded, while real repeats remain distinct.
+- Preserved the manual volume position across mute/unmute and prevented volume readout updates from feeding back into the manager. Physical endpoint resets now update the fallback baseline only when they succeed.
+- Added a saved "Volume key step" setting in Settings and the system tray: default 2%, configurable from 1% to 100%, including 3%, 4%, and 5%. Manual and automatic takeover use the same increment; mouse dragging remains absolute.
+
 ## 3.1.8
 
 - Added a disposable Windows installer release gate for normal upgrades, rollback after extraction failure, recovery after process termination, uninstall, user-data preservation, and the excluded proxy payload.

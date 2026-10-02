@@ -214,6 +214,7 @@ private:
 	QAction* startWithWindowsAction = NULL;
 	bool startWithWindows = false;
 	QAction* takeoverVolumeKeysAction = NULL;
+	QAction* volumeKeyStepAction = NULL;
 	bool takeoverVolumeKeys = false;
 	QAction* trayBypassAction = NULL;
 	QAction* dockAnalysisPanelAction = NULL;

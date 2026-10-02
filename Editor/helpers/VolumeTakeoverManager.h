@@ -14,6 +14,7 @@
 #include <windows.h>
 #include "filters/loudnessCorrection/VolumeController.h"
 #include "filters/loudnessCorrection/LoudnessCorrectionFilter.h"
+#include "MediaKeyDeduplicator.h"
 
 class VolumeOsdWidget;
 
@@ -47,7 +48,9 @@ public:
 
 	double calculateApoFollowTargetDb(double volumeDb, double scalar = 1.0, bool muted = false) const;
 
-	void stepVolume(bool up, double stepScalar = 0.02);
+	void setVolumeStepPercent(int percent);
+	int getVolumeStepPercent() const { return volumeStepPercent; }
+	void stepVolume(bool up);
 	void setVolumeScalar(double scalar);
 	void toggleMute();
 	void showCurrentVolumeOsd();
@@ -67,12 +70,14 @@ signals:
 	void takeoverToggled(bool enabled);
 
 private:
+	friend class VolumeTakeoverTests;
 	static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 	void installHook();
 	void removeHook();
 	void installMediaHotkeys();
 	void removeMediaHotkeys();
+	void queueMediaKey(unsigned key, DWORD time, MediaKeyDeduplicator::Source source);
 	void openSharedMemory();
 	void closeSharedMemory();
 	double calculateCurrentPhon(double volumeDb, double scalar = 1.0) const;
@@ -101,9 +106,12 @@ private:
 	double lastPhysicalScalar = 1.0;
 	bool lastPhysicalMuted = false;
 	ULONGLONG nextHookRearmTick = 0;
-	ULONGLONG lastHookKeyTick[3] = {};
+	MediaKeyDeduplicator mediaKeyDeduplicator;
+	unsigned mediaKeyGeneration = 0;
+	DWORD mediaKeyEnableTime = 0;
 	ULONGLONG lastMediaKeyTick = 0;
 	bool mediaHotkeyRegistered[3] = {};
+	int volumeStepPercent = 2;
 
 	HANDLE takeoverMapping = NULL;
 	struct HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;

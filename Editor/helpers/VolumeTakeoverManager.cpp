@@ -136,19 +136,17 @@ void VolumeTakeoverManager::enforceWindowsVolume100()
 	EndpointVolumeState realState;
 	if (SUCCEEDED(volumeController->getRealEndpointVolumeState(realState)))
 	{
-		if (realState.scalar < 0.999)
-		{
-			volumeController->setVolumeScalar(1.0);
-		}
-		if (realState.muted)
-		{
-			volumeController->setMute(false);
-		}
+		lastPhysicalScalar = realState.scalar;
+		lastPhysicalMuted = realState.muted;
+		if (realState.scalar < 0.999 && SUCCEEDED(volumeController->setVolumeScalar(1.0)))
+			lastPhysicalScalar = 1.0;
+		if (realState.muted && SUCCEEDED(volumeController->setMute(false)))
+			lastPhysicalMuted = false;
 	}
 	else
 	{
-		volumeController->setVolumeScalar(1.0);
-		volumeController->setMute(false);
+		if (SUCCEEDED(volumeController->setVolumeScalar(1.0))) lastPhysicalScalar = 1.0;
+		if (SUCCEEDED(volumeController->setMute(false))) lastPhysicalMuted = false;
 	}
 }
 
@@ -156,6 +154,10 @@ void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 {
 	if (takeoverEnabled == enabled)
 		return;
+	++mediaKeyGeneration;
+	mediaKeyDeduplicator.reset();
+	lastMediaKeyTick = 0;
+	mediaKeyEnableTime = GetTickCount();
 	takeoverEnabled = enabled;
 	if (takeoverEnabled)
 	{
@@ -327,35 +329,16 @@ LRESULT CALLBACK VolumeTakeoverManager::LowLevelKeyboardProc(
 {
 	if (nCode == HC_ACTION && (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN))
 	{
-		KBDLLHOOKSTRUCT* pKey = reinterpret_cast<KBDLLHOOKSTRUCT*>(lParam);
+		const KBDLLHOOKSTRUCT* pKey = reinterpret_cast<const KBDLLHOOKSTRUCT*>(lParam);
 		if (pKey && s_instance && s_instance->takeoverEnabled)
 		{
-			if (pKey->vkCode == VK_VOLUME_UP)
+			for (unsigned i = 0; i < 3; ++i)
 			{
-				s_instance->lastHookKeyTick[0] = GetTickCount64();
-				s_instance->lastMediaKeyTick = s_instance->lastHookKeyTick[0];
-				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
-					mgr->stepVolume(true);
-				}, Qt::QueuedConnection);
-				return 1;
-			}
-			else if (pKey->vkCode == VK_VOLUME_DOWN)
-			{
-				s_instance->lastHookKeyTick[1] = GetTickCount64();
-				s_instance->lastMediaKeyTick = s_instance->lastHookKeyTick[1];
-				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
-					mgr->stepVolume(false);
-				}, Qt::QueuedConnection);
-				return 1;
-			}
-			else if (pKey->vkCode == VK_VOLUME_MUTE)
-			{
-				s_instance->lastHookKeyTick[2] = GetTickCount64();
-				s_instance->lastMediaKeyTick = s_instance->lastHookKeyTick[2];
-				QMetaObject::invokeMethod(s_instance, [mgr = s_instance]() {
-					mgr->toggleMute();
-				}, Qt::QueuedConnection);
-				return 1;
+				if (pKey->vkCode == mediaVirtualKeys[i])
+				{
+					s_instance->queueMediaKey(i, pKey->time, MediaKeyDeduplicator::Source::Hook);
+					return 1;
+				}
 			}
 		}
 	}
@@ -371,24 +354,34 @@ bool VolumeTakeoverManager::nativeEventFilter(const QByteArray& eventType, void*
 		|| nativeMessage->hwnd != NULL)
 		return false;
 
-	for (int i = 0; i < 3; ++i)
+	for (unsigned i = 0; i < 3; ++i)
 	{
 		if (!mediaHotkeyRegistered[i] || nativeMessage->wParam != mediaHotkeyIds[i])
 			continue;
-		const ULONGLONG now = GetTickCount64();
-		if (lastHookKeyTick[i] == 0 || now - lastHookKeyTick[i] > 100)
-		{
-			lastMediaKeyTick = now;
-			if (i == 0)
-				stepVolume(true);
-			else if (i == 1)
-				stepVolume(false);
-			else
-				toggleMute();
-		}
+		// Discard a queued notification from a previous takeover activation.
+		if (static_cast<LONG>(nativeMessage->time - mediaKeyEnableTime) >= 0)
+			queueMediaKey(i, nativeMessage->time, MediaKeyDeduplicator::Source::Hotkey);
 		return true;
 	}
 	return false;
+}
+
+void VolumeTakeoverManager::queueMediaKey(unsigned key, DWORD time, MediaKeyDeduplicator::Source source)
+{
+	if (!mediaKeyDeduplicator.accept(key, time, source))
+		return;
+	lastMediaKeyTick = GetTickCount64();
+	const unsigned generation = mediaKeyGeneration;
+	QMetaObject::invokeMethod(this, [mgr = this, key, generation]() {
+		if (!mgr->takeoverEnabled || generation != mgr->mediaKeyGeneration)
+			return;
+		if (key == 0)
+			mgr->stepVolume(true);
+		else if (key == 1)
+			mgr->stepVolume(false);
+		else
+			mgr->toggleMute();
+	}, Qt::QueuedConnection);
 }
 
 double VolumeTakeoverManager::calculateApoFollowTargetDb(
@@ -416,15 +409,21 @@ double VolumeTakeoverManager::calculateCurrentPhon(double volumeDb, double scala
 	return (std::max)(0.0, (std::min)(100.0, phon));
 }
 
-void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
+void VolumeTakeoverManager::setVolumeStepPercent(int percent)
 {
+	volumeStepPercent = percent >= 1 && percent <= 100 ? percent : 2;
+}
+
+void VolumeTakeoverManager::stepVolume(bool up)
+{
+	const int stepPercent = volumeStepPercent;
 	if (manualMode)
 	{
 		if (manualMuted && up)
 		{
 			manualMuted = false;
 		}
-		manualVolumeDb = (std::max)(-100.0, (std::min)(0.0, manualVolumeDb + (up ? 1.0 : -1.0)));
+		manualVolumeDb = std::clamp(manualVolumeDb + (up ? stepPercent : -stepPercent), -100.0, 0.0);
 		const double scalar = (manualVolumeDb + 100.0) / 100.0;
 		takeoverLevelDb = manualVolumeDb;
 		takeoverScalar = scalar;
@@ -459,8 +458,6 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 		}
 
 		int currentPercent = static_cast<int>(std::round(state.scalar * 100.0));
-		int stepPercent = static_cast<int>(std::round(stepScalar * 100.0));
-		if (stepPercent <= 0) stepPercent = 2;
 		int newPercent = std::clamp(currentPercent + (up ? stepPercent : -stepPercent), 0, 100);
 		double newScalar = newPercent / 100.0;
 
@@ -500,8 +497,6 @@ void VolumeTakeoverManager::stepVolume(bool up, double stepScalar)
 
 	// Quantize to integer percentage (0..100) to match Windows master volume steps perfectly
 	int currentPercent = static_cast<int>(std::round(state.scalar * 100.0));
-	int stepPercent = static_cast<int>(std::round(stepScalar * 100.0));
-	if (stepPercent <= 0) stepPercent = 2;
 	int newPercent = std::clamp(currentPercent + (up ? stepPercent : -stepPercent), 0, 100);
 	double newScalar = newPercent / 100.0;
 
@@ -618,8 +613,9 @@ void VolumeTakeoverManager::toggleMute()
 	if (manualMode)
 	{
 		manualMuted = !manualMuted;
-		const double scalar = manualMuted ? 0.0 : (manualVolumeDb + 100.0) / 100.0;
-		const double db = manualMuted ? -100.0 : manualVolumeDb;
+		// Mute changes the gain state, not the saved control position.
+		const double scalar = (manualVolumeDb + 100.0) / 100.0;
+		const double db = manualVolumeDb;
 		takeoverLevelDb = db;
 		takeoverScalar = scalar;
 		takeoverMuted = manualMuted;

@@ -2996,6 +2996,18 @@ Change the first editable root Preamp from %3 dB to %4 dB?</source>
         <translation>继续在通知区域运行</translation>
     </message>
     <message>
+        <source>Volume key step…</source>
+        <translation>音量键步进…</translation>
+    </message>
+    <message>
+        <source>Volume key step</source>
+        <translation>音量键步进</translation>
+    </message>
+    <message>
+        <source>Change per key press (%):</source>
+        <translation>每次按键调整幅度（%）：</translation>
+    </message>
+    <message>
         <source>Start with Windows</source>
         <translation>随 Windows 开机启动</translation>
     </message>

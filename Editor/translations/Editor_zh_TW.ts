@@ -2821,6 +2821,18 @@ Alexander Walch</source>
         <translation>繼續在通知區域執行</translation>
     </message>
     <message>
+        <source>Volume key step…</source>
+        <translation>音量鍵步進…</translation>
+    </message>
+    <message>
+        <source>Volume key step</source>
+        <translation>音量鍵步進</translation>
+    </message>
+    <message>
+        <source>Change per key press (%):</source>
+        <translation>每次按鍵調整幅度（%）：</translation>
+    </message>
+    <message>
         <source>Start with Windows</source>
         <translation>隨 Windows 開機啟動</translation>
     </message>
