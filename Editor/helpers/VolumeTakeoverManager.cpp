@@ -7,6 +7,8 @@
 #include "Editor/widgets/VolumeOsdWidget.h"
 #include "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h"
 #include <QCoreApplication>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <algorithm>
 #include <cmath>
 
@@ -17,6 +19,11 @@ namespace
 {
 	constexpr int mediaHotkeyIds[] = {0x6B10, 0x6B11, 0x6B12};
 	constexpr UINT mediaVirtualKeys[] = {VK_VOLUME_UP, VK_VOLUME_DOWN, VK_VOLUME_MUTE};
+	bool validRememberedVolume(double scalar, double levelDb)
+	{
+		return std::isfinite(scalar) && scalar >= 0.0 && scalar <= 1.0
+			&& std::isfinite(levelDb) && levelDb >= -100.0 && levelDb <= 0.0;
+	}
 }
 
 VolumeTakeoverManager* VolumeTakeoverManager::instance()
@@ -56,19 +63,7 @@ VolumeTakeoverManager::VolumeTakeoverManager(QObject* parent)
 VolumeTakeoverManager::~VolumeTakeoverManager()
 {
 	if (takeoverEnabled)
-	{
-		if (takeoverShared)
-		{
-			HibikiTakeoverIpc::writeTakeoverSnapshot(
-				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
-		}
-		if (volumeController)
-		{
-			volumeController->setVolumeScalar(takeoverScalar);
-			volumeController->setMute(takeoverMuted);
-		}
-		closeSharedMemory();
-	}
+		releaseTakeoverVolume();
 	removeHook();
 	removeMediaHotkeys();
 	if (QCoreApplication::instance())
@@ -100,8 +95,6 @@ void VolumeTakeoverManager::closeSharedMemory()
 {
 	if (takeoverShared != nullptr)
 	{
-		HibikiTakeoverIpc::writeTakeoverSnapshot(
-			takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
 		UnmapViewOfFile(takeoverShared);
 		takeoverShared = nullptr;
 	}
@@ -112,13 +105,40 @@ void VolumeTakeoverManager::closeSharedMemory()
 	}
 }
 
-void VolumeTakeoverManager::publishTakeoverSharedData()
+QByteArray VolumeTakeoverManager::rememberedTakeoverVolume() const
+{
+	return QJsonDocument(QJsonObject{
+		{QStringLiteral("version"), 1},
+		{QStringLiteral("scalar"), takeoverScalar},
+		{QStringLiteral("levelDb"), takeoverLevelDb},
+		{QStringLiteral("muted"), takeoverMuted}
+	}).toJson(QJsonDocument::Compact);
+}
+
+bool VolumeTakeoverManager::restoreTakeoverVolume(const QByteArray& savedState)
+{
+	const QJsonDocument document = QJsonDocument::fromJson(savedState);
+	const QJsonObject state = document.object();
+	const double scalar = state.value(QStringLiteral("scalar")).toDouble(-1.0);
+	const double levelDb = state.value(QStringLiteral("levelDb")).toDouble(1.0);
+	const bool valid = document.isObject() && state.value(QStringLiteral("version")).toDouble() == 1.0
+		&& state.value(QStringLiteral("scalar")).isDouble() && state.value(QStringLiteral("levelDb")).isDouble()
+		&& state.value(QStringLiteral("muted")).isBool() && validRememberedVolume(scalar, levelDb);
+	// An invalid saved record must never turn a startup into full volume.
+	takeoverScalar = valid ? scalar : 0.0;
+	takeoverLevelDb = valid ? levelDb : -100.0;
+	takeoverMuted = valid ? state.value(QStringLiteral("muted")).toBool() : true;
+	restoredTakeoverVolume = true;
+	return valid;
+}
+
+bool VolumeTakeoverManager::publishTakeoverSharedData()
 {
 	if (!takeoverShared)
 		openSharedMemory();
 	if (takeoverShared)
 	{
-		HibikiTakeoverIpc::writeTakeoverSnapshot(
+		const bool published = HibikiTakeoverIpc::writeTakeoverSnapshot(
 			takeoverShared,
 			takeoverEnabled,
 			takeoverLevelDb,
@@ -126,7 +146,81 @@ void VolumeTakeoverManager::publishTakeoverSharedData()
 			takeoverMuted,
 			L"",
 			GetCurrentProcessId());
+		if (published && takeoverEnabled)
+		{
+			const QByteArray state = rememberedTakeoverVolume();
+			if (state != lastRememberedVolume)
+			{
+				lastRememberedVolume = state;
+				emit takeoverVolumeRemembered(state);
+			}
+		}
+		return published;
 	}
+	return false;
+}
+
+bool VolumeTakeoverManager::initializeTakeoverVolume()
+{
+	HibikiVolumeTakeoverSharedData previous = {};
+	if (!restoredTakeoverVolume && takeoverShared
+		&& HibikiTakeoverIpc::readTakeoverSnapshot(takeoverShared, previous)
+		&& previous.version == 1 && previous.active == 1
+		&& previous.muted <= 1 && validRememberedVolume(previous.scalar, previous.levelDb))
+	{
+		// Upgrade recovery also accepts the file left by the previous boot.
+		takeoverScalar = previous.scalar;
+		takeoverLevelDb = previous.levelDb;
+		takeoverMuted = previous.muted != 0;
+		restoredTakeoverVolume = true;
+	}
+	if (restoredTakeoverVolume)
+	{
+		if (manualMode)
+		{
+			// A previous automatic endpoint dB value may use a different scale.
+			// Keep the remembered control percentage consistent in manual mode.
+			manualVolumeDb = takeoverScalar * 100.0 - 100.0;
+			takeoverLevelDb = manualVolumeDb;
+			manualMuted = takeoverMuted;
+		}
+		restoredTakeoverVolume = false;
+	}
+	else if (manualMode)
+	{
+		takeoverLevelDb = manualVolumeDb;
+		takeoverScalar = (manualVolumeDb + 100.0) / 100.0;
+		takeoverMuted = manualMuted;
+	}
+	else
+	{
+		EndpointVolumeState state = lastState;
+		if (volumeController) volumeController->getRealEndpointVolumeState(state);
+		takeoverScalar = state.scalar;
+		takeoverLevelDb = state.levelDb;
+		takeoverMuted = state.muted;
+	}
+	lastState.scalar = takeoverScalar;
+	lastState.levelDb = takeoverLevelDb;
+	lastState.muted = takeoverMuted;
+	// Publish and durably remember attenuation before changing the endpoint.
+	if (!publishTakeoverSharedData()) return false;
+	enforceWindowsVolume100();
+	return true;
+}
+
+void VolumeTakeoverManager::releaseTakeoverVolume()
+{
+	// Restoring the endpoint first can briefly make audio quieter; releasing
+	// the APO attenuation first would expose the physical 100% endpoint.
+	if (volumeController && SUCCEEDED(volumeController->setVolumeScalar(takeoverScalar))
+		&& SUCCEEDED(volumeController->setMute(takeoverMuted)) && takeoverShared)
+	{
+		HibikiTakeoverIpc::writeTakeoverSnapshot(
+			takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
+	}
+	// On restoration failure leave the cached attenuation active for the APO.
+	closeSharedMemory();
 }
 
 void VolumeTakeoverManager::enforceWindowsVolume100()
@@ -162,58 +256,22 @@ void VolumeTakeoverManager::setTakeoverEnabled(bool enabled)
 	if (takeoverEnabled)
 	{
 		openSharedMemory();
-		if (manualMode)
+		if (initializeTakeoverVolume())
 		{
-			takeoverLevelDb = manualVolumeDb;
-			takeoverScalar = (manualVolumeDb + 100.0) / 100.0;
-			takeoverMuted = manualMuted;
+			installHook();
+			installMediaHotkeys();
+			nextHookRearmTick = GetTickCount64() + 10000;
 		}
-		else if (volumeController)
-		{
-			EndpointVolumeState currentEndpointState;
-			if (SUCCEEDED(volumeController->getRealEndpointVolumeState(currentEndpointState)))
-			{
-				takeoverScalar = currentEndpointState.scalar;
-				takeoverLevelDb = currentEndpointState.levelDb;
-				takeoverMuted = currentEndpointState.muted;
-			}
-			else
-			{
-				takeoverScalar = lastState.scalar;
-				takeoverLevelDb = lastState.levelDb;
-				takeoverMuted = lastState.muted;
-			}
-		}
-		enforceWindowsVolume100();
-		EndpointVolumeState physicalState;
-		if (volumeController && SUCCEEDED(volumeController->getRealEndpointVolumeState(physicalState)))
-		{
-			lastPhysicalScalar = physicalState.scalar;
-			lastPhysicalMuted = physicalState.muted;
-		}
-		publishTakeoverSharedData();
-		installHook();
-		installMediaHotkeys();
-		nextHookRearmTick = GetTickCount64() + 10000;
+		else takeoverEnabled = false;
 	}
 	else
 	{
 		removeHook();
 		removeMediaHotkeys();
-		if (takeoverShared)
-		{
-			HibikiTakeoverIpc::writeTakeoverSnapshot(
-				takeoverShared, false, takeoverLevelDb, takeoverScalar, takeoverMuted, L"", GetCurrentProcessId());
-		}
-		if (volumeController)
-		{
-			volumeController->setVolumeScalar(takeoverScalar);
-			volumeController->setMute(takeoverMuted);
-			volumeController->getRealEndpointVolumeState(lastState);
-		}
-		closeSharedMemory();
+		releaseTakeoverVolume();
+		if (volumeController) volumeController->getRealEndpointVolumeState(lastState);
 	}
-	emit takeoverToggled(enabled);
+	emit takeoverToggled(takeoverEnabled);
 	emit volumeChangedExternal(takeoverLevelDb, takeoverScalar, takeoverMuted);
 }
 

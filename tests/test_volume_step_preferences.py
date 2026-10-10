@@ -7,6 +7,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class VolumeStepPreferencesTests(unittest.TestCase):
+    def test_startup_volume_is_restored_after_profiles_before_takeover(self):
+        source = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
+        preferences = source.split("void MainWindow::loadPreferences()", 1)[1].split(
+            "void MainWindow::savePreferences()", 1)[0]
+        self.assertLess(preferences.index("load(fileList[i]);"),
+                        preferences.index("restoreTakeoverVolume("))
+        self.assertLess(preferences.index("restoreTakeoverVolume("),
+                        preferences.index("setTakeoverEnabled(takeoverVolumeKeys)"))
+        callback = source.split("&VolumeTakeoverManager::takeoverVolumeRemembered", 1)[1].split("});", 1)[0]
+        self.assertIn("if (noSavePreferences) return;", callback)
+        self.assertIn('settings.setValue("takeoverVolumeState", QString::fromUtf8(savedState));', callback)
+        self.assertIn("settings.sync();", callback)
+
     def test_saved_step_is_loaded_before_takeover_and_saved_immediately(self):
         source = (ROOT / "Editor/MainWindow.cpp").read_text(encoding="utf-8")
         preferences = source.split("void MainWindow::loadPreferences()", 1)[1]

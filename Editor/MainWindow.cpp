@@ -1346,6 +1346,14 @@ void MainWindow::setupWorkspaceTools()
 			takeoverVolumeKeysAction->setChecked(enabled);
 		}
 	});
+	connect(VolumeTakeoverManager::instance(), &VolumeTakeoverManager::takeoverVolumeRemembered,
+		this, [this](const QByteArray& savedState) {
+			if (noSavePreferences) return;
+			QSettings settings(QString::fromWCharArray(EDITOR_REGPATH), QSettings::NativeFormat);
+			// One record keeps scalar, dB and mute together even at shutdown.
+			settings.setValue("takeoverVolumeState", QString::fromUtf8(savedState));
+			settings.sync();
+		});
 
 	profileWatcher = new QFileSystemWatcher(this);
 	if (configDir.exists())
@@ -5364,7 +5372,6 @@ void MainWindow::loadPreferences()
 		QSignalBlocker blocker(takeoverVolumeKeysAction);
 		takeoverVolumeKeysAction->setChecked(takeoverVolumeKeys);
 	}
-	VolumeTakeoverManager::instance()->setTakeoverEnabled(takeoverVolumeKeys);
 	QString selectedDevice = settings.value("selectedDevice").toString();
 	if (!selectedDevice.isEmpty())
 	{
@@ -5439,6 +5446,12 @@ void MainWindow::loadPreferences()
 	QVariant stateValue = settings.value("windowState");
 	if (stateValue.isValid())
 		restoreWindowLayoutState(stateValue.toByteArray());
+	// Profiles establish manual mode first; restore the listening position last
+	// so an old profile value cannot overwrite the remembered startup volume.
+	auto* volumeManager = VolumeTakeoverManager::instance();
+	if (takeoverVolumeKeys && settings.contains("takeoverVolumeState"))
+		volumeManager->restoreTakeoverVolume(settings.value("takeoverVolumeState").toByteArray());
+	volumeManager->setTakeoverEnabled(takeoverVolumeKeys);
 }
 
 void MainWindow::savePreferences()

@@ -1,4 +1,21 @@
-# AI 交接快照：音量跳動修正與可設定步進（已安裝本機）
+# AI 交接快照：重開機音量記憶修正（已安裝本機）
+
+最後更新：2026-10-11（Asia/Taipei）
+
+- 無 active WIP。本輪程式修正、驗證與安裝已完成並本機提交。分支為 `codex/remember-takeover-volume`，延續已安裝但未發布的步進修正提交 `92f9c8689e5e` 與安裝紀錄 `974887dacbe4`；已 fetch，`origin/main` 仍為 `778f7816fbe49189aa3026e3bfe91a45f40eeb0c`。沒有推送、PR、新 tag 或新 Release；產品版本仍為 3.1.8，新增內容記在 Unreleased。
+- 原因：接管期間實體 Windows 端點保持 100%，舊版沒有保存接管聆聽音量；重開機／重啟 Editor 時把實體 100% 當成新的接管音量。舊碼的兩項原生重現失敗（30 passed、2 failed，`_build/remember-volume-repro.log`），另確認原本先提高實體音量、才發佈 APO 衰減。
+- 每次接管音量或靜音改變後，立即以單一版本化 JSON 紀錄保存 scalar、dB、mute 至使用者偏好 `takeoverVolumeState` 並同步寫入。啟動先載入設定檔以確定 manual／automatic 模式，最後恢復上次音量，再發佈 APO 衰減、提高實體端點。缺少新偏好的舊版升級可恢復既有 file-backed IPC；損壞或未知版本的保存值從靜音開始，可用音量加鍵恢復。
+- 關閉接管／正常退出先恢復實體端點，再清除共享衰減；scalar 或 mute 回復失敗時保留 APO 衰減。未修改 DSP、音量曲線、IPC 格式或 reader；既有 reader 本來就能讀取前一次啟動留下的有效快照。偏好僅在狀態改變時寫入，250 ms 輪詢不重複保存相同值。
+- 驗證：原生 Qt 音量測試 46 passed、0 failed、0 skipped（`_build/remember-volume-native.log`）；Python 全套 422 項中 421 passed、1 skipped（`_build/remember-volume-python.log`）。跳過的是 `test_built_host_cold_starts_and_hands_off`，建立 global mapping 得到 Win32 error 5。Release x64 安裝包與原生響度回歸通過（`_build/remember-volume-build.log`、`_build/remember-volume-runtime.log`）。
+- 90 張 Windows 原生介面矩陣通過，產物在 `artifacts/remember-volume-ui/`；步進對話框的 18 組英文／zh_CN／zh_TW、一般／深色／高對比、100%／150% DPI 確認／取消回歸通過，產物在 `artifacts/remember-volume-step-ui/`。已人工抽查三語系、一般／深色／高對比及不同 DPI 的可讀性（紀錄 `_build/remember-volume-ui.log`、`_build/remember-volume-step-ui.log`）。介面字串與翻譯檔沒有改動。
+- 本機預覽安裝檔：`artifacts/Hibiki-EQAPO-remember-volume-preview.exe`，14,747,722 bytes，SHA-256 `79172ce150165398eeb36bf6a515c9ed07d1af91e9cad4971f7e78cd6320e0c6`，旁有 `.sha256`。這是未發布的修正建置；先前的步進預覽與公開 v3.1.8 安裝檔均保留。
+- 已依使用者先前「裝好」的授權更新 `C:\Program Files\EqualizerAPO`，靜默安裝 exit 0。安裝前備份 52 個設定檔與偏好，將舊 Editor 當下的 34%／-66 dB／未靜音轉存至新偏好。四個核心檔案與 Release 建置雜湊一致，52 個設定檔與原有 ASIO proxy 雜湊不變，兩個音訊服務 Running、無 installer recovery journals。備份在 ignored `_build/remember-volume-install-backup/`；證據在 `_build/remember-volume-install-result.json` 與 `_build/remember-volume-install-verification.json`。
+- 實機驗證：新版 Editor 啟動即恢復 34%；使用者接著調至 42%／-58 dB，偏好立即更新。只終止本輪剛啟動的隱藏 Editor、保留共享衰減，再啟動已安裝 Editor，仍恢復 42%／未靜音，4% 步進保留，單一 Editor 的 IPC owner 與心跳正常；未在兩次啟動間改寫保存值或調整實體音量。記錄在 `_build/remember-volume-restart-verification.json` 與 `_build/remember-volume-installed-health.json`；PID 只代表當次檢查。
+- 尚未實際重新啟動 Windows；《絕區零》全螢幕端到端按鍵驗證仍待使用者測試。本輪沒有修改 installer，也未執行實機 rollback／uninstall、disposable installer matrix 或遠端 CI。
+
+---
+
+# 歷史快照：音量跳動修正與可設定步進（已安裝本機）
 
 最後更新：2026-10-03（Asia/Taipei）
 

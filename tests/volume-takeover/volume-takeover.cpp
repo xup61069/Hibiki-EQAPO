@@ -1,10 +1,20 @@
 #include <QTest>
+#include <QSignalSpy>
 #include <QDoubleSpinBox>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSettings>
+#include <QTemporaryDir>
+#include <QScopeGuard>
 #include "Editor/helpers/VolumeTakeoverManager.h"
 #include "filters/loudnessCorrection/HibikiVolumeTakeoverShared.h"
 
 extern EndpointVolumeState testEndpoint;
 extern bool testEndpointWriteFails;
+extern HibikiVolumeTakeoverSharedData* testSharedState;
+extern bool testRaisedEndpointBeforePublish;
+extern bool testReleasedBeforeEndpointRestore;
+extern bool testMuteWriteFails;
 
 class VolumeTakeoverTests : public QObject
 {
@@ -27,12 +37,23 @@ class VolumeTakeoverTests : public QObject
 		QVERIFY(manager->nativeEventFilter("windows_dispatcher_MSG", &input, nullptr));
 	}
 	void drain() { QCoreApplication::sendPostedEvents(nullptr, QEvent::MetaCall); }
+	void restartTakeover()
+	{
+		manager->takeoverEnabled = false;
+		// Suppress live mapping creation; all IPC remains inside this fixture.
+		manager->takeoverMapping = reinterpret_cast<HANDLE>(1);
+		manager->setTakeoverEnabled(true);
+	}
 private slots:
 	void init()
 	{
 		testEndpoint = {};
 		testEndpointWriteFails = false;
+		testRaisedEndpointBeforePublish = false;
+		testReleasedBeforeEndpointRestore = false;
+		testMuteWriteFails = false;
 		shared = {};
+		testSharedState = &shared;
 		manager = new VolumeTakeoverManager;
 		manager->pollTimer.stop();
 		manager->osdEnabled = false;
@@ -49,10 +70,155 @@ private slots:
 	{
 		manager->takeoverEnabled = false;
 		manager->takeoverShared = nullptr;
+		manager->takeoverMapping = nullptr;
+		testSharedState = nullptr;
 		manager->s_keyboardHook = nullptr;
 		for (bool& value : manager->mediaHotkeyRegistered) value = false;
 		delete manager;
 		manager = nullptr;
+	}
+	void rebootRestoresLastSharedVolumeInsteadOfPhysical100()
+	{
+		shared.version = 1;
+		shared.active = 1;
+		shared.scalar = 0.37;
+		shared.levelDb = -63.0;
+		// Uptime from the previous boot must not invalidate the remembered volume.
+		shared.lastHeartbeatTick = GetTickCount64() + 100000;
+		testEndpoint.scalar = 1.0;
+		restartTakeover();
+		QCOMPARE(manager->getTakeoverScalar(), 0.37);
+		QCOMPARE(shared.scalar, 0.37);
+	}
+	void startupPublishesAttenuationBeforeRaisingPhysicalVolume()
+	{
+		testEndpoint.scalar = 0.23;
+		testEndpoint.levelDb = -77.0;
+		restartTakeover();
+		QCOMPARE(shared.scalar, 0.23);
+		QVERIFY(!testRaisedEndpointBeforePublish);
+	}
+	void everyAdjustmentIsSavedWithoutWaitingForExit()
+	{
+		QTemporaryDir directory;
+		QVERIFY(directory.isValid());
+		const QString path = directory.filePath("volume.ini");
+		connect(manager, &VolumeTakeoverManager::takeoverVolumeRemembered, this,
+			[path](const QByteArray& value) {
+				QSettings settings(path, QSettings::IniFormat);
+				settings.setValue("takeoverVolumeState", QString::fromUtf8(value));
+				settings.sync();
+			});
+		manager->setVolumeScalar(0.31);
+		manager->toggleMute();
+		QSettings reader(path, QSettings::IniFormat);
+		const QByteArray saved = reader.value("takeoverVolumeState").toByteArray();
+		const QJsonObject record = QJsonDocument::fromJson(saved).object();
+		QCOMPARE(record.value("scalar").toDouble(), 0.31);
+		QVERIFY(record.value("muted").toBool());
+		// Model a reboot with the physical endpoint left at full volume.
+		testEndpoint.scalar = 1.0;
+		manager->takeoverEnabled = false;
+		QVERIFY(manager->restoreTakeoverVolume(saved));
+		restartTakeover();
+		QCOMPARE(manager->getTakeoverScalar(), 0.31);
+		QVERIFY(manager->isTakeoverMuted());
+	}
+	void savedVolumeOverridesAnOlderSharedSnapshot()
+	{
+		shared.version = 1;
+		shared.active = 1;
+		shared.scalar = 1.0;
+		shared.levelDb = 0.0;
+		QVERIFY(manager->restoreTakeoverVolume(R"({"version":1,"scalar":0.42,"levelDb":-58,"muted":false})"));
+		restartTakeover();
+		QCOMPARE(manager->getTakeoverScalar(), 0.42);
+	}
+	void manualStartupRestoresVolumeAndMuteAfterProfileLoad()
+	{
+		manager->setManualMode(true, 0.0);
+		QVERIFY(manager->restoreTakeoverVolume(R"({"version":1,"scalar":0.24,"levelDb":-76,"muted":true})"));
+		restartTakeover();
+		QCOMPARE(manager->getManualVolumeDb(), -76.0);
+		QCOMPARE(manager->getTakeoverScalar(), 0.24);
+		QVERIFY(manager->isTakeoverMuted());
+		manager->stepVolume(true);
+		QCOMPARE(manager->getTakeoverScalar(), 0.26);
+		QVERIFY(!manager->isTakeoverMuted());
+	}
+	void invalidSavedVolumeStartsMuted_data()
+	{
+		QTest::addColumn<QByteArray>("value");
+		for (const char* text : {"not JSON", "{}", R"({"version":2,"scalar":0.3,"levelDb":-70,"muted":false})",
+			R"({"version":1,"scalar":1.1,"levelDb":-70,"muted":false})",
+			R"({"version":1,"scalar":0.3,"levelDb":5,"muted":false})",
+			R"({"version":1,"scalar":0.3,"levelDb":-70,"muted":"false"})"})
+			QTest::newRow(text) << QByteArray(text);
+	}
+	void manualStartupConvertsAutomaticEndpointDbWithoutJumping()
+	{
+		manager->setManualMode(true, 0.0);
+		QVERIFY(manager->restoreTakeoverVolume(R"({"version":1,"scalar":0.37,"levelDb":-20,"muted":false})"));
+		restartTakeover();
+		QCOMPARE(manager->getManualVolumeDb(), -63.0);
+		manager->stepVolume(true);
+		QCOMPARE(manager->getTakeoverScalar(), 0.39);
+	}
+	void invalidSavedVolumeStartsMuted()
+	{
+		QFETCH(QByteArray, value);
+		QVERIFY(!manager->restoreTakeoverVolume(value));
+		restartTakeover();
+		QCOMPARE(manager->getTakeoverScalar(), 0.0);
+		QVERIFY(manager->isTakeoverMuted());
+		manager->stepVolume(true);
+		QCOMPARE(manager->getTakeoverScalar(), 0.02);
+		QVERIFY(!manager->isTakeoverMuted());
+	}
+	void unchangedPollingDoesNotRewriteSavedVolume()
+	{
+		QSignalSpy saved(manager, &VolumeTakeoverManager::takeoverVolumeRemembered);
+		manager->setVolumeScalar(0.4);
+		manager->publishTakeoverSharedData();
+		manager->checkVolumeChange();
+		QCOMPARE(saved.size(), 1);
+	}
+	void releaseKeepsAttenuationUntilEndpointRestored_data()
+	{
+		QTest::addColumn<int>("failure");
+		QTest::newRow("success") << 0;
+		QTest::newRow("scalar-failure") << 1;
+		QTest::newRow("mute-failure") << 2;
+	}
+	void releaseKeepsAttenuationUntilEndpointRestored()
+	{
+		QFETCH(int, failure);
+		// Anonymous mappings exercise the actual release path without live IPC.
+		HANDLE mapping = CreateFileMappingW(INVALID_HANDLE_VALUE, nullptr, PAGE_READWRITE,
+			0, sizeof(shared), nullptr);
+		QVERIFY(mapping != nullptr);
+		auto* writer = static_cast<HibikiVolumeTakeoverSharedData*>(
+			MapViewOfFile(mapping, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(shared)));
+		auto* reader = static_cast<const HibikiVolumeTakeoverSharedData*>(
+			MapViewOfFile(mapping, FILE_MAP_READ, 0, 0, sizeof(shared)));
+		QVERIFY(writer && reader);
+		auto readerGuard = qScopeGuard([reader]() { UnmapViewOfFile(reader); });
+		*writer = shared;
+		writer->active = 1;
+		writer->scalar = 0.5;
+		writer->muted = 1;
+		manager->takeoverMapping = mapping;
+		manager->takeoverShared = writer;
+		manager->takeoverMuted = true;
+		testSharedState = writer;
+		testEndpoint.scalar = 1.0;
+		testEndpointWriteFails = failure == 1;
+		testMuteWriteFails = failure == 2;
+		manager->releaseTakeoverVolume();
+		testSharedState = nullptr;
+		QCOMPARE(reader->active, failure == 0 ? 0u : 1u);
+		QCOMPARE(testEndpoint.scalar, failure == 1 ? 1.0 : 0.5);
+		QVERIFY(!testReleasedBeforeEndpointRestore);
 	}
 	void delayedDuplicateCountsOnce()
 	{
