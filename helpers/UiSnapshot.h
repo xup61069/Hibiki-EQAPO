@@ -38,6 +38,7 @@ namespace UiSnapshot
 			"EQAPO_UI_SNAPSHOT_SCENARIO").trimmed().toLower();
 		return value == QStringLiteral("dense")
 			|| value == QStringLiteral("volume-follow")
+			|| value == QStringLiteral("volume-step")
 			|| value == QStringLiteral("restored-tools")
 			? value : QString();
 	}

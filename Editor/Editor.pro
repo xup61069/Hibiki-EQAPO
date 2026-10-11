@@ -341,7 +341,8 @@ HEADERS  += \
 	widgets/MiddleClickTabBar.h \
 	widgets/VerticalDragDial.h \
 	widgets/VolumeOsdWidget.h \
-	helpers/VolumeTakeoverManager.h
+	helpers/VolumeTakeoverManager.h \
+	helpers/MediaKeyDeduplicator.h
 
 FORMS    += \
 	guis/PreampFilterGUI.ui \

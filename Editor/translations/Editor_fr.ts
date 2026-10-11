@@ -2801,6 +2801,18 @@ Alexander Walch</translation>
         <translation>Continuer à exécuter dans la zone de notification</translation>
     </message>
     <message>
+        <source>Volume key step…</source>
+        <translation>Pas des touches de volume…</translation>
+    </message>
+    <message>
+        <source>Volume key step</source>
+        <translation>Pas des touches de volume</translation>
+    </message>
+    <message>
+        <source>Change per key press (%):</source>
+        <translation>Variation par pression (%):</translation>
+    </message>
+    <message>
         <source>Start with Windows</source>
         <translation>Démarrer avec Windows</translation>
     </message>

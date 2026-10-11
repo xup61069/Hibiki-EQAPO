@@ -9,7 +9,7 @@ on:
       tag_name:
         description: "Release Tag (e.g. v3.1.1)"
         required: true
-        default: "v3.1.8"
+        default: "v3.1.9"
 
 # Building third-party code must never run with a repository write token.
 permissions:
@@ -66,6 +66,10 @@ jobs:
           .\scripts\build-installer-x64.ps1 `
             -Configuration "Release"
 
+      - name: Test volume key events and configurable steps
+        shell: pwsh
+        run: .\scripts\test-volume-takeover.ps1
+
       - name: Audit Monitor VST3 PE imports
         shell: pwsh
         run: .\scripts\test-monitor-vst3-binary.ps1 -Configuration "Release"
@@ -85,6 +89,22 @@ jobs:
       - name: Capture UI theme and DPI regression matrix
         shell: pwsh
         run: .\scripts\capture-ui-regression.ps1 -Configuration "Release"
+
+      - name: Test volume step dialog acceptance and translations
+        shell: pwsh
+        run: .\scripts\capture-volume-step-ui.ps1 -Configuration "Release"
+
+      - name: Upload UI regression matrix
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Hibiki-EQAPO-release-ui-regression
+          path: |
+            artifacts/ui-regression/*.png
+            artifacts/ui-regression/manifest.json
+            artifacts/volume-step-ui/*.png
+            artifacts/volume-step-ui/manifest.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Test installer upgrade, rollback, recovery, and uninstall on disposable runner
         shell: pwsh

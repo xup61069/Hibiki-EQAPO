@@ -14,6 +14,7 @@
 #include <windows.h>
 #include "filters/loudnessCorrection/VolumeController.h"
 #include "filters/loudnessCorrection/LoudnessCorrectionFilter.h"
+#include "MediaKeyDeduplicator.h"
 
 class VolumeOsdWidget;
 
@@ -29,6 +30,8 @@ public:
 
 	void setTakeoverEnabled(bool enabled);
 	bool isTakeoverEnabled() const { return takeoverEnabled; }
+	bool restoreTakeoverVolume(const QByteArray& savedState);
+	QByteArray rememberedTakeoverVolume() const;
 
 	void setOsdEnabled(bool enabled) { osdEnabled = enabled; }
 	bool isOsdEnabled() const { return osdEnabled; }
@@ -47,7 +50,9 @@ public:
 
 	double calculateApoFollowTargetDb(double volumeDb, double scalar = 1.0, bool muted = false) const;
 
-	void stepVolume(bool up, double stepScalar = 0.02);
+	void setVolumeStepPercent(int percent);
+	int getVolumeStepPercent() const { return volumeStepPercent; }
+	void stepVolume(bool up);
 	void setVolumeScalar(double scalar);
 	void toggleMute();
 	void showCurrentVolumeOsd();
@@ -56,7 +61,7 @@ public:
 	void refreshEndpoint(const std::wstring& endpointId = L"");
 
 	void enforceWindowsVolume100();
-	void publishTakeoverSharedData();
+	bool publishTakeoverSharedData();
 	bool nativeEventFilter(const QByteArray& eventType, void* message, qintptr* result) override;
 
 public slots:
@@ -65,16 +70,21 @@ public slots:
 signals:
 	void volumeChangedExternal(double levelDb, double scalar, bool muted);
 	void takeoverToggled(bool enabled);
+	void takeoverVolumeRemembered(const QByteArray& savedState);
 
 private:
+	friend class VolumeTakeoverTests;
 	static LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
 
 	void installHook();
 	void removeHook();
 	void installMediaHotkeys();
 	void removeMediaHotkeys();
+	void queueMediaKey(unsigned key, DWORD time, MediaKeyDeduplicator::Source source);
 	void openSharedMemory();
 	void closeSharedMemory();
+	bool initializeTakeoverVolume();
+	void releaseTakeoverVolume();
 	double calculateCurrentPhon(double volumeDb, double scalar = 1.0) const;
 
 	static VolumeTakeoverManager* s_instance;
@@ -98,12 +108,17 @@ private:
 	double takeoverScalar = 1.0;
 	double takeoverLevelDb = 0.0;
 	bool takeoverMuted = false;
+	bool restoredTakeoverVolume = false;
+	QByteArray lastRememberedVolume;
 	double lastPhysicalScalar = 1.0;
 	bool lastPhysicalMuted = false;
 	ULONGLONG nextHookRearmTick = 0;
-	ULONGLONG lastHookKeyTick[3] = {};
+	MediaKeyDeduplicator mediaKeyDeduplicator;
+	unsigned mediaKeyGeneration = 0;
+	DWORD mediaKeyEnableTime = 0;
 	ULONGLONG lastMediaKeyTick = 0;
 	bool mediaHotkeyRegistered[3] = {};
+	int volumeStepPercent = 2;
 
 	HANDLE takeoverMapping = NULL;
 	struct HibikiVolumeTakeoverSharedData* takeoverShared = nullptr;
