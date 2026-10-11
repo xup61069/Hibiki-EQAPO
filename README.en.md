@@ -69,6 +69,14 @@ Setup keeps a persistent recovery journal outside the application directory whil
 
 After a successful commit, cleanup can remain deferred while Windows still has an old audio file loaded. A recovery record showing `Pending=1` with `Phase=committed` does not by itself mean installation failed; the same or a newer installer will continue the verified cleanup later. Do not delete that recovery state manually.
 
+## Volume keys, increments, and startup memory
+
+1. Enable **Take over Windows volume keys & OSD** in the Loudness Correction panel, Settings menu, or system tray. Keyboard Volume Up, Volume Down, and Mute control the Hibiki listening volume; the OSD volume bar can also be dragged.
+2. Choose **Settings → Volume key step…** or the corresponding tray action to set the change per key press. The default is 2%; choose 3%, 4%, 5%, or any integer from 1% to 100%. Manual and automatic takeover share this setting.
+3. Check **Settings → Start with Windows**. Every volume or mute change is saved immediately, and signing in restores it in the notification area without manually opening the Editor.
+
+During takeover, the physical Windows volume stays at 100%; use the control position shown in the Hibiki OSD for the listening volume. Disabling takeover or exiting the Editor restores Windows volume and mute before releasing takeover attenuation.
+
 ## ASIO® monitor correction
 
 Hibiki EQAPO is compatible with ASIO® technology. Official x64 installers
@@ -300,10 +308,10 @@ The **APO follow target** readout is calculated from this row and its latest sou
   - Backup global media hotkeys handle Up, Down, and Mute when the keyboard hook misses an event. In particular, Up can raise the APO takeover target even while the physical Windows endpoint is already at 100%. A key reserved by another application can still fall back only to endpoint observation.
   - Enabling takeover registers the Editor to start for the current Windows user and keep takeover active in the notification area after sign-in. You can explicitly disable this under Settings → Start with Windows. If the notification area is unavailable at sign-in, the Editor opens visibly.
   - Every takeover volume or mute adjustment is saved immediately, without waiting for a normal exit. Startup restores the previous listening position before activating takeover; the physical endpoint's 100% is not treated as the saved listening volume. A damaged saved record starts muted and can be recovered with Volume Up.
-  - **Audiophile Single-Stage Attenuation (Scheme B)**: While takeover is active, the physical Windows endpoint is locked at 100% (0 dB, scalar 1.0, unmuted), ensuring the Windows Audio Engine outputs 0 dB digital attenuation, completely eliminating double attenuation between the OS and APO while delivering full-scale bit-perfect PCM to external DACs.
+  - **APO volume attenuation (Scheme B)**: During takeover, the physical Windows endpoint stays at 100% (scalar 1.0, unmuted). The selected `VolumeFollow` curve controls the listening volume, avoiding simultaneous attenuation by Windows and APO.
   - **Cross-Session Shared Mapping**: The Editor intercepts volume adjustments and writes them to a file-backed shared memory IPC at `config\volume_takeover.dat`, bridging Session 0 Windows Audio Engine (`audiodg.exe`) and Session 1 DAW ASIO monitoring so that both standard Windows audio channels and ASIO monitoring channels respond to volume adjustments and dynamic equal-loudness correction simultaneously.
   - **Automatic APO Attenuation Activation**: If `VolumeFollow` is set to Off when takeover is enabled, it automatically switches to `Follow dB` (or user-customized Perceptual / Cubic curves), letting Equalizer APO perform 64-bit floating-point digital volume attenuation with smooth 10 ms ramps.
-  - **Graceful Restoration**: Upon exiting the Editor or disabling takeover, the physical Windows endpoint volume is smoothly restored to the target listening level and mute state, preventing sudden volume jumps.
+  - **Exit and restoration**: Exiting the Editor or disabling takeover restores the physical Windows endpoint's volume and mute before releasing APO takeover attenuation. Endpoint restoration failures retain the previous attenuation.
 - On a verified monitoring route without additional Windows attenuation, select manual volume and Follow dB. If Windows still attenuates the signal, both gains multiply.
 
 When takeover is not enabled, this feature is read-only and **never writes or moves the Windows volume control**. If Windows, an amplifier, or the speaker path already applies attenuation, enabling follow multiplies the two reductions and makes the result quieter; leave it **Off** when uncertain. If automatic follow has never obtained a valid snapshot at startup, output remains muted. A temporary read failure after a valid snapshot holds the last successful follow gain instead of jumping to 0 dB; recovery moves to the new value over 10 ms. Tonal correction separately follows the fail-closed behavior described below.

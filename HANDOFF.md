@@ -1,4 +1,15 @@
-# AI 交接快照：重開機音量記憶修正（已安裝本機）
+# AI 交接快照：v3.1.9 發布準備
+
+最後更新：2026-10-12（Asia/Taipei）
+
+- Active WIP：使用者已明確要求整理本機／遠端、合併、推送、發版並更新 README。已 fetch，遠端只有 `main`，沒有 open PR；`origin/main` 為 `778f7816fbe49189aa3026e3bfe91a45f40eeb0c`。從最新 `origin/main` 建立 `codex/release-3.1.9`，以 fast-forward 整合 `codex/remember-takeover-volume` 的 3 個提交；已包含 `codex/stable-volume-step` 全部提交，未遺失未發布的本機修正。
+- 發布版本為 3.1.9；版本來源、vcpkg、release workflow 手動預設值、版本契約與 CHANGELOG 同步。中英文 README 補上音量接管、步進與開機記憶的操作步驟，並依實作修正退出回復與 APO 衰減說明；版本歷史仍只放 CHANGELOG。
+- 待完成：本機發版驗證、PR CI（包含 disposable Windows installer gate）、合併 main、推送 annotated tag、等待 Release CI 與確認下載檢查碼，最後同步 main 並刪除已合併的本輪分支。正式 installer 仍排除 experimental ASIO proxy。
+- 本機已安裝的音量記憶修正及完整驗證見下方 2026-10-11 歷史快照。本輪發版準備不操作使用者正在執行的 Editor 或音訊設定；本機備份、IR、外掛及 ignored build artifacts 保留。
+
+---
+
+# 歷史快照：重開機音量記憶修正（已安裝本機）
 
 最後更新：2026-10-11（Asia/Taipei）
 

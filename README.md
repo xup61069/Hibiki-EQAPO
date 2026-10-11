@@ -69,6 +69,14 @@ Get-Content .\Hibiki-EQAPO-x64-*.exe.sha256
 
 安裝成功提交後，若 Windows 仍載入舊音訊檔案，清理作業可能延後。復原紀錄顯示 `Pending=1`、`Phase=committed` 本身不代表安裝失敗；相同或較新的安裝程式之後會繼續已驗證的清理作業。請勿手動刪除該復原狀態。
 
+## 音量鍵、步進與開機記憶
+
+1. 在響度校正面板、設定功能表或系統匣啟用「接管 Windows 音量鍵與 OSD」。鍵盤音量加／減與靜音鍵會控制 Hibiki 的聆聽音量，OSD 音量條也可拖曳。
+2. 從「設定 → 音量鍵步進…」或系統匣設定每次按鍵的變化量。預設 2%，可改為 3%、4%、5% 或其他 1–100% 的整數；手動與自動接管共用此設定。
+3. 確認「設定 → 隨 Windows 開機啟動」已勾選。音量與靜音每次變更都會立即保存，登入後在系統匣恢復上次設定，不必先手動開啟 Editor。
+
+接管期間 Windows 的實體音量維持 100%，聆聽音量以 Hibiki OSD 顯示的控制位置為準。關閉接管或退出 Editor 時，會先恢復 Windows 音量與靜音，再釋放接管衰減。
+
 ## ASIO® 監聽校正
 
 Hibiki EQAPO is compatible with ASIO® technology. 正式 x64 安裝包目前排除實驗性 ASIO proxy；原始碼開發版可用 `scripts/build-installer-x64.ps1 -Configuration Release -EnableExperimentalAsioProxy` 明確建置包含 proxy 的測試安裝包。該測試安裝包可將 **Hibiki EQAPO** 登錄為獨立 driver，並讓你在安裝時選擇底層的音訊介面原廠 driver；安裝後也可從 Configuration Editor 標頭列的 ASIO 裝置下拉選單切換。它不會改寫原廠 CLSID 或 driver 檔案。正式安裝包不更新或移除既有的實驗性 proxy；該安裝的清理由原本包含 proxy 的安裝程式處理。
@@ -180,10 +188,10 @@ UI 的「APO 跟隨目標」是本列設定與最新來源快照的計算值，�
   - 鍵盤掛鉤漏接時，Editor 會用全域媒體音量熱鍵接收加、減與靜音；尤其 Windows 實體端點已在 100% 時，加鍵仍可提高 APO 接管的目標音量。熱鍵若被其他程式占用，該鍵仍只能依現有端點備援處理。
   - 接管啟用時會為目前 Windows 使用者設定開機自動啟動 Editor，登入後在通知區域維持接管；可在「設定 → 隨 Windows 開機啟動」明確關閉。若登入時通知區域不可用，Editor 會直接顯示主視窗。
   - 每次調整接管音量或靜音都會立即記住狀態，不必等正常退出；重新登入／啟動時先恢復上次音量，再啟用接管。Windows 實體端點的 100% 不會被當成已保存的聆聽音量；已損壞的保存紀錄會先保持靜音，可用音量加鍵恢復。
-  - **發燒級單一節點衰減（Scheme B）**：接管期間 Windows 實體端點固定鎖定於 100%（0 dB, scalar 1.0, 未靜音），使 Windows Audio Engine 輸出 0 dB 數位衰減，杜絕系統端點與 APO 之間的雙重疊加衰減，並向外接 DAC 提供高訊噪比的原始 PCM 振幅。
+  - **APO 音量衰減（Scheme B）**：接管期間 Windows 實體端點固定於 100%（scalar 1.0、未靜音），由所選的 `VolumeFollow` 曲線處理聆聽音量，避免 Windows 與 APO 同時降低音量。
   - **跨 Session 共享映射**：Editor 攔截音量並寫入位於 `config\volume_takeover.dat` 的記憶體映射 IPC，徹底打通 Session 0 的 Windows Audio Engine（`audiodg.exe`）與 Session 1 的 DAW ASIO 監聽，讓一般音訊通道與 ASIO 監聽通道皆可同步響應音量微調與動態等響度等化。
   - **自動啟用 APO 衰減**：接管時若 `VolumeFollow` 為關閉，將自動切換為 `Follow dB`（或使用者自訂的聽感對數、三次電位器等曲線），由 Equalizer APO 以 64-bit 浮點精度與 10 ms 平滑斜率進行單一節點數位衰減。
-  - **安全還原**：退出 Editor 或關閉接管時，自動將 Windows 實體端點平滑復原至接管時的目標音量與靜音狀態，防止音量突變。
+  - **退出與回復**：退出 Editor 或關閉接管時，先回復 Windows 實體端點的音量與靜音，再釋放 APO 接管衰減；端點回復失敗時保留原衰減。
 - 在已確認 Windows 不另行衰減的監聽路由，選「手動音量」＋「依 dB 衰減」即可讓 APO 按輸入值控制；若 Windows 仍在衰減，兩者會相乘。
 
 未啟用接管時，此功能只讀取端點狀態，**不會寫回或移動 Windows 音量**。若音訊路徑原本已經套用 Windows、擴大機或喇叭的衰減，再啟用跟隨會把兩份衰減相乘而變得更小；不確定時維持**關閉**。自動來源在啟動時若從未取得有效音量快照，啟用跟隨的輸出會先保持靜音；執行期間暫時讀取失敗則保留最後一次成功的跟隨增益，不會突然跳回 0 dB。來源恢復後再以 10 ms 平滑移到新值。音色校正本身仍依下方的失效安全流程暫停與恢復。
