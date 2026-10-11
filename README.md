@@ -190,7 +190,7 @@ UI 的「APO 跟隨目標」是本列設定與最新來源快照的計算值，�
   - 每次調整接管音量或靜音都會立即記住狀態，不必等正常退出；重新登入／啟動時先恢復上次音量，再啟用接管。Windows 實體端點的 100% 不會被當成已保存的聆聽音量；已損壞的保存紀錄會先保持靜音，可用音量加鍵恢復。
   - **APO 音量衰減（Scheme B）**：接管期間 Windows 實體端點固定於 100%（scalar 1.0、未靜音），由所選的 `VolumeFollow` 曲線處理聆聽音量，避免 Windows 與 APO 同時降低音量。
   - **跨 Session 共享映射**：Editor 攔截音量並寫入位於 `config\volume_takeover.dat` 的記憶體映射 IPC，徹底打通 Session 0 的 Windows Audio Engine（`audiodg.exe`）與 Session 1 的 DAW ASIO 監聽，讓一般音訊通道與 ASIO 監聽通道皆可同步響應音量微調與動態等響度等化。
-  - **自動啟用 APO 衰減**：接管時若 `VolumeFollow` 為關閉，將自動切換為 `Follow dB`（或使用者自訂的聽感對數、三次電位器等曲線），由 Equalizer APO 以 64-bit 浮點精度與 10 ms 平滑斜率進行單一節點數位衰減。
+  - **自動啟用 APO 衰減**：在響度校正面板啟用接管時，若 `VolumeFollow` 原本為關閉，會切換為「三次電位器」；已選用的曲線會保留，也可自行改選「聽感對數」或「依 dB 衰減」。音量跟隨由 APO 以 10 ms 平滑增益過渡處理。
   - **退出與回復**：退出 Editor 或關閉接管時，先回復 Windows 實體端點的音量與靜音，再釋放 APO 接管衰減；端點回復失敗時保留原衰減。
 - 在已確認 Windows 不另行衰減的監聽路由，選「手動音量」＋「依 dB 衰減」即可讓 APO 按輸入值控制；若 Windows 仍在衰減，兩者會相乘。
 
