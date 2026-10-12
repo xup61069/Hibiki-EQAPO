@@ -1,11 +1,17 @@
-# AI 交接快照：v3.1.9 發布準備
+# AI 交接快照：Hibiki EQAPO v3.1.9 已發布
 
 最後更新：2026-10-12（Asia/Taipei）
 
-- Active WIP：使用者已明確要求整理本機／遠端、合併、推送、發版並更新 README。已 fetch，遠端只有 `main`，沒有 open PR；`origin/main` 為 `778f7816fbe49189aa3026e3bfe91a45f40eeb0c`。從最新 `origin/main` 建立 `codex/release-3.1.9`，以 fast-forward 整合 `codex/remember-takeover-volume` 的 3 個提交；已包含 `codex/stable-volume-step` 全部提交，未遺失未發布的本機修正。
+- 無 active WIP。使用者已明確授權整理本機／遠端、合併、推送與發版；[PR #12](https://github.com/xup61069/Hibiki-EQAPO/pull/12) 已合併至 `main`，annotated tag `v3.1.9` 已推送，指向 `ce6814eef5d615084b591852eaafe3f5f3350d64`。[v3.1.9 GitHub Release](https://github.com/xup61069/Hibiki-EQAPO/releases/tag/v3.1.9) 已公開並設為 Latest，包含 x64 安裝檔、同名 SHA-256 與 NOTICE.md；中英文發版說明已更新。
+- 已完整保留本機步進修正 `92f9c8689e5e`、安裝紀錄 `974887dacbe4`、音量記憶修正 `d5e1578c69c5`，再加入版本／文件準備與 README 行為修正。`codex/stable-volume-step`、`codex/remember-takeover-volume`、`codex/release-3.1.9` 均先驗證已合併才刪除；本機與遠端只剩 `main`，單一 worktree、無 stash。本交接是發布後的 docs-only 紀錄，未移動發布 tag。
 - 發布版本為 3.1.9；版本來源、vcpkg、release workflow 手動預設值、版本契約與 CHANGELOG 同步。中英文 README 補上音量接管、步進與開機記憶的操作步驟，並依實作修正退出回復與 APO 衰減說明；版本歷史仍只放 CHANGELOG。
-- 待完成：本機發版驗證、PR CI（包含 disposable Windows installer gate）、合併 main、推送 annotated tag、等待 Release CI 與確認下載檢查碼，最後同步 main 並刪除已合併的本輪分支。正式 installer 仍排除 experimental ASIO proxy。
-- 本機已安裝的音量記憶修正及完整驗證見下方 2026-10-11 歷史快照。本輪發版準備不操作使用者正在執行的 Editor 或音訊設定；本機備份、IR、外掛及 ignored build artifacts 保留。
+- 本機驗證：Python 422 項中 421 passed、1 skipped（`test_built_host_cold_starts_and_hands_off` 無法建立 global mapping，Win32 error 5）；原生音量測試 46 passed、0 failed、0 skipped；Release x64 建置、原生響度回歸、公開歷史與 whitespace 檢查通過。紀錄在 ignored `_build/release-3.1.9-python-final.log`、`_build/release-3.1.9-volume.log`、`_build/release-3.1.9-build.log` 與 `_build/release-3.1.9-runtime.log`。
+- PR 最後提交 `fc792304bdca25bcc1c7e52a7508c6c624063d7e` 的 [PR CI](https://github.com/xup61069/Hibiki-EQAPO/actions/runs/38183550456) 與 tag 對應的 [Release CI](https://github.com/xup61069/Hibiki-EQAPO/actions/runs/38185605075) 全部通過，包含建置後 VST host 生命週期、90 張 UI 矩陣與 18 組三語系步進對話框確認／取消。兩次 CI 的 manifest 與全部 108 張 PNG 雜湊皆已核對；人工抽查 PR 產物的三語系、深色／高對比與 150% DPI。產物在 `_build/release-3.1.9-pr-ui/`、`_build/release-3.1.9-release-ui/`，合併提交與已驗證 PR 的 tree 相同。
+- PR 與 Release CI 的 disposable Windows 安裝證據已下載至 `_build/release-3.1.9-pr-installer-evidence/`、`_build/release-3.1.9-release-installer-evidence/`；兩份 `results.json` 均確認從 3.1.7 升級、rollback、中斷復原、全新安裝、uninstall、使用者資料保留與 proxy 排除全部通過。正式 installer 仍排除 experimental ASIO proxy，ADR-0007 真實硬體／DAW matrix 尚未完成。
+- 本機 3.1.9 安裝包 14,749,526 bytes，SHA-256 `c6040a8d22979a2f925723d0e4283058a925e1ed71a8167c46196782f0993176`，同名 checksum 已核對。這是本機建置，不代表之後官方 CI 安裝包的雜湊；PR CI 安裝包雜湊為 `4e9f92c23beb8bb16ab31f3742ad3da2e90bddb41287de697acbcc4d12ae4620`。
+- 公開安裝檔已下載至 `_build/published-3.1.9/`，14,750,108 bytes，SHA-256 `8f2f71ff608678cb10407b4c799fa277f3dc96311da7a77bad82d17d19012d8d`。與公開 `.sha256`、Release installer gate 證據一致；三個資產大小、正式版本／來源提交與 NOTICE 內容已核對，紀錄在 `_build/release-3.1.9-published-verification.json`、`_build/release-3.1.9-release-artifact-verification.json`。
+- 舊提交的 PR CI `38182568032` 已被最後提交取代而取消；與正式 Release 同一提交的 main push 重複 Build `38185588110` 也已取消。最後提交的 PR CI 與正式 Release CI 均已完成且 conclusion 為 success。
+- 本機已安裝的音量記憶修正及完整驗證見下方 2026-10-11 歷史快照。本輪未再安裝 3.1.9 或重啟 Editor，也未調整音訊設定；本機備份、IR、外掛及 ignored build artifacts 保留。實際 Windows 重開機與《絕區零》全螢幕端到端按鍵驗證仍未執行，不列為已通過。
 
 ---
 
